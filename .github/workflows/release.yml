@@ -22,7 +22,8 @@ jobs:
       - name: Set version from tag
         run: |
           $ver = "${{ github.ref_name }}".TrimStart('v')
-          (Get-Content myhome\package.json) -replace '"version": "[^"]*"', '"version": "' + $ver + '"' | Set-Content myhome\package.json
+          $replace = '"version": "' + $ver + '"'
+          (Get-Content myhome\package.json) -replace '"version": "[^"]*"', $replace | Set-Content myhome\package.json
 
       - name: Install myhome dependencies
         run: npm ci
