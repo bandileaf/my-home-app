@@ -5,6 +5,7 @@ import { basename, dirname, extname, join } from 'path'
 import { load_settings } from './services/settings'
 import {
   resolve_download_dir,
+  resolve_ytdlp_path,
   youtube_search,
   youtube_download,
   youtube_cancel,
@@ -490,11 +491,13 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     } catch {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
-    log_event(`youtube:download dir=${downloadDir}`)
+    const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
+    log_event(`youtube:download dir=${downloadDir} ytdlp=${ytdlpPath}`)
 
     youtube_download(
       url,
       downloadDir,
+      ytdlpPath,
       (progress: YoutubeProgress) => {
         if (!event.sender.isDestroyed()) event.sender.send('youtube:progress', progress)
       },

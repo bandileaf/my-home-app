@@ -1,16 +1,7 @@
-import { createWriteStream, mkdirSync, rmSync } from 'fs'
-import { get as httpsGet } from 'https'
+import { mkdirSync } from 'fs'
 import { join } from 'path'
+import { spawn } from 'child_process'
 import type { Innertube as InnertubeType } from 'youtubei.js'
-
-interface AudioFormat {
-  has_audio: boolean
-  has_video: boolean
-  content_length?: number
-  mime_type: string
-  bitrate?: number
-  url?: string
-}
 
 // youtubei.js is ESM-only; use new Function to prevent Rollup from converting
 // import() to require() in CJS output, allowing Node.js to load it as ESM.
@@ -37,7 +28,7 @@ export interface YoutubeProgress {
   eta: string
 }
 
-// ── Innertube singleton ──────────────────────────────────────────────────────
+// ── Innertube singleton (검색 전용) ──────────────────────────────────────────
 
 let _yt: InnertubeType | null = null
 
@@ -102,113 +93,103 @@ function parse_view_count(vc: unknown): number | undefined {
   return undefined
 }
 
-// ── 다운로드 (youtubei.js IOS client — non-ciphered audio URLs) ──────────────
+// ── 다운로드 (yt-dlp.exe) ────────────────────────────────────────────────────
 
 const active_downloads = new Map<string, () => void>()
+
+export function resolve_ytdlp_path(resourcesPath: string, isPackaged: boolean): string {
+  return isPackaged
+    ? join(resourcesPath, 'bin', 'yt-dlp.exe')
+    : join(__dirname, '../../../bin/yt-dlp.exe')
+}
 
 export async function youtube_download(
   url: string,
   outputDir: string,
+  ytdlpPath: string,
   on_progress: (p: YoutubeProgress) => void,
   on_done: (filePath: string) => void,
   on_error: (message: string) => void
 ): Promise<void> {
   if (active_downloads.has(url)) return
 
-  let outputPath = ''
-  let cancelled = false
+  const args = [
+    '--no-playlist',
+    '-x',                              // extract audio only
+    '--audio-format', 'best',          // keep original codec (no re-encoding)
+    '--audio-quality', '0',            // highest quality
+    '--newline',                        // one progress line per update
+    '-o', join(outputDir, '%(title)s.%(ext)s'),
+    '--print', 'after_move:filepath',  // print final path after download
+    url,
+  ]
+
+  on_progress({ url, percent: 0, speed: '', eta: '' })
+
+  let stderrBuf = ''
 
   try {
-    const videoId = new URL(url).searchParams.get('v')
-    if (!videoId) throw new Error('Invalid YouTube URL')
-
-    const yt = await get_yt()
-
-    // IOS client returns non-ciphered streaming URLs — avoids decipher errors
-    const info = await yt.getInfo(videoId, { client: 'IOS' })
-    const title = sanitize_filename(info.basic_info.title ?? 'audio')
-
-    const audioFormats = ((info.streaming_data?.adaptive_formats ?? []) as AudioFormat[]).filter(
-      (f) => f.has_audio && !f.has_video && !!f.url
-    )
-    audioFormats.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))
-
-    const best = audioFormats[0]
-    if (!best?.url) throw new Error('No audio stream URL found')
-
-    const totalBytes = best.content_length ?? 0
-    const ext = best.mime_type.startsWith('audio/webm') ? 'webm' : 'm4a'
-    outputPath = join(outputDir, `${title}.${ext}`)
-
-    on_progress({ url, percent: 0, speed: '', eta: '' })
-
-    const dest = createWriteStream(outputPath)
-    let req: ReturnType<typeof httpsGet> | null = null
-
-    const cancel = (): void => {
-      cancelled = true
-      req?.destroy()
-      dest.destroy()
-      try { rmSync(outputPath) } catch { /* ignore */ }
-    }
-    active_downloads.set(url, cancel)
-
     await new Promise<void>((resolve, reject) => {
-      let downloaded = 0
-      // Use Node https directly — bypasses Electron's patched fetch/networking
-      req = httpsGet(best.url!, {
-        headers: { 'User-Agent': 'com.google.ios.youtube/19.29.1 CFNetwork/1568.200.51 Darwin/24.1.0' }
-      }, (res) => {
-        if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode}`))
-          return
-        }
-        res.on('data', (chunk: Buffer) => {
-          if (cancelled) return
-          dest.write(chunk)
-          downloaded += chunk.length
-          if (totalBytes > 0) {
-            on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
-          }
-        })
-        res.on('end', () => {
-          if (!cancelled) {
-            dest.end()
-            dest.once('finish', resolve)
-          }
-        })
-        res.on('error', reject)
-      })
-      req.on('error', reject)
-      dest.on('error', reject)
-    })
+      const proc = spawn(ytdlpPath, args)
 
-    if (!cancelled) {
-      active_downloads.delete(url)
-      on_progress({ url, percent: 100, speed: '', eta: '' })
-      on_done(outputPath)
-    }
+      active_downloads.set(url, () => {
+        proc.kill()
+        active_downloads.delete(url)
+      })
+
+      let finalPath = ''
+
+      proc.stdout.on('data', (data: Buffer) => {
+        for (const line of data.toString().split('\n')) {
+          const t = line.trim()
+          if (!t) continue
+
+          // Progress: [download]  45.2% of 5.23MiB at 1.23MiB/s ETA 00:04
+          const m = t.match(/\[download\]\s+([\d.]+)%.*?at\s+(\S+)\s+ETA\s+(\S+)/)
+          if (m) {
+            on_progress({ url, percent: parseFloat(m[1]), speed: m[2], eta: m[3] })
+            continue
+          }
+
+          // --print after_move:filepath outputs a bare filepath (no leading '[')
+          if (!t.startsWith('[')) {
+            finalPath = t
+          }
+        }
+      })
+
+      proc.stderr.on('data', (data: Buffer) => {
+        stderrBuf += data.toString()
+      })
+
+      proc.on('close', (code) => {
+        active_downloads.delete(url)
+        if (code === 0) {
+          on_progress({ url, percent: 100, speed: '', eta: '' })
+          on_done(finalPath || outputDir)
+          resolve()
+        } else {
+          reject(new Error(stderrBuf.trim() || `yt-dlp exited with code ${code}`))
+        }
+      })
+
+      proc.on('error', (err) => {
+        reject(new Error(`Cannot start yt-dlp: ${err.message}`))
+      })
+    })
   } catch (err) {
-    active_downloads.delete(url)
-    if (outputPath) try { rmSync(outputPath) } catch { /* ignore */ }
-    on_error(err instanceof Error ? err.message : String(err))
+    const message = err instanceof Error ? err.message : String(err)
+    on_error(message)
   }
 }
 
 export function youtube_cancel(url: string): void {
   const cancel = active_downloads.get(url)
-  if (cancel) {
-    cancel()
-    active_downloads.delete(url)
-  }
+  if (cancel) cancel()
 }
 
 export function resolve_download_dir(appDir: string, configured: string): string {
   const dir = configured.trim() || join(appDir, 'Downloads')
   mkdirSync(dir, { recursive: true })
   return dir
-}
-
-function sanitize_filename(name: string): string {
-  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().slice(0, 200) || 'audio'
 }

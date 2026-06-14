@@ -9,3 +9,4 @@ dist/
 MyMusic/
 build/ffmpeg.exe
 settings.json
+bin/yt-dlp.exe
