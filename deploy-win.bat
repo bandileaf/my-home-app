@@ -9,12 +9,14 @@ echo From: %SRC%
 echo To:   %DST%
 echo.
 
-taskkill /F /IM MusicFinder.exe >/dev/null 2>&1
-timeout /T 1 /NOBREAK >/dev/null 2>&1
+echo Stopping all MusicFinder processes...
+taskkill /F /T /IM MusicFinder.exe >/dev/null 2>&1
+timeout /T 5 /NOBREAK >/dev/null 2>&1
 
 if not exist "%DST%\" mkdir "%DST%"
 
-robocopy "%SRC%" "%DST%" /E /IS /IT /COPY:DAT /FFT /R:3 /W:3 /NP
+echo Copying...
+robocopy "%SRC%" "%DST%" /E /IS /IT /COPY:DAT /FFT /R:10 /W:5 /NP /NFL /NDL /NJH /NJS
 set RC=%ERRORLEVEL%
 
 if %RC% GEQ 8 (
