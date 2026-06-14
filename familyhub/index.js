@@ -187,7 +187,11 @@ function launch(exeName) {
   log(`Launching ${exeName}...`)
   end_notification()
   log_stream.end()
-  spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
+  spawn(exePath, [], {
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env, PORTABLE_EXECUTABLE_DIR: BASE_DIR }
+  }).unref()
   process.exit(0)
 }
 
