@@ -1,5 +1,5 @@
 import { app, BrowserWindow, clipboard, ipcMain, Menu, shell, type WebContents } from 'electron'
-import { appendFileSync, existsSync, readFileSync, statSync, watch, writeFileSync } from 'fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync } from 'fs'
 import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
 import { load_settings } from './services/settings'
@@ -64,11 +64,17 @@ function app_dir(): string {
   return process.cwd()
 }
 
+let _log_path: string | null = null
 function log_event(message: string): void {
   try {
-    appendFileSync(join(app_dir(), 'musicfinder.log'), `[${new Date().toISOString()}] ${message}\n`)
+    if (!_log_path) {
+      const logDir = join(app_dir(), 'log')
+      mkdirSync(logDir, { recursive: true })
+      _log_path = join(logDir, `myhome_v${app.getVersion()}.log`)
+    }
+    appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
   } catch {
-    // 로깅 실패는 무시
+    // ignore
   }
 }
 
