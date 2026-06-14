@@ -61,7 +61,7 @@ jobs:
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
           $json = Get-Content settings.json | ConvertFrom-Json
-          $json.'hub.tag.myhome' = $tag
+          $json.'hub.tag' = $tag
           $json.'hub.app.myhome' = "myhome_${tag}.exe"
           $json | ConvertTo-Json | Out-File settings.json -Encoding utf8NoBOM
 

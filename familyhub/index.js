@@ -162,13 +162,13 @@ async function ensure_bins(bins, settings) {
   if (dirty) write_settings(settings)
 }
 
-// hub.tag.myhome tracks last hub version processed.
-// if hub needs update: download new hub, set hub.tag.myhome = latestTag, restart via bat.
+// hub.tag tracks last hub version processed.
+// if hub needs update: download new hub, set hub.tag = latestTag, restart via bat.
 // myhome version is derived separately from hub.app.myhome filename.
 async function update_hub(release, settings) {
   if (!IS_PKG) return false
 
-  const currentTag = settings['hub.tag.myhome'] || ''
+  const currentTag = settings['hub.tag'] || ''
   const latestTag = release.tag_name
 
   if (currentTag && compare_versions(latestTag, currentTag) <= 0) {
@@ -204,7 +204,7 @@ async function update_hub(release, settings) {
   fs.unlinkSync(zipPath)
 
   // mark hub as updated; myhome version is tracked via hub.app.myhome filename
-  settings['hub.tag.myhome'] = latestTag
+  settings['hub.tag'] = latestTag
   write_settings(settings)
 
   const batPath = path.join(BASE_DIR, '_hub_update.bat')
@@ -248,7 +248,7 @@ async function main() {
   await ensure_bins(bins, settings)
 
   // background: check for updates
-  const currentHubTag = settings['hub.tag.myhome'] || ''
+  const currentHubTag = settings['hub.tag'] || ''
   const currentMyhomeTag = derive_myhome_version(currentExe)
   log(`Checking for updates... (hub: ${currentHubTag || '?'}, myhome: ${currentMyhomeTag || '?'})`)
 
@@ -281,7 +281,7 @@ async function main() {
       log(`Downloading myhome ${latestTag}...`)
       const dest = path.join(BASE_DIR, newExeName)
       await download_file(asset.browser_download_url, dest)
-      settings['hub.tag.myhome'] = latestTag
+      settings['hub.tag'] = latestTag
       settings['hub.app.myhome'] = newExeName
       write_settings(settings)
       log(`myhome ${latestTag} ready — new version will launch on next start.`)

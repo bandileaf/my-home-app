@@ -1,6 +1,6 @@
 {
   "hub.repo": "bandileaf/my-home-app",
-  "hub.tag.myhome": "",
+  "hub.tag": "",
   "hub.app.myhome": "",
   "hub.bins": [
     {
