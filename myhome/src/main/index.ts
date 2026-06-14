@@ -599,10 +599,18 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
   })
 }
 
+function resolve_icon(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icon.ico')
+    : join(__dirname, '../../../build/icon.ico')
+}
+
 function create_window(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1100,
     height: 720,
+    title: 'My Home',
+    icon: resolve_icon(),
     show: true,
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',

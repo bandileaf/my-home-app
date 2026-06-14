@@ -10,6 +10,8 @@ files:
 extraResources:
   - from: bin/yt-dlp.exe
     to: bin/yt-dlp.exe
+  - from: build/icon.ico
+    to: icon.ico
 # settings.json 은 동봉하지 않는다. 앱이 첫 실행 때 없으면 생성하고, 이후 재배포는 건드리지 않는다.
 win:
   icon: build/icon.ico
