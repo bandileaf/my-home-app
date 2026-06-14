@@ -80,7 +80,7 @@ const api = {
   // ── YouTube ──────────────────────────────────────────────────────────────
   youtube_search: (query: string): Promise<YoutubeResult[]> =>
     ipcRenderer.invoke('youtube:search', query),
-  youtube_download: (url: string): void => ipcRenderer.send('youtube:download', url),
+  youtube_download: (url: string, audioFormat: string): void => ipcRenderer.send('youtube:download', url, audioFormat),
   youtube_download_video: (url: string): void => ipcRenderer.send('youtube:download-video', url),
   youtube_cancel: (url: string): void => ipcRenderer.send('youtube:cancel', url),
   youtube_cancel_video: (url: string): void => ipcRenderer.send('youtube:cancel-video', url),

@@ -10,3 +10,5 @@ MyMusic/
 build/ffmpeg.exe
 settings.json
 bin/yt-dlp.exe
+bin/ffmpeg.exe
+bin/ffprobe.exe

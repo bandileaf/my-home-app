@@ -81,7 +81,7 @@ export interface AppBridge {
   app_state_set?: (key: string, value: string) => void
   // YouTube
   youtube_search?: (query: string) => Promise<YoutubeResult[]>
-  youtube_download?: (url: string) => void
+  youtube_download?: (url: string, audioFormat: string) => void
   youtube_download_video?: (url: string) => void
   youtube_cancel?: (url: string) => void
   youtube_cancel_video?: (url: string) => void

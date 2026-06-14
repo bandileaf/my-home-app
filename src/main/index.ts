@@ -6,6 +6,7 @@ import { load_settings } from './services/settings'
 import {
   resolve_download_dir,
   resolve_ytdlp_path,
+  resolve_ffmpeg_dir,
   youtube_search,
   youtube_download,
   youtube_download_video,
@@ -484,8 +485,8 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     return youtube_search(query)
   })
 
-  ipcMain.on('youtube:download', (event, url: string) => {
-    log_event(`youtube:download url=${url}`)
+  ipcMain.on('youtube:download', (event, url: string, audioFormat: string = 'm4a') => {
+    log_event(`youtube:download url=${url} fmt=${audioFormat}`)
     let downloadDir: string
     try {
       const settings = load_settings(settingsPath)
@@ -494,12 +495,15 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
     const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
-    log_event(`youtube:download dir=${downloadDir} ytdlp=${ytdlpPath}`)
+    const ffmpegDir = resolve_ffmpeg_dir(process.resourcesPath, app.isPackaged)
+    log_event(`youtube:download dir=${downloadDir} fmt=${audioFormat}`)
 
     youtube_download(
       url,
       downloadDir,
       ytdlpPath,
+      ffmpegDir,
+      audioFormat,
       (progress: YoutubeProgress) => {
         if (!event.sender.isDestroyed()) event.sender.send('youtube:progress', progress)
       },
@@ -532,11 +536,13 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
     const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
+    const ffmpegDir = resolve_ffmpeg_dir(process.resourcesPath, app.isPackaged)
 
     youtube_download_video(
       url,
       downloadDir,
       ytdlpPath,
+      ffmpegDir,
       (progress: YoutubeProgress) => {
         if (!event.sender.isDestroyed()) event.sender.send('youtube:progress-video', progress)
       },

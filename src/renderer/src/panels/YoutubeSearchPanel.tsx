@@ -120,8 +120,8 @@ export function YoutubeSearchPanel(): JSX.Element {
     if (e.key === 'Enter') void do_search()
   }
 
-  function do_download(url: string): void {
-    get_bridge()?.youtube_download?.(url)
+  function do_download(url: string, audioFormat: string): void {
+    get_bridge()?.youtube_download?.(url, audioFormat)
     set_downloads((prev) => ({
       ...prev,
       [url]: { status: 'downloading', percent: 0, speed: '', eta: '' }
@@ -232,15 +232,12 @@ export function YoutubeSearchPanel(): JSX.Element {
 
                 {/* 다운로드 버튼 */}
                 <div className="yt-dl-row">
-                  {dl.status === 'idle' && (
-                    <button className="yt-dl-btn" onClick={() => do_download(item.url)}>
-                      ↓ Audio
-                    </button>
-                  )}
+                  {dl.status === 'idle' && (<>
+                    <button className="yt-dl-btn" onClick={() => do_download(item.url, 'm4a')}>↓ m4a</button>
+                    <button className="yt-dl-btn" onClick={() => do_download(item.url, 'mp3')}>↓ mp3</button>
+                  </>)}
                   {vdl.status === 'idle' && (
-                    <button className="yt-dl-btn" onClick={() => do_download_video(item.url)}>
-                      ↓ Video
-                    </button>
+                    <button className="yt-dl-btn" onClick={() => do_download_video(item.url)}>↓ Video</button>
                   )}
                 </div>
 
@@ -252,7 +249,7 @@ export function YoutubeSearchPanel(): JSX.Element {
                   <DoneRow label="Audio" filePath={dl.filePath} onOpen={() => open_folder(dl.filePath)} />
                 )}
                 {dl.status === 'error' && (
-                  <ErrorRow message={dl.message} onRetry={() => do_download(item.url)} />
+                  <ErrorRow message={dl.message} onRetry={() => do_download(item.url, 'm4a')} />
                 )}
 
                 {vdl.status === 'downloading' && (

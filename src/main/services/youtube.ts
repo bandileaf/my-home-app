@@ -132,19 +132,28 @@ export function resolve_ytdlp_path(resourcesPath: string, isPackaged: boolean): 
     : join(__dirname, '../../../bin/yt-dlp.exe')
 }
 
+export function resolve_ffmpeg_dir(resourcesPath: string, isPackaged: boolean): string {
+  return isPackaged
+    ? join(resourcesPath, 'bin')
+    : join(__dirname, '../../../bin')
+}
+
 function build_ytdlp_args(
   url: string,
   outputDir: string,
-  format: string
+  format: string,
+  ffmpegDir?: string
 ): string[] {
-  return [
+  const args = [
     '--no-playlist',
     '--format', format,
     '--newline',
     '-o', join(outputDir, '%(title)s.%(ext)s'),
     '--print', 'after_move:filepath',
-    url,
   ]
+  if (ffmpegDir) args.push('--ffmpeg-location', ffmpegDir)
+  args.push(url)
+  return args
 }
 
 async function run_ytdlp(
@@ -219,12 +228,24 @@ export async function youtube_download(
   url: string,
   outputDir: string,
   ytdlpPath: string,
+  ffmpegDir: string,
+  audioFormat: string = 'm4a',  // 'm4a' | 'mp3'
   on_progress: (p: YoutubeProgress) => void,
   on_done: (filePath: string) => void,
   on_error: (message: string) => void
 ): Promise<void> {
   if (active_downloads.has(url)) return
-  const args = build_ytdlp_args(url, outputDir, 'bestaudio[ext=m4a]/bestaudio')
+  // -x --audio-format converts to the requested format using ffmpeg
+  const args = [
+    '--no-playlist',
+    '-x', '--audio-format', audioFormat,
+    '--audio-quality', '0',
+    '--ffmpeg-location', ffmpegDir,
+    '--newline',
+    '-o', join(outputDir, '%(title)s.%(ext)s'),
+    '--print', 'after_move:filepath',
+    url,
+  ]
   await run_ytdlp(url, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error)
 }
 
@@ -232,13 +253,15 @@ export async function youtube_download_video(
   url: string,
   outputDir: string,
   ytdlpPath: string,
+  ffmpegDir: string,
   on_progress: (p: YoutubeProgress) => void,
   on_done: (filePath: string) => void,
   on_error: (message: string) => void
 ): Promise<void> {
   const key = url + ':video'
   if (active_downloads.has(key)) return
-  const args = build_ytdlp_args(url, outputDir, 'best[ext=mp4]/best')
+  // bestvideo+bestaudio requires ffmpeg to merge streams → true highest quality
+  const args = build_ytdlp_args(url, outputDir, 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio', ffmpegDir)
   await run_ytdlp(key, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error)
 }
 
