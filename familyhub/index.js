@@ -166,6 +166,66 @@ async function ensure_bins(bins, settings) {
   if (dirty) write_settings(settings)
 }
 
+// returns true if hub was updated (process will exit)
+async function update_hub(release, settings) {
+  if (!IS_PKG) return false
+
+  const currentTag = settings['hub.tag.hub'] || ''
+  const latestTag = release.tag_name
+
+  if (currentTag && compare_versions(latestTag, currentTag) <= 0) {
+    log(`Hub: ${currentTag} (up to date)`)
+    return false
+  }
+
+  log(`Hub update: ${currentTag || '?'} → ${latestTag}`)
+
+  const zipName = `familyhub_${latestTag}.zip`
+  const asset = release.assets.find(a => a.name === zipName)
+  if (!asset) {
+    log(`Hub: ${zipName} not found in release — skipping`)
+    return false
+  }
+
+  const zipPath = path.join(BASE_DIR, zipName)
+  log(`Downloading ${zipName}...`)
+  await download_file(asset.browser_download_url, zipPath)
+
+  const newExeName = `familyhub_${latestTag}.exe`
+  const newExePath = path.join(BASE_DIR, newExeName)
+
+  log('Extracting familyhub.exe from zip...')
+  const zip = new AdmZip(zipPath)
+  const entry = zip.getEntry('familyhub.exe')
+  if (!entry) {
+    fs.unlinkSync(zipPath)
+    log('Hub: familyhub.exe not found in zip — skipping')
+    return false
+  }
+  fs.writeFileSync(newExePath, entry.getData())
+  fs.unlinkSync(zipPath)
+
+  settings['hub.tag.hub'] = latestTag
+  write_settings(settings)
+
+  const batPath = path.join(BASE_DIR, '_hub_update.bat')
+  const bat = [
+    '@echo off',
+    `cd /d "${BASE_DIR}"`,
+    'timeout /t 1 /nobreak >nul',
+    'del /f /q "familyhub.exe"',
+    `ren "${newExeName}" "familyhub.exe"`,
+    'start "" "familyhub.exe"',
+    '(goto) 2>nul & del "%~f0"',
+  ].join('\r\n')
+  fs.writeFileSync(batPath, bat, 'utf8')
+
+  log(`Hub: updated to ${latestTag}, restarting...`)
+  spawn('cmd.exe', ['/c', batPath], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+  log_stream.end()
+  process.exit(0)
+}
+
 async function main() {
   log('FamilyHub start')
 
@@ -177,7 +237,7 @@ async function main() {
   const bins = settings['hub.bins'] ?? []
   await ensure_bins(bins, settings)
 
-  log(`Checking for updates... (current: ${currentTag})`)
+  log(`Checking for updates... (hub: ${settings['hub.tag.hub'] || '?'}, myhome: ${currentTag})`)
 
   let release
   try {
@@ -188,6 +248,9 @@ async function main() {
     return
   }
 
+  await update_hub(release, settings)
+  // update_hub exits the process if a hub update was applied
+
   const latestTag = release.tag_name
   log(`Latest: ${latestTag}`)
 
@@ -196,7 +259,7 @@ async function main() {
     const asset = release.assets.find(a => a.name === newExeName)
 
     if (asset) {
-      log(`Updating ${currentTag} → ${latestTag}...`)
+      log(`Updating myhome ${currentTag} → ${latestTag}...`)
       const dest = path.join(BASE_DIR, newExeName)
       await download_file(asset.browser_download_url, dest)
       settings['hub.tag.myhome'] = latestTag
