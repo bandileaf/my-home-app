@@ -5,7 +5,6 @@ set "SSH_HOST=192.168.0.231"
 set "SSH_USER=rudi109"
 set "MYHOME_SRC=/home/rudi109/music/myhome/dist/win-unpacked"
 set "HUB_SRC=/home/rudi109/music/familyhub/dist/familyhub.exe"
-set "SETTINGS_SRC=/home/rudi109/music/settings.dev.json"
 set "DST=C:\DEV\test"
 
 echo === My Home (dev) ===
@@ -18,8 +17,6 @@ if not exist "%DST%\resources\app.asar" (
   if errorlevel 1 ( echo [ERROR] scp myhome failed & pause & exit /b 1 )
   scp %SSH_USER%@%SSH_HOST%:%HUB_SRC% %DST%\familyhub.exe
   if errorlevel 1 ( echo [ERROR] scp familyhub failed & pause & exit /b 1 )
-  scp %SSH_USER%@%SSH_HOST%:%SETTINGS_SRC% %DST%\settings.json
-  if errorlevel 1 ( echo [ERROR] scp settings failed & pause & exit /b 1 )
   goto launch
 )
 
