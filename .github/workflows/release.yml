@@ -19,6 +19,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Set version from tag
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          (Get-Content myhome\package.json) -replace '"version": "[^"]*"', '"version": "' + $ver + '"' | Set-Content myhome\package.json
+
       - name: Install myhome dependencies
         run: npm ci
         working-directory: myhome
@@ -42,12 +47,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rename myhome exe
-        run: |
-          $tag = "${{ github.ref_name }}"
-          $exe = Get-ChildItem "myhome\dist\*.exe" | Select-Object -First 1
-          Rename-Item $exe.FullName "myhome_${tag}.exe"
-
       - name: Build familyhub launcher
         run: npm run build
         working-directory: familyhub
@@ -59,7 +58,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            myhome/dist/myhome_*.exe
+            myhome/dist/myhome_v*.exe
             familyhub/dist/familyhub.exe
             familyhub/settings.json
           generate_release_notes: true

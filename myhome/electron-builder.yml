@@ -1,5 +1,6 @@
-appId: com.nwork.familyhub
-productName: FamilyHub
+appId: com.nwork.myhome
+productName: myhome
+artifactName: "myhome_v${version}.exe"
 directories:
   output: dist
   buildResources: build
