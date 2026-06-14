@@ -396,9 +396,11 @@ ipcMain.on('ping', () => {})  // keep preload channel alive
 
 app.whenReady().then(() => {
   win = create_window()
-  main().catch((err: unknown) => {
-    log(`Fatal: ${(err as Error).message}`)
-    quit_app()
+  win.webContents.once('did-finish-load', () => {
+    main().catch((err: unknown) => {
+      log(`Fatal: ${(err as Error).message}`)
+      quit_app()
+    })
   })
 })
 
