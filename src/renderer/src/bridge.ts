@@ -35,6 +35,24 @@ export interface SearchOptions {
   limit?: number
 }
 
+export interface YoutubeResult {
+  id: string
+  url: string
+  title: string
+  duration: number
+  channel: string
+  thumbnail: string
+  viewCount?: number
+}
+
+export interface YoutubeProgress {
+  url: string
+  percent: number
+  speed: string
+  eta: string
+  filePath?: string
+}
+
 export interface AppBridge {
   close_window?: () => void
   start_indexing?: () => Promise<IndexSummary>
@@ -62,6 +80,14 @@ export interface AppBridge {
   // 앱 상태(탭 등) DB 영속화
   app_state_get?: (key: string) => Promise<string | null>
   app_state_set?: (key: string, value: string) => void
+  // YouTube
+  youtube_search?: (query: string) => Promise<YoutubeResult[]>
+  youtube_download?: (url: string) => void
+  youtube_cancel?: (url: string) => void
+  youtube_open_folder?: (filePath: string) => void
+  on_youtube_progress?: (callback: (p: YoutubeProgress) => void) => () => void
+  on_youtube_done?: (callback: (data: { url: string; filePath: string }) => void) => () => void
+  on_youtube_error?: (callback: (data: { url: string; message: string }) => void) => () => void
 }
 
 export function get_bridge(): AppBridge | undefined {

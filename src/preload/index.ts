@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IndexProgress, IndexSummary } from '../main/services/indexer'
 import type { SearchOptions, SearchResult } from '../main/services/search'
+import type { YoutubeResult, YoutubeProgress } from '../main/services/youtube'
 
 // 렌더러에 노출할 API.
 const api = {
@@ -74,7 +75,30 @@ const api = {
   app_state_get: (key: string): Promise<string | null> =>
     ipcRenderer.invoke('app_state:get', key),
   app_state_set: (key: string, value: string): void =>
-    ipcRenderer.send('app_state:set', key, value)
+    ipcRenderer.send('app_state:set', key, value),
+
+  // ── YouTube ──────────────────────────────────────────────────────────────
+  youtube_search: (query: string): Promise<YoutubeResult[]> =>
+    ipcRenderer.invoke('youtube:search', query),
+  youtube_download: (url: string): void => ipcRenderer.send('youtube:download', url),
+  youtube_cancel: (url: string): void => ipcRenderer.send('youtube:cancel', url),
+  youtube_open_folder: (filePath: string): void => ipcRenderer.send('youtube:open-folder', filePath),
+
+  on_youtube_progress: (callback: (p: YoutubeProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: YoutubeProgress): void => callback(p)
+    ipcRenderer.on('youtube:progress', listener)
+    return () => ipcRenderer.removeListener('youtube:progress', listener)
+  },
+  on_youtube_done: (callback: (data: { url: string; filePath: string }) => void): (() => void) => {
+    const listener = (_e: unknown, data: { url: string; filePath: string }): void => callback(data)
+    ipcRenderer.on('youtube:done', listener)
+    return () => ipcRenderer.removeListener('youtube:done', listener)
+  },
+  on_youtube_error: (callback: (data: { url: string; message: string }) => void): (() => void) => {
+    const listener = (_e: unknown, data: { url: string; message: string }): void => callback(data)
+    ipcRenderer.on('youtube:error', listener)
+    return () => ipcRenderer.removeListener('youtube:error', listener)
+  }
 }
 
 export type PreloadApi = typeof api

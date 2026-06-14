@@ -5,11 +5,13 @@ import { parse as parse_jsonc, printParseErrorCode, type ParseError } from 'json
 export interface MusicSettings {
   searchDirectories: string[]
   exclude: string[] // 값이 true 인 glob 패턴만 추려낸 목록
+  downloadDirectory: string // 비어 있으면 exe 옆 Downloads/ 사용
 }
 
 interface RawSettings {
   'musicSearch.searchDirectories'?: string[]
   'musicSearch.exclude'?: Record<string, boolean>
+  'musicSearch.downloadDirectory'?: string
 }
 
 /**
@@ -19,7 +21,7 @@ interface RawSettings {
  */
 export function load_settings(settingsPath: string): MusicSettings {
   if (!existsSync(settingsPath)) {
-    return { searchDirectories: [], exclude: [] }
+    return { searchDirectories: [], exclude: [], downloadDirectory: '' }
   }
   const text = readFileSync(settingsPath, 'utf-8')
   const errors: ParseError[] = []
@@ -40,5 +42,7 @@ export function load_settings(settingsPath: string): MusicSettings {
   const excludeMap = raw['musicSearch.exclude'] ?? {}
   const exclude = Object.keys(excludeMap).filter((pattern) => excludeMap[pattern])
 
-  return { searchDirectories: directories, exclude }
+  const downloadDirectory = raw['musicSearch.downloadDirectory'] ?? ''
+
+  return { searchDirectories: directories, exclude, downloadDirectory }
 }

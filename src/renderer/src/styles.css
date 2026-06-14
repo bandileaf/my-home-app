@@ -523,6 +523,248 @@ body {
   }
 }
 
+/* ── YouTube 검색 패널 ──────────────────────────────────────────────────── */
+.yt-search-row {
+  display: flex;
+  gap: 6px;
+  margin: 10px 10px 4px;
+}
+
+.yt-search-input {
+  flex: 1;
+  margin: 0;
+}
+
+.yt-search-btn {
+  flex-shrink: 0;
+  padding: 0 14px;
+  height: 32px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.yt-search-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.yt-error {
+  margin: 4px 10px;
+  padding: 6px 10px;
+  color: #b5341b;
+  background: #fdf3f0;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.yt-result-row {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 4px;
+  align-items: flex-start;
+}
+
+.yt-result-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* 썸네일 */
+.yt-thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 120px;
+  height: 68px;
+}
+
+.yt-thumb {
+  width: 120px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+}
+
+.yt-thumb-placeholder {
+  width: 120px;
+  height: 68px;
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.yt-duration {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* 정보 영역 */
+.yt-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.yt-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yt-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--hint);
+}
+
+/* 다운로드 버튼 */
+.yt-dl-btn {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.yt-dl-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 진행 바 */
+.yt-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.yt-progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.yt-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.yt-progress-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--hint);
+  align-items: center;
+}
+
+.yt-cancel-btn {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--hint);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.yt-cancel-btn:hover {
+  color: #b5341b;
+}
+
+.yt-converting {
+  font-size: 11px;
+  color: var(--hint);
+  font-style: italic;
+}
+
+/* 완료 */
+.yt-done {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.yt-done-icon {
+  color: #1a7f37;
+  font-weight: bold;
+}
+
+.yt-done-path {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.yt-done-path:hover {
+  text-decoration: underline;
+}
+
+.yt-folder-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.yt-folder-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 에러 */
+.yt-dl-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #b5341b;
+}
+
+.yt-retry-btn {
+  border: 1px solid #b5341b;
+  background: transparent;
+  color: #b5341b;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.yt-retry-btn:hover {
+  background: #b5341b;
+  color: #fff;
+}
+
 /* 하단 상태 바 */
 .status-bar {
   height: 24px;
