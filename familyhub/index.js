@@ -153,7 +153,7 @@ async function ensure_bins(bins, settings) {
         await download_file(bin.url, destPath)
       }
 
-      bin.version = version
+      bin.version = version || 'unknown'
       dirty = true
       log(`${bin.dest}: installed${version ? ' (' + version + ')' : ''}`)
     } catch (err) {
