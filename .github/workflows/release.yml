@@ -36,6 +36,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Remove intermediate build folder
+        run: Remove-Item -Recurse -Force dist\win-unpacked -ErrorAction SilentlyContinue
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
