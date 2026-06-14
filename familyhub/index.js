@@ -111,19 +111,24 @@ async function ensure_bins(bins) {
     fs.mkdirSync(path.dirname(destPath), { recursive: true })
 
     const tmpPath = destPath + '.tmp'
-    await download_file(bin.url, tmpPath)
+    try {
+      await download_file(bin.url, tmpPath)
 
-    if (bin.zip) {
-      const zip = new AdmZip(tmpPath)
-      const entry = zip.getEntry(bin.zip)
-      if (!entry) throw new Error(`${bin.zip} not found in zip`)
-      fs.writeFileSync(destPath, entry.getData())
-      fs.unlinkSync(tmpPath)
-    } else {
-      fs.renameSync(tmpPath, destPath)
+      if (bin.zip) {
+        const zip = new AdmZip(tmpPath)
+        const entry = zip.getEntry(bin.zip)
+        if (!entry) throw new Error(`${bin.zip} not found in zip`)
+        fs.writeFileSync(destPath, entry.getData())
+        fs.unlinkSync(tmpPath)
+      } else {
+        fs.renameSync(tmpPath, destPath)
+      }
+
+      log(`${bin.dest} installed`)
+    } catch (err) {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
+      log(`Failed to install ${bin.dest}: ${err.message}`)
     }
-
-    log(`${bin.dest} installed`)
   }
 }
 
