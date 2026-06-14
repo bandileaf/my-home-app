@@ -60,10 +60,10 @@ jobs:
       - name: Patch settings.json
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
-          $json = Get-Content familyhub\settings.json | ConvertFrom-Json
+          $json = Get-Content settings.json | ConvertFrom-Json
           $json.'hub.tag.myhome' = $tag
           $json.'hub.app.myhome' = "myhome_${tag}.exe"
-          $json | ConvertTo-Json | Out-File familyhub\settings.json -Encoding utf8NoBOM
+          $json | ConvertTo-Json | Out-File settings.json -Encoding utf8NoBOM
 
       - name: Remove intermediate build folder
         run: Remove-Item -Recurse -Force myhome\dist\win-unpacked -ErrorAction SilentlyContinue
@@ -75,7 +75,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path bundle
           Copy-Item $myhomeExe.FullName bundle\
           Copy-Item familyhub\dist\familyhub.exe bundle\
-          Copy-Item familyhub\settings.json bundle\
+          Copy-Item settings.json bundle\
           Compress-Archive -Path bundle\* -DestinationPath "familyhub_${tag}.zip"
 
       - name: Upload to Release
@@ -86,5 +86,5 @@ jobs:
             familyhub_v*.zip
             myhome/dist/myhome_v*.exe
             familyhub/dist/familyhub.exe
-            familyhub/settings.json
+            settings.json
           generate_release_notes: true
