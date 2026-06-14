@@ -495,7 +495,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
     const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
-    const ffmpegDir = resolve_ffmpeg_dir(process.resourcesPath, app.isPackaged)
+    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged, app.getPath('userData'))
     log_event(`youtube:download dir=${downloadDir} fmt=${audioFormat}`)
 
     youtube_download(
@@ -536,7 +536,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
     const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
-    const ffmpegDir = resolve_ffmpeg_dir(process.resourcesPath, app.isPackaged)
+    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged, app.getPath('userData'))
 
     youtube_download_video(
       url,

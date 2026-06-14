@@ -132,9 +132,10 @@ export function resolve_ytdlp_path(resourcesPath: string, isPackaged: boolean): 
     : join(__dirname, '../../../bin/yt-dlp.exe')
 }
 
-export function resolve_ffmpeg_dir(resourcesPath: string, isPackaged: boolean): string {
+export function resolve_ffmpeg_dir(isPackaged: boolean, userData: string): string {
+  // When packaged, launcher downloads ffmpeg/ffprobe to userData/bin
   return isPackaged
-    ? join(resourcesPath, 'bin')
+    ? join(userData, 'bin')
     : join(__dirname, '../../../bin')
 }
 
