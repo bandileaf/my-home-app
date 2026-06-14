@@ -115,10 +115,10 @@ export async function youtube_download(
 
   const args = [
     '--no-playlist',
-    '--format', 'bestaudio',           // download best audio stream directly (no ffmpeg needed)
-    '--newline',                        // one progress line per update
+    '--format', 'bestaudio[ext=m4a]/bestaudio', // prefer m4a; fallback to best audio
+    '--newline',                                  // one progress line per update
     '-o', join(outputDir, '%(title)s.%(ext)s'),
-    '--print', 'after_move:filepath',  // print final path after download
+    '--print', 'after_move:filepath',             // print final path after download
     url,
   ]
 
@@ -149,8 +149,10 @@ export async function youtube_download(
             continue
           }
 
-          // --print after_move:filepath outputs a bare filepath (no leading '[')
-          if (!t.startsWith('[')) {
+          // --print after_move:filepath outputs a bare filepath
+          // Guard against WARNING:/ERROR: lines which also lack a leading '['
+          if (!t.startsWith('[') && !t.startsWith('WARNING') && !t.startsWith('ERROR') &&
+              (t.includes('\\') || t.includes('/'))) {
             finalPath = t
           }
         }
