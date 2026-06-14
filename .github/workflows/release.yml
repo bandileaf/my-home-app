@@ -18,42 +18,45 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
 
-      - name: Install app dependencies
+      - name: Install myhome dependencies
         run: npm ci
+        working-directory: myhome
 
-      - name: Install launcher dependencies
+      - name: Install familyhub dependencies
         run: npm ci
-        working-directory: launcher
+        working-directory: familyhub
 
       - name: Download yt-dlp
         run: |
-          New-Item -ItemType Directory -Force -Path bin
-          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "bin/yt-dlp.exe"
+          New-Item -ItemType Directory -Force -Path myhome\bin
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "myhome\bin\yt-dlp.exe"
 
-      - name: Build app
+      - name: Build myhome app
         run: npx electron-vite build
+        working-directory: myhome
 
-      - name: Package app (portable)
+      - name: Package myhome (portable)
         run: npx electron-builder --win portable
+        working-directory: myhome
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build launcher
+      - name: Build familyhub launcher
         run: npm run build
-        working-directory: launcher
+        working-directory: familyhub
 
       - name: Create version.txt
-        run: echo ${{ github.ref_name }} > dist/version.txt
+        run: echo ${{ github.ref_name }} > myhome\dist\version.txt
 
       - name: Remove intermediate build folder
-        run: Remove-Item -Recurse -Force dist\win-unpacked -ErrorAction SilentlyContinue
+        run: Remove-Item -Recurse -Force myhome\dist\win-unpacked -ErrorAction SilentlyContinue
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.exe
-            dist/version.txt
+            myhome/dist/*.exe
+            myhome/dist/version.txt
+            familyhub/dist/launcher.exe
           generate_release_notes: true
