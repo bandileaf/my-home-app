@@ -46,7 +46,11 @@ if (REPLACE_FROM && app.isPackaged) {
 
 // ── window ────────────────────────────────────────────────────────────────────
 
+app.disableHardwareAcceleration()
+
 let win: BrowserWindow | null = null
+let rendererReady = false
+let lastStatus    = '시작 중...'
 
 function create_window(): BrowserWindow {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
@@ -77,12 +81,17 @@ function create_window(): BrowserWindow {
   }
 
   w.once('ready-to-show', () => w.show())
+  w.webContents.once('did-finish-load', () => {
+    rendererReady = true
+    w.webContents.send('status', { message: lastStatus, done: false })
+  })
   return w
 }
 
 function set_status(msg: string): void {
   log(msg)
-  win?.webContents.send('status', { message: msg, done: false })
+  lastStatus = msg
+  if (rendererReady) win?.webContents.send('status', { message: msg, done: false })
 }
 
 function quit_app(): void {
@@ -396,11 +405,10 @@ ipcMain.on('ping', () => {})  // keep preload channel alive
 
 app.whenReady().then(() => {
   win = create_window()
-  win.webContents.once('did-finish-load', () => {
-    main().catch((err: unknown) => {
-      log(`Fatal: ${(err as Error).message}`)
-      quit_app()
-    })
+  // main() starts immediately — status messages are buffered until renderer loads
+  main().catch((err: unknown) => {
+    log(`Fatal: ${(err as Error).message}`)
+    quit_app()
   })
 })
 
