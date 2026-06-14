@@ -284,7 +284,7 @@ async function main() {
       settings['hub.tag.myhome'] = latestTag
       settings['hub.app.myhome'] = newExeName
       write_settings(settings)
-      log(`myhome ${latestTag} 다운로드 완료 — 다음 실행 시 새 버전으로 시작합니다.`)
+      log(`myhome ${latestTag} ready — new version will launch on next start.`)
     } else {
       log(`Update check FAILED: asset ${newExeName} not found in release`)
     }
