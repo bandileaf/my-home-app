@@ -16,9 +16,7 @@ const LOG_PATH = path.join(LOG_DIR, `${EXE_NAME}.log`)
 const log_stream = fs.createWriteStream(LOG_PATH, { flags: 'w' })
 
 function log(msg) {
-  const line = `[${new Date().toISOString()}] ${msg}`
-  console.log(line)
-  log_stream.write(line + '\n')
+  log_stream.write(`[${new Date().toISOString()}] ${msg}\n`)
 }
 
 function read_settings() {

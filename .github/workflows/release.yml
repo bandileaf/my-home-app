@@ -57,6 +57,12 @@ jobs:
         run: npm run build
         working-directory: familyhub
 
+      - name: Hide familyhub console window
+        run: |
+          $editbin = Get-ChildItem "C:\Program Files\Microsoft Visual Studio" -Recurse -Filter editbin.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($editbin) { & $editbin.FullName /SUBSYSTEM:WINDOWS familyhub\dist\familyhub.exe }
+          else { Write-Host "editbin not found, skipping" }
+
       - name: Patch settings.json
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
