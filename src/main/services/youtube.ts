@@ -115,9 +115,7 @@ export async function youtube_download(
 
   const args = [
     '--no-playlist',
-    '-x',                              // extract audio only
-    '--audio-format', 'best',          // keep original codec (no re-encoding)
-    '--audio-quality', '0',            // highest quality
+    '--format', 'bestaudio',           // download best audio stream directly (no ffmpeg needed)
     '--newline',                        // one progress line per update
     '-o', join(outputDir, '%(title)s.%(ext)s'),
     '--print', 'after_move:filepath',  // print final path after download
