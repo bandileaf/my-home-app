@@ -128,43 +128,47 @@ export async function youtube_download(
 
   try {
     await new Promise<void>((resolve, reject) => {
-      const proc = spawn(ytdlpPath, args)
+      // PYTHONIOENCODING=utf-8: ensures yt-dlp stdout is UTF-8 on Windows
+      const proc = spawn(ytdlpPath, args, {
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      })
 
       active_downloads.set(url, () => {
         proc.kill()
         active_downloads.delete(url)
       })
 
-      let finalPath = ''
+      // Collect all stdout into a buffer; process only after close to avoid
+      // race conditions where close fires before the last data event.
+      let stdoutBuf = ''
 
       proc.stdout.on('data', (data: Buffer) => {
-        for (const line of data.toString().split('\n')) {
-          const t = line.trim()
-          if (!t) continue
+        const text = data.toString('utf8')
+        stdoutBuf += text
 
-          // Progress: [download]  45.2% of 5.23MiB at 1.23MiB/s ETA 00:04
-          const m = t.match(/\[download\]\s+([\d.]+)%.*?at\s+(\S+)\s+ETA\s+(\S+)/)
-          if (m) {
-            on_progress({ url, percent: parseFloat(m[1]), speed: m[2], eta: m[3] })
-            continue
-          }
-
-          // --print after_move:filepath outputs a bare filepath
-          // Guard against WARNING:/ERROR: lines which also lack a leading '['
-          if (!t.startsWith('[') && !t.startsWith('WARNING') && !t.startsWith('ERROR') &&
-              (t.includes('\\') || t.includes('/'))) {
-            finalPath = t
-          }
+        // Parse progress lines in real time for UI updates
+        for (const line of text.split('\n')) {
+          const m = line.trim().match(/\[download\]\s+([\d.]+)%.*?at\s+(\S+)\s+ETA\s+(\S+)/)
+          if (m) on_progress({ url, percent: parseFloat(m[1]), speed: m[2], eta: m[3] })
         }
       })
 
       proc.stderr.on('data', (data: Buffer) => {
-        stderrBuf += data.toString()
+        stderrBuf += data.toString('utf8')
       })
 
       proc.on('close', (code) => {
         active_downloads.delete(url)
         if (code === 0) {
+          // Extract final filepath from collected stdout
+          let finalPath = ''
+          for (const line of stdoutBuf.split('\n')) {
+            const t = line.trim()
+            if (t && !t.startsWith('[') && !t.startsWith('WARNING') && !t.startsWith('ERROR') &&
+                (t.includes('\\') || t.includes('/'))) {
+              finalPath = t
+            }
+          }
           on_progress({ url, percent: 100, speed: '', eta: '' })
           on_done(finalPath || outputDir)
           resolve()
