@@ -11,34 +11,31 @@ echo From: %SRC%
 echo To:   %DST%
 echo.
 
-:: 목적지 폴더가 없으면 만든다
+:: 목적지 폴더 생성
 if not exist "%DST%\" mkdir "%DST%"
 
-:: /E         하위폴더 포함
-:: /IS /IT    동일·변경 파일 모두 덮어쓰기
-:: /COPY:DAT  데이터·속성·타임스탬프만 복사 (권한 정보 제외 → 권한 오류 방지)
-:: /A-:R      읽기 전용 속성 제거 (Samba→NTFS 복사 시 종종 필요)
-:: /FFT       FAT 파일 시간 기준 (네트워크 공유 시간차 허용)
-:: /R:3 /W:3  실패 시 3회 재시도, 3초 대기
-:: /NP        진행률 % 숫자 숨김 (출력 깔끔)
-robocopy "%SRC%" "%DST%" /E /IS /IT /COPY:DAT /A-:R /FFT /R:3 /W:3 /NFL /NDL /NJH /NJS /NP
+:: robocopy 복사 (출력 보이게 /V 추가, 오류 확인용)
+robocopy "%SRC%" "%DST%" /E /IS /IT /COPY:DAT /FFT /R:3 /W:3 /NP /V
+set RC=%ERRORLEVEL%
 
-:: robocopy 종료코드 0~7 은 정상 (8 이상이 실제 오류)
-if %ERRORLEVEL% GEQ 8 (
-    echo.
-    echo [FAIL] robocopy error code %ERRORLEVEL%
+echo.
+echo robocopy exit code: %RC%
+
+:: 0~7 은 정상 (3=복사됨, 1=새파일, 5=추가+변경 등)
+if %RC% GEQ 8 (
+    echo [FAIL] 복사 오류 - 위 메시지를 확인하세요
     pause
     exit /b 1
 )
 
-echo [OK] Sync complete.
+echo [OK] 복사 완료
 echo.
 
 if not exist "%DST%\settings.json" (
-    echo NOTE: settings.json 없음 - 첫 실행 시 자동 생성됩니다.
+    echo NOTE: settings.json 없음. 첫 실행시 자동 생성됩니다.
     echo       %DST%\settings.json 에서 음악 폴더를 설정하세요.
     echo.
 )
 
-echo Launching MusicFinder...
+echo MusicFinder 실행 중...
 start "" "%DST%\MusicFinder.exe"
