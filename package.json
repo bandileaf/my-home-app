@@ -1,0 +1,35 @@
+{
+  "name": "music-finder",
+  "version": "0.0.1",
+  "description": "선택한 폴더에서 음악을 빠르게 찾고, 없으면 YouTube에서 받는 데스크톱 도구",
+  "main": "./out/main/index.js",
+  "author": "rudi109",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "dev:web": "vite --config vite.web.config.ts",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "build:win": "electron-vite build && electron-builder --win",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.1",
+    "jsonc-parser": "^3.3.1",
+    "picomatch": "^4.0.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/picomatch": "^4.0.3",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}
