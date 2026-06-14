@@ -110,6 +110,10 @@ export function YoutubeSearchPanel(): JSX.Element {
     get_bridge()?.youtube_open_folder?.(filePath)
   }
 
+  function open_url(url: string): void {
+    get_bridge()?.youtube_open_url?.(url)
+  }
+
   const available = Boolean(get_bridge()?.youtube_search)
 
   return (
@@ -157,8 +161,8 @@ export function YoutubeSearchPanel(): JSX.Element {
           const dl = downloads[item.url] ?? { status: 'idle' }
           return (
             <div className="yt-result-row" key={item.id}>
-              {/* 썸네일 */}
-              <div className="yt-thumb-wrap">
+              {/* 썸네일 — 클릭 시 브라우저로 열기 */}
+              <div className="yt-thumb-wrap" onClick={() => open_url(item.url)} title="Open on YouTube">
                 {item.thumbnail ? (
                   <img
                     className="yt-thumb"
@@ -176,7 +180,11 @@ export function YoutubeSearchPanel(): JSX.Element {
 
               {/* 정보 */}
               <div className="yt-info">
-                <div className="yt-title" title={item.title}>{item.title}</div>
+                <div
+                  className="yt-title yt-title-link"
+                  title={item.title}
+                  onClick={() => open_url(item.url)}
+                >{item.title}</div>
                 <div className="yt-meta">
                   <span className="yt-channel">{item.channel}</span>
                   {item.viewCount !== undefined && (

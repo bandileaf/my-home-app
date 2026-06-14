@@ -83,6 +83,7 @@ const api = {
   youtube_download: (url: string): void => ipcRenderer.send('youtube:download', url),
   youtube_cancel: (url: string): void => ipcRenderer.send('youtube:cancel', url),
   youtube_open_folder: (filePath: string): void => ipcRenderer.send('youtube:open-folder', filePath),
+  youtube_open_url: (url: string): void => ipcRenderer.send('youtube:open-url', url),
 
   on_youtube_progress: (callback: (p: YoutubeProgress) => void): (() => void) => {
     const listener = (_e: unknown, p: YoutubeProgress): void => callback(p)

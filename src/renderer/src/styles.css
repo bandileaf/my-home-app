@@ -581,6 +581,11 @@ body {
   flex-shrink: 0;
   width: 120px;
   height: 68px;
+  cursor: pointer;
+}
+.yt-thumb-wrap:hover .yt-thumb,
+.yt-thumb-wrap:hover .yt-thumb-placeholder {
+  opacity: 0.85;
 }
 
 .yt-thumb {
@@ -624,6 +629,13 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.yt-title-link {
+  cursor: pointer;
+  color: var(--accent);
+}
+.yt-title-link:hover {
+  text-decoration: underline;
 }
 
 .yt-meta {

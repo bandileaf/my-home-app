@@ -84,6 +84,7 @@ export interface AppBridge {
   youtube_download?: (url: string) => void
   youtube_cancel?: (url: string) => void
   youtube_open_folder?: (filePath: string) => void
+  youtube_open_url?: (url: string) => void
   on_youtube_progress?: (callback: (p: YoutubeProgress) => void) => () => void
   on_youtube_done?: (callback: (data: { url: string; filePath: string }) => void) => () => void
   on_youtube_error?: (callback: (data: { url: string; message: string }) => void) => () => void

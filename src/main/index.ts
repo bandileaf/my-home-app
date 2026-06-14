@@ -504,7 +504,10 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       },
       (message: string) => {
         log_event(`youtube:error url=${url} msg=${message}`)
-        if (!event.sender.isDestroyed()) event.sender.send('youtube:error', { url, message })
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('youtube:error', { url, message })
+          event.sender.send('notify', { message: `Download failed: ${message}`, type: 'error' })
+        }
       }
     ).catch((err: Error) => log_event(`youtube:download unhandled: ${err.message}`))
   })
@@ -516,6 +519,10 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
 
   ipcMain.on('youtube:open-folder', (_event, filePath: string) => {
     shell.showItemInFolder(filePath)
+  })
+
+  ipcMain.on('youtube:open-url', (_event, url: string) => {
+    shell.openExternal(url)
   })
 }
 

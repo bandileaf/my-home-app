@@ -1,4 +1,3 @@
-import { Readable } from 'stream'
 import { createWriteStream, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { Innertube } from 'youtubei.js'
@@ -95,54 +94,69 @@ export async function youtube_download(
     const videoId = extract_video_id(url)
     const info = await yt.getInfo(videoId)
 
-    // m4a(aac) 우선, 없으면 webm(opus) — 모두 변환 없이 바로 재생 가능
-    const format = info.chooseFormat({ type: 'audio', quality: 'best', format: 'mp4' })
-                ?? info.chooseFormat({ type: 'audio', quality: 'best' })
+    // m4a(aac) 우선, 없으면 webm(opus)
+    let format = null
+    try { format = info.chooseFormat({ type: 'audio', quality: 'best', format: 'mp4' }) } catch { /* ignore */ }
+    if (!format) {
+      try { format = info.chooseFormat({ type: 'audio', quality: 'best' }) } catch { /* ignore */ }
+    }
     if (!format) throw new Error('No audio format available')
 
     const ext = format.mime_type?.includes('mp4') ? 'm4a' : 'webm'
     const title = sanitize_filename(String(info.basic_info.title ?? videoId))
     const outputPath = join(outputDir, `${title}.${ext}`)
-
     const totalBytes = Number(format.content_length ?? 0)
+
     on_progress({ url, percent: 0, speed: '', eta: '' })
 
-    const webStream = await info.download({ type: 'audio', quality: 'best', format: 'mp4' })
-    const src = Readable.fromWeb(webStream as Parameters<typeof Readable.fromWeb>[0])
-    const dest = createWriteStream(outputPath)
+    // Web ReadableStream → 파일 직접 기록 (Readable.fromWeb 없이 getReader() 사용)
+    const webStream = await info.download({ type: 'audio', quality: 'best' })
+    const reader = webStream.getReader()
+    const fileStream = createWriteStream(outputPath)
 
-    const cancel = (): void => {
-      src.destroy()
-      dest.destroy()
-      try { rmSync(outputPath) } catch { /* ignore */ }
+    const cleanup = (deleteFile = false): void => {
+      try { reader.cancel() } catch { /* ignore */ }
+      fileStream.destroy()
+      if (deleteFile) try { rmSync(outputPath) } catch { /* ignore */ }
     }
-    active_downloads.set(url, cancel)
+
+    active_downloads.set(url, () => {
+      active_downloads.delete(url)
+      cleanup(true)
+    })
 
     let downloaded = 0
-    src.on('data', (chunk: Buffer) => {
-      downloaded += chunk.length
-      if (totalBytes > 0) {
-        on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
+
+    const pump = async (): Promise<void> => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          downloaded += value.length
+          if (totalBytes > 0) {
+            on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
+          }
+          // 백프레셔 처리
+          const ok = fileStream.write(value)
+          if (!ok) await new Promise<void>((res, rej) => {
+            fileStream.once('drain', res)
+            fileStream.once('error', rej)
+          })
+        }
+        fileStream.end()
+        fileStream.once('finish', () => {
+          active_downloads.delete(url)
+          on_progress({ url, percent: 100, speed: '', eta: '' })
+          on_done(outputPath)
+        })
+      } catch (err) {
+        active_downloads.delete(url)
+        cleanup(true)
+        on_error(err instanceof Error ? err.message : String(err))
       }
-    })
+    }
 
-    src.on('error', (err) => {
-      active_downloads.delete(url)
-      on_error(err.message)
-    })
-
-    dest.on('error', (err) => {
-      active_downloads.delete(url)
-      on_error(err.message)
-    })
-
-    dest.on('finish', () => {
-      active_downloads.delete(url)
-      on_progress({ url, percent: 100, speed: '', eta: '' })
-      on_done(outputPath)
-    })
-
-    src.pipe(dest)
+    void pump()
 
   } catch (err) {
     active_downloads.delete(url)
@@ -152,10 +166,7 @@ export async function youtube_download(
 
 export function youtube_cancel(url: string): void {
   const cancel = active_downloads.get(url)
-  if (cancel) {
-    cancel()
-    active_downloads.delete(url)
-  }
+  if (cancel) cancel()
 }
 
 export function resolve_download_dir(appDir: string, configured: string): string {
