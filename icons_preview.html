@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body { background: #1e1e1e; display: flex; gap: 40px; padding: 40px; flex-wrap: wrap; font-family: sans-serif; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #ccc; font-size: 13px; }
+  svg { border-radius: 16px; }
+</style>
+</head>
+<body>
+
+<!-- 1. 미니멀 플랫 -->
+<div class="item">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="24" fill="#4F7FFA"/>
+  <polygon points="64,24 104,58 104,104 24,104 24,58" fill="white"/>
+  <rect x="48" y="72" width="32" height="32" fill="#4F7FFA"/>
+</svg>
+<span>1. 미니멀 플랫</span>
+</div>
+
+<!-- 2. 라인 아트 -->
+<div class="item">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="24" fill="#1a1a2e"/>
+  <polygon points="64,22 108,58 108,106 20,106 20,58" fill="none" stroke="white" stroke-width="5" stroke-linejoin="round"/>
+  <rect x="48" y="74" width="28" height="32" fill="none" stroke="white" stroke-width="4"/>
+  <rect x="72" y="38" width="10" height="14" fill="white"/>
+</svg>
+<span>2. 라인 아트</span>
+</div>
+
+<!-- 3. 모던 그라디언트 -->
+<div class="item">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="url(#g1)"/>
+  <polygon points="64,20 110,60 110,108 18,108 18,60" fill="rgba(255,255,255,0.9)"/>
+  <rect x="46" y="74" width="36" height="34" fill="url(#g1)"/>
+  <rect x="74" y="36" width="12" height="18" fill="rgba(255,255,255,0.5)"/>
+</svg>
+<span>3. 그라디언트</span>
+</div>
+
+<!-- 4. 소프트 라운드 -->
+<div class="item">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="24" fill="#f0f4ff"/>
+  <polygon points="64,18 112,60 112,110 16,110 16,60" fill="#3B82F6"/>
+  <polygon points="64,18 112,60 16,60" fill="#2563EB"/>
+  <rect x="46" y="74" width="36" height="36" rx="4" fill="white"/>
+  <rect x="56" y="42" width="16" height="14" rx="2" fill="white" opacity="0.4"/>
+</svg>
+<span>4. 소프트</span>
+</div>
+
+</body>
+</html>
