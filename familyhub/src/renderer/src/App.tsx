@@ -4,6 +4,7 @@ declare global {
   interface Window {
     hub: {
       onStatus: (cb: (data: { message?: string; done: boolean }) => void) => void
+      onProgress: (cb: (pct: number) => void) => void
     }
   }
 }
@@ -11,13 +12,17 @@ declare global {
 const FRAMES = ['◐', '◓', '◑', '◒']
 
 export default function App() {
-  const [message, setMessage] = useState('시작 중...')
+  const [message, setMessage]   = useState('시작 중...')
   const [frameIdx, setFrameIdx] = useState(0)
+  const [progress, setProgress] = useState<number | null>(null)
 
   useEffect(() => {
     window.hub.onStatus(({ message: msg, done }) => {
       if (done) return
       if (msg) setMessage(msg)
+    })
+    window.hub.onProgress((pct: number) => {
+      setProgress(pct)
     })
     const id = setInterval(() => setFrameIdx(i => (i + 1) % 4), 350)
     return () => clearInterval(id)
@@ -26,25 +31,45 @@ export default function App() {
   return (
     <div style={{
       display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      padding: '12px 16px',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      padding: '10px 16px',
       background: 'rgba(20, 20, 32, 0.92)',
       borderRadius: 10,
       width: '100%',
       height: '100%',
     }}>
-      <span style={{ color: '#CBA6F7', fontSize: 22, lineHeight: 1, flexShrink: 0 }}>
-        {FRAMES[frameIdx]}
-      </span>
-      <div>
-        <div style={{ color: '#A6ADC8', fontSize: 10, fontWeight: 'bold', marginBottom: 2 }}>
-          FamilyHub
-        </div>
-        <div style={{ color: '#CDD6F4', fontSize: 13, minWidth: 220 }}>
-          {message}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ color: '#CBA6F7', fontSize: 22, lineHeight: 1, flexShrink: 0 }}>
+          {FRAMES[frameIdx]}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: '#A6ADC8', fontSize: 10, fontWeight: 'bold', marginBottom: 2 }}>
+            FamilyHub
+          </div>
+          <div style={{ color: '#CDD6F4', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {message}
+          </div>
         </div>
       </div>
+
+      {progress !== null && (
+        <div style={{
+          marginTop: 8,
+          height: 4,
+          background: '#313244',
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            background: '#CBA6F7',
+            borderRadius: 2,
+            width: `${progress}%`,
+            transition: 'width 0.15s ease',
+          }} />
+        </div>
+      )}
     </div>
   )
 }
