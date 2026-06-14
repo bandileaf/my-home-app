@@ -1,7 +1,15 @@
 import { createWriteStream, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
-import { Innertube } from 'youtubei.js'
+import type { Innertube as InnertubeType } from 'youtubei.js'
 import ytdl from '@distube/ytdl-core'
+
+// youtubei.js is ESM-only; use new Function to prevent Rollup from converting
+// import() to require() in CJS output, allowing Node.js to load it as ESM.
+async function load_innertube(): Promise<{ Innertube: typeof InnertubeType }> {
+  return (new Function('return import("youtubei.js")')()) as Promise<{
+    Innertube: typeof InnertubeType
+  }>
+}
 
 export interface YoutubeResult {
   id: string
@@ -22,10 +30,13 @@ export interface YoutubeProgress {
 
 // ── 검색: youtubei.js ────────────────────────────────────────────────────────
 
-let _yt: Innertube | null = null
+let _yt: InnertubeType | null = null
 
-async function get_yt(): Promise<Innertube> {
-  if (!_yt) _yt = await Innertube.create()
+async function get_yt(): Promise<InnertubeType> {
+  if (!_yt) {
+    const { Innertube } = await load_innertube()
+    _yt = await Innertube.create()
+  }
   return _yt
 }
 
