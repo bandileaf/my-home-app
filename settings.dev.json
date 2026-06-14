@@ -1,0 +1,6 @@
+{
+  "hub.repo": "bandileaf/my-home-app",
+  "hub.tag": "v0.0.1",
+  "hub.app.myhome": "myhome.exe",
+  "hub.bins": []
+}
