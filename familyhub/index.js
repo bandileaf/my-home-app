@@ -110,8 +110,12 @@ async function ensure_bins(bins, settings) {
   for (const bin of bins) {
     const destPath = path.join(BASE_DIR, bin.dest)
     if (fs.existsSync(destPath)) {
-      log(`${bin.dest}: already installed`)
-      continue
+      if (bin.version) {
+        log(`${bin.dest}: already installed (${bin.version})`)
+        continue
+      }
+      log(`${bin.dest}: no version info, re-downloading...`)
+      fs.unlinkSync(destPath)
     }
 
     log(`${bin.dest}: installing...`)
