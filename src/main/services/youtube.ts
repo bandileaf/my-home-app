@@ -1,6 +1,7 @@
 import { createWriteStream, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { Innertube } from 'youtubei.js'
+import ytdl from '@distube/ytdl-core'
 
 export interface YoutubeResult {
   id: string
@@ -18,6 +19,8 @@ export interface YoutubeProgress {
   speed: string
   eta: string
 }
+
+// ── 검색: youtubei.js ────────────────────────────────────────────────────────
 
 let _yt: Innertube | null = null
 
@@ -77,7 +80,8 @@ function parse_view_count(vc: unknown): number | undefined {
   return undefined
 }
 
-// url → 취소 함수
+// ── 다운로드: @distube/ytdl-core ────────────────────────────────────────────
+
 const active_downloads = new Map<string, () => void>()
 
 export async function youtube_download(
@@ -90,73 +94,54 @@ export async function youtube_download(
   if (active_downloads.has(url)) return
 
   try {
-    const yt = await get_yt()
-    const videoId = extract_video_id(url)
-    const info = await yt.getInfo(videoId)
+    const info = await ytdl.getInfo(url)
+    const format = ytdl.chooseFormat(info.formats, {
+      quality: 'highestaudio',
+      filter: 'audioonly',
+    })
 
-    // m4a(aac) 우선, 없으면 webm(opus)
-    let format = null
-    try { format = info.chooseFormat({ type: 'audio', quality: 'best', format: 'mp4' }) } catch { /* ignore */ }
-    if (!format) {
-      try { format = info.chooseFormat({ type: 'audio', quality: 'best' }) } catch { /* ignore */ }
-    }
-    if (!format) throw new Error('No audio format available')
-
-    const ext = format.mime_type?.includes('mp4') ? 'm4a' : 'webm'
-    const title = sanitize_filename(String(info.basic_info.title ?? videoId))
+    const ext = format.container === 'mp4' ? 'm4a' : (format.container ?? 'webm')
+    const title = sanitize_filename(info.videoDetails.title ?? 'audio')
     const outputPath = join(outputDir, `${title}.${ext}`)
-    const totalBytes = Number(format.content_length ?? 0)
+    const totalBytes = parseInt(format.contentLength ?? '0', 10)
 
     on_progress({ url, percent: 0, speed: '', eta: '' })
 
-    // Web ReadableStream → 파일 직접 기록 (Readable.fromWeb 없이 getReader() 사용)
-    const webStream = await info.download({ type: 'audio', quality: 'best' })
-    const reader = webStream.getReader()
-    const fileStream = createWriteStream(outputPath)
+    const src = ytdl.downloadFromInfo(info, { format })
+    const dest = createWriteStream(outputPath)
 
-    const cleanup = (deleteFile = false): void => {
-      try { reader.cancel() } catch { /* ignore */ }
-      fileStream.destroy()
-      if (deleteFile) try { rmSync(outputPath) } catch { /* ignore */ }
+    const cancel = (): void => {
+      src.destroy()
+      dest.destroy()
+      try { rmSync(outputPath) } catch { /* ignore */ }
     }
-
-    active_downloads.set(url, () => {
-      active_downloads.delete(url)
-      cleanup(true)
-    })
+    active_downloads.set(url, cancel)
 
     let downloaded = 0
-
-    const pump = async (): Promise<void> => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          downloaded += value.length
-          if (totalBytes > 0) {
-            on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
-          }
-          // 백프레셔 처리
-          const ok = fileStream.write(value)
-          if (!ok) await new Promise<void>((res, rej) => {
-            fileStream.once('drain', res)
-            fileStream.once('error', rej)
-          })
-        }
-        fileStream.end()
-        fileStream.once('finish', () => {
-          active_downloads.delete(url)
-          on_progress({ url, percent: 100, speed: '', eta: '' })
-          on_done(outputPath)
-        })
-      } catch (err) {
-        active_downloads.delete(url)
-        cleanup(true)
-        on_error(err instanceof Error ? err.message : String(err))
+    src.on('data', (chunk: Buffer) => {
+      downloaded += chunk.length
+      if (totalBytes > 0) {
+        on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
       }
-    }
+    })
 
-    void pump()
+    src.on('error', (err) => {
+      active_downloads.delete(url)
+      on_error(err.message)
+    })
+
+    dest.on('error', (err) => {
+      active_downloads.delete(url)
+      on_error(err.message)
+    })
+
+    dest.on('finish', () => {
+      active_downloads.delete(url)
+      on_progress({ url, percent: 100, speed: '', eta: '' })
+      on_done(outputPath)
+    })
+
+    src.pipe(dest)
 
   } catch (err) {
     active_downloads.delete(url)
@@ -166,18 +151,16 @@ export async function youtube_download(
 
 export function youtube_cancel(url: string): void {
   const cancel = active_downloads.get(url)
-  if (cancel) cancel()
+  if (cancel) {
+    cancel()
+    active_downloads.delete(url)
+  }
 }
 
 export function resolve_download_dir(appDir: string, configured: string): string {
   const dir = configured.trim() || join(appDir, 'Downloads')
   mkdirSync(dir, { recursive: true })
   return dir
-}
-
-function extract_video_id(url: string): string {
-  const m = url.match(/[?&]v=([^&]+)/)
-  return m ? m[1] : url
 }
 
 function sanitize_filename(name: string): string {
