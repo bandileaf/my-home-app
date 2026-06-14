@@ -1,4 +1,5 @@
 import { createWriteStream, mkdirSync, rmSync } from 'fs'
+import { get as httpsGet } from 'https'
 import { join } from 'path'
 import type { Innertube as InnertubeType } from 'youtubei.js'
 
@@ -7,6 +8,8 @@ interface AudioFormat {
   has_video: boolean
   content_length?: number
   mime_type: string
+  bitrate?: number
+  url?: string
 }
 
 // youtubei.js is ESM-only; use new Function to prevent Rollup from converting
@@ -126,59 +129,61 @@ export async function youtube_download(
     const title = sanitize_filename(info.basic_info.title ?? 'audio')
 
     const audioFormats = ((info.streaming_data?.adaptive_formats ?? []) as AudioFormat[]).filter(
-      (f) => f.has_audio && !f.has_video
+      (f) => f.has_audio && !f.has_video && !!f.url
     )
-    const totalBytes = audioFormats[0]?.content_length ?? 0
+    audioFormats.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))
 
-    const ext = audioFormats[0]?.mime_type.startsWith('audio/webm') ? 'webm' : 'm4a'
+    const best = audioFormats[0]
+    if (!best?.url) throw new Error('No audio stream URL found')
+
+    const totalBytes = best.content_length ?? 0
+    const ext = best.mime_type.startsWith('audio/webm') ? 'webm' : 'm4a'
     outputPath = join(outputDir, `${title}.${ext}`)
 
     on_progress({ url, percent: 0, speed: '', eta: '' })
 
-    const stream = await yt.download(videoId, {
-      type: 'audio',
-      quality: 'best',
-      format: 'any',
-      client: 'IOS',
-    })
-
     const dest = createWriteStream(outputPath)
+    let req: ReturnType<typeof httpsGet> | null = null
 
     const cancel = (): void => {
       cancelled = true
+      req?.destroy()
       dest.destroy()
       try { rmSync(outputPath) } catch { /* ignore */ }
     }
     active_downloads.set(url, cancel)
 
-    let downloaded = 0
-    const reader = (stream as unknown as ReadableStream<Uint8Array>).getReader()
-
-    const pump = async (): Promise<void> => {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done || cancelled) break
-        dest.write(Buffer.from(value))
-        downloaded += value.byteLength
-        if (totalBytes > 0) {
-          on_progress({
-            url,
-            percent: Math.min(99, (downloaded / totalBytes) * 100),
-            speed: '',
-            eta: '',
-          })
+    await new Promise<void>((resolve, reject) => {
+      let downloaded = 0
+      // Use Node https directly — bypasses Electron's patched fetch/networking
+      req = httpsGet(best.url!, {
+        headers: { 'User-Agent': 'com.google.ios.youtube/19.29.1 CFNetwork/1568.200.51 Darwin/24.1.0' }
+      }, (res) => {
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}`))
+          return
         }
-      }
-    }
-
-    await pump()
+        res.on('data', (chunk: Buffer) => {
+          if (cancelled) return
+          dest.write(chunk)
+          downloaded += chunk.length
+          if (totalBytes > 0) {
+            on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
+          }
+        })
+        res.on('end', () => {
+          if (!cancelled) {
+            dest.end()
+            dest.once('finish', resolve)
+          }
+        })
+        res.on('error', reject)
+      })
+      req.on('error', reject)
+      dest.on('error', reject)
+    })
 
     if (!cancelled) {
-      await new Promise<void>((resolve, reject) => {
-        dest.end()
-        dest.on('finish', resolve)
-        dest.on('error', reject)
-      })
       active_downloads.delete(url)
       on_progress({ url, percent: 100, speed: '', eta: '' })
       on_done(outputPath)
