@@ -57,11 +57,13 @@ jobs:
         run: npm run build
         working-directory: familyhub
 
-      - name: Create settings.json
+      - name: Patch settings.json
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
-          $json = "{`n  `"hub.repo`": `"bandileaf/my-home-app`",`n  `"hub.tag.myhome`": `"$tag`",`n  `"hub.app.myhome`": `"myhome_${tag}.exe`"`n}"
-          $json | Out-File -FilePath familyhub\settings.json -Encoding utf8NoBOM
+          $json = Get-Content familyhub\settings.json | ConvertFrom-Json
+          $json.'hub.tag.myhome' = $tag
+          $json.'hub.app.myhome' = "myhome_${tag}.exe"
+          $json | ConvertTo-Json | Out-File familyhub\settings.json -Encoding utf8NoBOM
 
       - name: Remove intermediate build folder
         run: Remove-Item -Recurse -Force myhome\dist\win-unpacked -ErrorAction SilentlyContinue
