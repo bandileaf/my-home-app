@@ -1,7 +1,13 @@
 import { createWriteStream, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import type { Innertube as InnertubeType } from 'youtubei.js'
-import ytdl from '@distube/ytdl-core'
+
+interface AudioFormat {
+  has_audio: boolean
+  has_video: boolean
+  content_length?: number
+  mime_type: string
+}
 
 // youtubei.js is ESM-only; use new Function to prevent Rollup from converting
 // import() to require() in CJS output, allowing Node.js to load it as ESM.
@@ -28,7 +34,7 @@ export interface YoutubeProgress {
   eta: string
 }
 
-// ── 검색: youtubei.js ────────────────────────────────────────────────────────
+// ── Innertube singleton ──────────────────────────────────────────────────────
 
 let _yt: InnertubeType | null = null
 
@@ -39,6 +45,8 @@ async function get_yt(): Promise<InnertubeType> {
   }
   return _yt
 }
+
+// ── 검색 ────────────────────────────────────────────────────────────────────
 
 export async function youtube_search(query: string, limit = 10): Promise<YoutubeResult[]> {
   const yt = await get_yt()
@@ -91,7 +99,7 @@ function parse_view_count(vc: unknown): number | undefined {
   return undefined
 }
 
-// ── 다운로드: @distube/ytdl-core ────────────────────────────────────────────
+// ── 다운로드 (youtubei.js IOS client — non-ciphered audio URLs) ──────────────
 
 const active_downloads = new Map<string, () => void>()
 
@@ -104,58 +112,80 @@ export async function youtube_download(
 ): Promise<void> {
   if (active_downloads.has(url)) return
 
-  try {
-    const info = await ytdl.getInfo(url)
-    const format = ytdl.chooseFormat(info.formats, {
-      quality: 'highestaudio',
-      filter: 'audioonly',
-    })
+  let outputPath = ''
+  let cancelled = false
 
-    const ext = format.container === 'mp4' ? 'm4a' : (format.container ?? 'webm')
-    const title = sanitize_filename(info.videoDetails.title ?? 'audio')
-    const outputPath = join(outputDir, `${title}.${ext}`)
-    const totalBytes = parseInt(format.contentLength ?? '0', 10)
+  try {
+    const videoId = new URL(url).searchParams.get('v')
+    if (!videoId) throw new Error('Invalid YouTube URL')
+
+    const yt = await get_yt()
+
+    // IOS client returns non-ciphered streaming URLs — avoids decipher errors
+    const info = await yt.getInfo(videoId, { client: 'IOS' })
+    const title = sanitize_filename(info.basic_info.title ?? 'audio')
+
+    const audioFormats = ((info.streaming_data?.adaptive_formats ?? []) as AudioFormat[]).filter(
+      (f) => f.has_audio && !f.has_video
+    )
+    const totalBytes = audioFormats[0]?.content_length ?? 0
+
+    const ext = audioFormats[0]?.mime_type.startsWith('audio/webm') ? 'webm' : 'm4a'
+    outputPath = join(outputDir, `${title}.${ext}`)
 
     on_progress({ url, percent: 0, speed: '', eta: '' })
 
-    const src = ytdl.downloadFromInfo(info, { format })
+    const stream = await yt.download(videoId, {
+      type: 'audio',
+      quality: 'best',
+      format: 'any',
+      client: 'IOS',
+    })
+
     const dest = createWriteStream(outputPath)
 
     const cancel = (): void => {
-      src.destroy()
+      cancelled = true
       dest.destroy()
       try { rmSync(outputPath) } catch { /* ignore */ }
     }
     active_downloads.set(url, cancel)
 
     let downloaded = 0
-    src.on('data', (chunk: Buffer) => {
-      downloaded += chunk.length
-      if (totalBytes > 0) {
-        on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
+    const reader = (stream as unknown as ReadableStream<Uint8Array>).getReader()
+
+    const pump = async (): Promise<void> => {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done || cancelled) break
+        dest.write(Buffer.from(value))
+        downloaded += value.byteLength
+        if (totalBytes > 0) {
+          on_progress({
+            url,
+            percent: Math.min(99, (downloaded / totalBytes) * 100),
+            speed: '',
+            eta: '',
+          })
+        }
       }
-    })
+    }
 
-    src.on('error', (err) => {
-      active_downloads.delete(url)
-      on_error(err.message)
-    })
+    await pump()
 
-    dest.on('error', (err) => {
-      active_downloads.delete(url)
-      on_error(err.message)
-    })
-
-    dest.on('finish', () => {
+    if (!cancelled) {
+      await new Promise<void>((resolve, reject) => {
+        dest.end()
+        dest.on('finish', resolve)
+        dest.on('error', reject)
+      })
       active_downloads.delete(url)
       on_progress({ url, percent: 100, speed: '', eta: '' })
       on_done(outputPath)
-    })
-
-    src.pipe(dest)
-
+    }
   } catch (err) {
     active_downloads.delete(url)
+    if (outputPath) try { rmSync(outputPath) } catch { /* ignore */ }
     on_error(err instanceof Error ? err.message : String(err))
   }
 }
