@@ -33,21 +33,21 @@ export default function App() {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
-      padding: '10px 16px',
+      padding: '12px 20px',
       background: 'rgba(20, 20, 32, 0.92)',
       borderRadius: 10,
       width: '100%',
       height: '100%',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ color: '#CBA6F7', fontSize: 22, lineHeight: 1, flexShrink: 0 }}>
+        <span style={{ color: '#CBA6F7', fontSize: 26, lineHeight: 1, flexShrink: 0 }}>
           {FRAMES[frameIdx]}
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: '#A6ADC8', fontSize: 10, fontWeight: 'bold', marginBottom: 2 }}>
+          <div style={{ color: '#A6ADC8', fontSize: 11, fontWeight: 'bold', marginBottom: 3 }}>
             FamilyHub
           </div>
-          <div style={{ color: '#CDD6F4', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ color: '#CDD6F4', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message}
           </div>
         </div>
