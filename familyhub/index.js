@@ -51,6 +51,7 @@ function fetch_latest_release(repo) {
   })
 }
 
+// resolves with the final URL after all redirects
 function download_file(url, dest) {
   return new Promise((resolve, reject) => {
     const follow = (u) => {
@@ -65,7 +66,7 @@ function download_file(url, dest) {
         res.on('end', () => {
           file.end(() => {
             fs.renameSync(tmp, dest)
-            resolve()
+            resolve(u)
           })
         })
         res.on('error', reject)
@@ -73,6 +74,13 @@ function download_file(url, dest) {
     }
     follow(url)
   })
+}
+
+// extracts version tag from a GitHub release download URL
+// e.g. https://github.com/foo/bar/releases/download/v1.2.3/file.exe → "v1.2.3"
+function extract_version_from_url(url) {
+  const m = url.match(/\/releases\/download\/([^/]+)\//)
+  return m ? m[1] : ''
 }
 
 function compare_versions(a, b) {
@@ -98,14 +106,10 @@ function launch(exeName) {
   process.exit(0)
 }
 
-function extract_github_repo(url) {
-  const m = url.match(/github\.com\/([^/]+\/[^/]+)\/releases\//)
-  return m ? m[1] : null
-}
-
 async function ensure_bins(bins, settings) {
   let dirty = false
-  const zipCache = new Map()
+  const zipCache = new Map()    // url → AdmZip
+  const zipVersion = new Map()  // url → version string
 
   for (const bin of bins) {
     const destPath = path.join(BASE_DIR, bin.dest)
@@ -121,36 +125,31 @@ async function ensure_bins(bins, settings) {
     log(`${bin.dest}: installing...`)
     fs.mkdirSync(path.dirname(destPath), { recursive: true })
 
-    let version = ''
-    const repo = extract_github_repo(bin.url)
-    if (repo) {
-      try {
-        const release = await fetch_latest_release(repo)
-        version = release.tag_name ?? ''
-      } catch (err) {
-        log(`${bin.dest}: version check failed (${err.message})`)
-      }
-    }
-
     const zipDestPath = path.join(BASE_DIR, 'bin', path.basename(bin.url))
     try {
+      let version = ''
       if (bin.zip) {
         let zip = zipCache.get(bin.url)
         if (!zip) {
           const zipName = path.basename(bin.url)
           log(`Downloading ${zipName}...`)
-          await download_file(bin.url, zipDestPath)
+          const finalUrl = await download_file(bin.url, zipDestPath)
+          version = extract_version_from_url(finalUrl)
           log(`Extracting from ${zipName}...`)
           zip = new AdmZip(zipDestPath)
           zipCache.set(bin.url, zip)
+          zipVersion.set(bin.url, version)
           fs.unlinkSync(zipDestPath)
+        } else {
+          version = zipVersion.get(bin.url) ?? ''
         }
         const entry = zip.getEntry(bin.zip)
         if (!entry) throw new Error(`entry not found in zip: ${bin.zip}`)
         fs.writeFileSync(destPath, entry.getData())
       } else {
         log(`Downloading ${path.basename(bin.url)}...`)
-        await download_file(bin.url, destPath)
+        const finalUrl = await download_file(bin.url, destPath)
+        version = extract_version_from_url(finalUrl)
       }
 
       bin.version = version || 'unknown'
