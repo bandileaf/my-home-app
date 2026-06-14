@@ -9,6 +9,10 @@ echo From: %SRC%
 echo To:   %DST%
 echo.
 
+echo Stopping MusicFinder if running...
+taskkill /F /IM MusicFinder.exe 2>/dev/null
+timeout /T 1 /NOBREAK >/dev/null
+
 if not exist "%DST%\" mkdir "%DST%"
 
 robocopy "%SRC%" "%DST%" /E /IS /IT /COPY:DAT /FFT /R:3 /W:3 /NP /V
