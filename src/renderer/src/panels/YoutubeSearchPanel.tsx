@@ -18,7 +18,7 @@ function format_views(n: number): string {
 
 type DownloadState =
   | { status: 'idle' }
-  | { status: 'downloading'; percent: number; speed: string; eta: string; filePath?: string }
+  | { status: 'downloading'; percent: number; speed: string; eta: string }
   | { status: 'done'; filePath: string }
   | { status: 'error'; message: string }
 
@@ -41,8 +41,7 @@ export function YoutubeSearchPanel(): JSX.Element {
           status: 'downloading',
           percent: p.percent,
           speed: p.speed,
-          eta: p.eta,
-          filePath: p.filePath
+          eta: p.eta
         }
       }))
     })
@@ -188,7 +187,7 @@ export function YoutubeSearchPanel(): JSX.Element {
                 {/* 다운로드 상태 */}
                 {dl.status === 'idle' && (
                   <button className="yt-dl-btn" onClick={() => do_download(item.url)}>
-                    ↓ Download MP3
+                    ↓ Download Audio
                   </button>
                 )}
 
@@ -205,9 +204,6 @@ export function YoutubeSearchPanel(): JSX.Element {
                         Cancel
                       </button>
                     </div>
-                    {dl.filePath && (
-                      <div className="yt-converting">Converting to MP3…</div>
-                    )}
                   </div>
                 )}
 

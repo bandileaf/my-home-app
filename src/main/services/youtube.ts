@@ -1,9 +1,7 @@
 import { Readable } from 'stream'
-import { spawn, type ChildProcess } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
-import { dirname, join } from 'path'
+import { createWriteStream, mkdirSync, rmSync } from 'fs'
+import { join } from 'path'
 import { Innertube } from 'youtubei.js'
-import ffmpegStatic from 'ffmpeg-static'
 
 export interface YoutubeResult {
   id: string
@@ -20,22 +18,8 @@ export interface YoutubeProgress {
   percent: number
   speed: string
   eta: string
-  filePath?: string
 }
 
-// ffmpeg 경로 탐색:
-//   1. extraFiles 로 번들된 Windows 바이너리 (resources/ffmpeg.exe)
-//   2. 개발 환경: ffmpeg-static 이 설치한 플랫폼 바이너리
-//   3. PATH fallback
-function get_ffmpeg(): string {
-  const bundled = join(dirname(process.execPath), 'resources', 'ffmpeg.exe')
-  if (existsSync(bundled)) return bundled
-  const dev = ffmpegStatic as string | null
-  if (dev && existsSync(dev)) return dev
-  return 'ffmpeg'
-}
-
-// Innertube 인스턴스 (앱 수명 동안 재사용)
 let _yt: Innertube | null = null
 
 async function get_yt(): Promise<Innertube> {
@@ -68,8 +52,7 @@ export async function youtube_search(query: string, limit = 10): Promise<Youtube
 function parse_duration(d: unknown): number {
   if (!d || typeof d !== 'object') return 0
   const obj = d as Record<string, unknown>
-  if (typeof obj['seconds'] === 'number') return obj['seconds'] as number
-  return 0
+  return typeof obj['seconds'] === 'number' ? (obj['seconds'] as number) : 0
 }
 
 function parse_channel(a: unknown): string {
@@ -95,8 +78,8 @@ function parse_view_count(vc: unknown): number | undefined {
   return undefined
 }
 
-// 진행 중인 다운로드: url → ffmpeg 프로세스
-const active_downloads = new Map<string, ChildProcess>()
+// url → 취소 함수
+const active_downloads = new Map<string, () => void>()
 
 export async function youtube_download(
   url: string,
@@ -112,55 +95,54 @@ export async function youtube_download(
     const videoId = extract_video_id(url)
     const info = await yt.getInfo(videoId)
 
+    // m4a(aac) 우선, 없으면 webm(opus) — 모두 변환 없이 바로 재생 가능
+    const format = info.chooseFormat({ type: 'audio', quality: 'best', format: 'mp4' })
+                ?? info.chooseFormat({ type: 'audio', quality: 'best' })
+    if (!format) throw new Error('No audio format available')
+
+    const ext = format.mime_type?.includes('mp4') ? 'm4a' : 'webm'
     const title = sanitize_filename(String(info.basic_info.title ?? videoId))
-    const outputPath = join(outputDir, `${title}.mp3`)
-    const durationSec = info.basic_info.duration ?? 0
+    const outputPath = join(outputDir, `${title}.${ext}`)
 
-    // youtubei.js ReadableStream<Uint8Array> → Node.js Readable
-    const webStream = await info.download({ type: 'audio', quality: 'best' })
+    const totalBytes = Number(format.content_length ?? 0)
+    on_progress({ url, percent: 0, speed: '', eta: '' })
 
-    const proc = spawn(
-      get_ffmpeg(),
-      ['-i', 'pipe:0', '-vn', '-ar', '44100', '-ac', '2', '-b:a', '192k', '-f', 'mp3', '-y', outputPath],
-      { stdio: ['pipe', 'ignore', 'pipe'] }
-    )
+    const webStream = await info.download({ type: 'audio', quality: 'best', format: 'mp4' })
+    const src = Readable.fromWeb(webStream as Parameters<typeof Readable.fromWeb>[0])
+    const dest = createWriteStream(outputPath)
 
-    active_downloads.set(url, proc)
+    const cancel = (): void => {
+      src.destroy()
+      dest.destroy()
+      try { rmSync(outputPath) } catch { /* ignore */ }
+    }
+    active_downloads.set(url, cancel)
 
-    // ffmpeg stderr → progress (time=HH:MM:SS 파싱)
-    proc.stderr!.on('data', (d: Buffer) => {
-      const text = d.toString()
-      const m = text.match(/time=(\d+):(\d+):([\d.]+)/)
-      if (m && durationSec > 0) {
-        const elapsed = parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3])
-        on_progress({ url, percent: Math.min(99, (elapsed / durationSec) * 100), speed: '', eta: '' })
+    let downloaded = 0
+    src.on('data', (chunk: Buffer) => {
+      downloaded += chunk.length
+      if (totalBytes > 0) {
+        on_progress({ url, percent: Math.min(99, (downloaded / totalBytes) * 100), speed: '', eta: '' })
       }
     })
 
-    proc.on('error', (err) => {
+    src.on('error', (err) => {
       active_downloads.delete(url)
-      on_error(`ffmpeg 오류: ${err.message}`)
+      on_error(err.message)
     })
 
-    proc.on('close', (code) => {
+    dest.on('error', (err) => {
       active_downloads.delete(url)
-      if (code === 0) {
-        on_done(outputPath)
-      } else {
-        on_error(`변환 실패 (exit ${code})`)
-      }
+      on_error(err.message)
     })
 
-    // Web ReadableStream → Node Readable → ffmpeg stdin
-    const nodeReadable = Readable.fromWeb(
-      webStream as Parameters<typeof Readable.fromWeb>[0]
-    )
-    nodeReadable.on('error', (err) => {
-      proc.kill()
+    dest.on('finish', () => {
       active_downloads.delete(url)
-      on_error(`스트림 오류: ${err.message}`)
+      on_progress({ url, percent: 100, speed: '', eta: '' })
+      on_done(outputPath)
     })
-    nodeReadable.pipe(proc.stdin!)
+
+    src.pipe(dest)
 
   } catch (err) {
     active_downloads.delete(url)
@@ -169,9 +151,9 @@ export async function youtube_download(
 }
 
 export function youtube_cancel(url: string): void {
-  const proc = active_downloads.get(url)
-  if (proc) {
-    proc.kill()
+  const cancel = active_downloads.get(url)
+  if (cancel) {
+    cancel()
     active_downloads.delete(url)
   }
 }

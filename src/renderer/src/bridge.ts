@@ -50,7 +50,6 @@ export interface YoutubeProgress {
   percent: number
   speed: string
   eta: string
-  filePath?: string
 }
 
 export interface AppBridge {
