@@ -1,7 +1,7 @@
 import { Readable } from 'stream'
 import { spawn, type ChildProcess } from 'child_process'
-import { mkdirSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync } from 'fs'
+import { dirname, join } from 'path'
 import { Innertube } from 'youtubei.js'
 import ffmpegStatic from 'ffmpeg-static'
 
@@ -23,10 +23,16 @@ export interface YoutubeProgress {
   filePath?: string
 }
 
-// ffmpeg-static 경로 — 패키징 시 asar 내부 → unpacked 경로로 교정
+// ffmpeg 경로 탐색:
+//   1. extraFiles 로 번들된 Windows 바이너리 (resources/ffmpeg.exe)
+//   2. 개발 환경: ffmpeg-static 이 설치한 플랫폼 바이너리
+//   3. PATH fallback
 function get_ffmpeg(): string {
-  const p = ffmpegStatic as string
-  return p.replace('app.asar', 'app.asar.unpacked')
+  const bundled = join(dirname(process.execPath), 'resources', 'ffmpeg.exe')
+  if (existsSync(bundled)) return bundled
+  const dev = ffmpegStatic as string | null
+  if (dev && existsSync(dev)) return dev
+  return 'ffmpeg'
 }
 
 // Innertube 인스턴스 (앱 수명 동안 재사용)
