@@ -4,7 +4,6 @@ import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
 import { load_settings } from './services/settings'
 import {
-  find_ytdlp,
   resolve_download_dir,
   youtube_search,
   youtube_download,
@@ -477,12 +476,9 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
   })
 
   // ── YouTube 검색 / 다운로드 ──────────────────────────────────────────────
-  const ytdlp = find_ytdlp(app_dir())
-  log_event(`yt-dlp path: ${ytdlp}`)
-
   ipcMain.handle('youtube:search', async (_event, query: string): Promise<YoutubeResult[]> => {
     log_event(`youtube:search q="${query}"`)
-    return youtube_search(ytdlp, query)
+    return youtube_search(query)
   })
 
   ipcMain.on('youtube:download', (event, url: string) => {
@@ -497,7 +493,6 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     log_event(`youtube:download dir=${downloadDir}`)
 
     youtube_download(
-      ytdlp,
       url,
       downloadDir,
       (progress: YoutubeProgress) => {
@@ -511,7 +506,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
         log_event(`youtube:error url=${url} msg=${message}`)
         if (!event.sender.isDestroyed()) event.sender.send('youtube:error', { url, message })
       }
-    )
+    ).catch((err: Error) => log_event(`youtube:download unhandled: ${err.message}`))
   })
 
   ipcMain.on('youtube:cancel', (_event, url: string) => {
