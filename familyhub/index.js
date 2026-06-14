@@ -51,10 +51,13 @@ function fetch_latest_release(repo) {
   })
 }
 
-// resolves with the final URL after all redirects
+// resolves with the first /releases/download/{tag}/ URL seen during redirects
+// (the final URL is often a CDN with no version info)
 function download_file(url, dest) {
   return new Promise((resolve, reject) => {
+    let releaseUrl = ''
     const follow = (u) => {
+      if (!releaseUrl && u.includes('/releases/download/')) releaseUrl = u
       const mod = u.startsWith('https') ? https : http
       mod.get(u, { headers: { 'User-Agent': 'FamilyHub' } }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
@@ -66,7 +69,7 @@ function download_file(url, dest) {
         res.on('end', () => {
           file.end(() => {
             fs.renameSync(tmp, dest)
-            resolve(u)
+            resolve(releaseUrl || u)
           })
         })
         res.on('error', reject)
