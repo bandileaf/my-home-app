@@ -64,14 +64,9 @@ function download_file(url, dest) {
         res.on('data', chunk => {
           received += chunk.length
           file.write(chunk)
-          if (total > 0) {
-            const pct = Math.round(received / total * 100)
-            log_stream.write(`\rDownloading... ${pct}%`)
-          }
         })
         res.on('end', () => {
           file.end()
-          log_stream.write('\n')
           fs.renameSync(tmp, dest)
           resolve()
         })
