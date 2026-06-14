@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import {
   existsSync, mkdirSync, createWriteStream,
-  writeFileSync, readFileSync, unlinkSync, copyFileSync
+  writeFileSync, readFileSync, unlinkSync
 } from 'fs'
 import { join, basename, dirname } from 'path'
 import https from 'https'
@@ -25,26 +25,6 @@ function log(msg: string): void {
   log_stream.write(`[${new Date().toISOString()}] ${msg}\n`)
 }
 
-// ── startup flags ─────────────────────────────────────────────────────────────
-// --hub-replace-from <path>  after startup, replace <path> with this exe
-// --replace-only             only replace the file then quit, no UI / no launch
-
-const replaceFromIdx = process.argv.indexOf('--hub-replace-from')
-const REPLACE_FROM   = replaceFromIdx !== -1 ? process.argv[replaceFromIdx + 1] : null
-const REPLACE_ONLY   = process.argv.includes('--replace-only')
-
-if (REPLACE_FROM && app.isPackaged) {
-  setTimeout(() => {
-    try {
-      unlinkSync(REPLACE_FROM)
-      copyFileSync(process.execPath, REPLACE_FROM)
-      log('Self-update: replaced familyhub.exe successfully')
-    } catch (err: unknown) {
-      log(`Self-update: failed — ${(err as Error).message}`)
-    }
-  }, 1000)
-}
-
 // ── window ────────────────────────────────────────────────────────────────────
 
 app.disableHardwareAcceleration()
@@ -55,7 +35,7 @@ let lastStatus    = '시작 중...'
 
 function create_window(): BrowserWindow {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
-  const W = 320, H = 96   // extra height for progress bar
+  const W = 320, H = 96
 
   const w = new BrowserWindow({
     width: W,
@@ -175,10 +155,10 @@ function download_file(
         if (res.statusCode === 301 || res.statusCode === 302) {
           return follow(res.headers.location!)
         }
-        const total    = parseInt(res.headers['content-length'] ?? '0', 10)
-        let received   = 0
-        const tmp  = dest + '.tmp'
-        const file = createWriteStream(tmp)
+        const total  = parseInt(res.headers['content-length'] ?? '0', 10)
+        let received = 0
+        const tmp    = dest + '.tmp'
+        const file   = createWriteStream(tmp)
         res.on('data', (chunk: Buffer) => {
           file.write(chunk)
           if (total > 0 && onProgress) {
@@ -297,6 +277,56 @@ async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> 
   if (dirty) write_settings(settings)
 }
 
+// ── update via zip ────────────────────────────────────────────────────────────
+// zip contains: myhome_v{tag}.exe + familyhub.exe + settings.json
+// Extracts myhome and familyhub_{tag}.exe, then spawns a hidden PS1 to
+// replace familyhub.exe after the current process exits.
+
+async function apply_update(zipPath: string, latestTag: string, settings: Settings): Promise<void> {
+  const zip = new AdmZip(zipPath)
+
+  // Extract myhome_v{tag}.exe
+  const myhomeEntry = zip.getEntries().find(e => /^myhome_v[\d.]+\.exe$/i.test(e.entryName))
+  if (myhomeEntry) {
+    writeFileSync(join(BASE_DIR, myhomeEntry.entryName), myhomeEntry.getData())
+    settings['hub.app.myhome'] = myhomeEntry.entryName
+    log(`Extracted ${myhomeEntry.entryName}`)
+  }
+
+  // Extract familyhub.exe → familyhub_{tag}.exe
+  const hubEntry   = zip.getEntry('familyhub.exe')
+  const newHubName = `familyhub_${latestTag}.exe`
+  const newHubPath = join(BASE_DIR, newHubName)
+  if (hubEntry) {
+    writeFileSync(newHubPath, hubEntry.getData())
+    log(`Extracted familyhub.exe → ${newHubName}`)
+  }
+
+  unlinkSync(zipPath)
+  settings['hub.tag'] = latestTag
+  write_settings(settings)
+
+  // Spawn hidden PS1: wait 1s → delete familyhub.exe → rename new → self-delete
+  if (hubEntry) {
+    const hubExePath = join(BASE_DIR, 'familyhub.exe')
+    const ps1Path    = join(BASE_DIR, '_hub_update.ps1')
+    const q = (p: string) => `'${p.replace(/'/g, "''")}'`
+    writeFileSync(ps1Path, [
+      'Start-Sleep -Seconds 1',
+      `Remove-Item -Force ${q(hubExePath)}`,
+      `Rename-Item -Path ${q(newHubPath)} -NewName 'familyhub.exe'`,
+      `Remove-Item -Force $MyInvocation.MyCommand.Path`,
+    ].join('\n'), 'utf8')
+
+    spawn('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+      '-ExecutionPolicy', 'Bypass', '-File', ps1Path
+    ], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+
+    log(`Hub replace script spawned (${newHubName} → familyhub.exe)`)
+  }
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -349,92 +379,49 @@ async function main(): Promise<void> {
   }
   log(`[${ms()}] Latest: ${latestTag}`)
 
-  // First install: myhome not present — download it now
-  if (!myhomeReady) {
-    const newExeName = `myhome_${latestTag}.exe`
-    const asset      = release.assets.find(a => a.name === newExeName)
-    if (!asset) {
-      set_status('My Home을 찾을 수 없습니다.')
-      log(`[${ms()}] Asset ${newExeName} not found in release`)
-      await new Promise<void>(r => setTimeout(r, 3000))
-      quit_app()
-      return
-    }
-    set_status(`My Home ${latestTag} 다운로드 중...`)
-    await download_file(asset.browser_download_url, join(BASE_DIR, newExeName), set_progress)
-    settings['hub.tag']        = latestTag
-    settings['hub.app.myhome'] = newExeName
-    write_settings(settings)
-    log(`[${ms()}] myhome downloaded: ${newExeName}`)
-    do_launch(newExeName)
-  }
-
-  // Check if everything is already up to date
-  const currentMyhomeTag = derive_myhome_version(settings['hub.app.myhome'] || '')
-  const currentHubTag    = settings['hub.tag'] || ''
-  const myhomeUpToDate   = compare_versions(latestTag, currentMyhomeTag) <= 0
-  const hubUpToDate      = !!currentHubTag && compare_versions(latestTag, currentHubTag) <= 0
-
-  if (myhomeUpToDate && hubUpToDate) {
+  // Up to date → close immediately
+  const currentTag = settings['hub.tag'] || ''
+  if (currentTag && compare_versions(latestTag, currentTag) <= 0) {
     log(`[${ms()}] Already up to date (${latestTag})`)
     quit_app()
     return
   }
 
-  // Hub self-update (background: download + silent replace, no restart)
-  if (!hubUpToDate) {
-    const zipName = `familyhub_${latestTag}.zip`
-    const asset   = release.assets.find(a => a.name === zipName)
-    if (asset) {
-      set_status(`FamilyHub ${latestTag} 업데이트 중...`)
-      const zipPath = join(BASE_DIR, zipName)
-      try {
-        await download_file(asset.browser_download_url, zipPath, set_progress)
-        const newExeName = `familyhub_${latestTag}.exe`
-        const newExePath = join(BASE_DIR, newExeName)
-        const zip   = new AdmZip(zipPath)
-        const entry = zip.getEntry('familyhub.exe')
-        if (entry) {
-          writeFileSync(newExePath, entry.getData())
-          unlinkSync(zipPath)
-          settings['hub.tag'] = latestTag
-          write_settings(settings)
-          // New exe will replace familyhub.exe silently and then quit
-          spawn(newExePath, ['--hub-replace-from', process.execPath, '--replace-only'], {
-            detached: true, stdio: 'ignore'
-          }).unref()
-          log(`[${ms()}] Hub ${latestTag} downloaded — replacing in background`)
-          set_status(`FamilyHub ${latestTag} 교체 중...`)
-          await new Promise<void>(r => setTimeout(r, 1500))
-        } else {
-          try { unlinkSync(zipPath) } catch { /* ignore */ }
-        }
-      } catch (err: unknown) {
-        log(`[${ms()}] Hub update failed: ${(err as Error).message}`)
-      }
-    }
+  // Update available: find zip asset
+  const zipAsset = release.assets.find(a => a.name === `familyhub_${latestTag}.zip`)
+  if (!zipAsset) {
+    log(`[${ms()}] familyhub_${latestTag}.zip not found in release — skipping update`)
+    quit_app()
+    return
   }
 
-  // myhome update (background: download for next launch)
-  if (myhomeReady && !myhomeUpToDate) {
-    const newExeName = `myhome_${latestTag}.exe`
-    const asset      = release.assets.find(a => a.name === newExeName)
-    if (asset && !existsSync(join(BASE_DIR, newExeName))) {
-      set_status(`My Home ${latestTag} 다운로드 중...`)
-      try {
-        await download_file(asset.browser_download_url, join(BASE_DIR, newExeName), set_progress)
-        settings['hub.tag']        = latestTag
-        settings['hub.app.myhome'] = newExeName
-        write_settings(settings)
-        log(`[${ms()}] myhome ${latestTag} ready (applies on next launch)`)
-        set_status(`My Home ${latestTag} 준비됨`)
-        await new Promise<void>(r => setTimeout(r, 3000))
-      } catch (err: unknown) {
-        log(`[${ms()}] myhome update failed: ${(err as Error).message}`)
-      }
-    }
+  // Download zip with progress bar
+  set_status(`${latestTag} 다운로드 중...`)
+  const zipPath = join(BASE_DIR, `familyhub_${latestTag}.zip`)
+  try {
+    await download_file(zipAsset.browser_download_url, zipPath, set_progress)
+    log(`[${ms()}] Download complete`)
+  } catch (err: unknown) {
+    log(`[${ms()}] Download failed: ${(err as Error).message}`)
+    try { unlinkSync(zipPath) } catch { /* ignore */ }
+    set_status('다운로드 실패.')
+    await new Promise<void>(r => setTimeout(r, 3000))
+    quit_app()
+    return
   }
 
+  // Extract and schedule hub replacement
+  set_status(`${latestTag} 설치 중...`)
+  await apply_update(zipPath, latestTag, settings)
+
+  // Launch new myhome if it wasn't running before
+  if (!myhomeReady) {
+    do_launch(settings['hub.app.myhome'])
+  }
+
+  set_status(`${latestTag} 교체 중... 잠시 후 종료됩니다.`)
+  log(`[${ms()}] Done`)
+  await new Promise<void>(r => setTimeout(r, 2000))
   quit_app()
 }
 
@@ -443,12 +430,6 @@ async function main(): Promise<void> {
 ipcMain.on('ping', () => {})
 
 app.whenReady().then(() => {
-  if (REPLACE_ONLY) {
-    // Silent mode: just do the file replacement and quit, no UI
-    setTimeout(() => app.quit(), 1500)
-    return
-  }
-
   win = create_window()
   main().catch((err: unknown) => {
     log(`Fatal: ${(err as Error).message}`)
