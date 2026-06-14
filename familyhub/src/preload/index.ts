@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('hub', {
   },
   onProgress: (cb: (pct: number) => void) => {
     ipcRenderer.on('progress', (_e, pct) => cb(pct))
-  }
+  },
+  close: () => ipcRenderer.send('close')
 })

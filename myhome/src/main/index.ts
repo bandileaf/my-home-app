@@ -78,6 +78,12 @@ function log_event(message: string): void {
   }
 }
 
+function log_error(message: string, err: unknown): void {
+  const e = err as Error
+  log_event(`${message}: ${e.message}`)
+  if (e.stack) log_event(e.stack)
+}
+
 function resolve_settings_path(): string {
   return join(app_dir(), 'settings.json')
 }
@@ -462,7 +468,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       state.fileWatchers.set(path, watcher)
       log_event(`watch add: ${path}`)
     } catch (error) {
-      log_event(`watch add failed ${path}: ${error instanceof Error ? error.message : String(error)}`)
+      log_error(`watch add failed ${path}`, error)
     }
   })
 
@@ -532,7 +538,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
           event.sender.send('notify', { message: `Download failed: ${message}`, type: 'error' })
         }
       }
-    ).catch((err: Error) => log_event(`youtube:download unhandled: ${err.message}`))
+    ).catch((err: unknown) => log_error('youtube:download unhandled', err))
   })
 
   ipcMain.on('youtube:cancel', (_event, url: string) => {
@@ -576,7 +582,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
           event.sender.send('notify', { message: `Video download failed: ${message}`, type: 'error' })
         }
       }
-    ).catch((err: Error) => log_event(`youtube:download-video unhandled: ${err.message}`))
+    ).catch((err: unknown) => log_error('youtube:download-video unhandled', err))
   })
 
   ipcMain.on('youtube:cancel-video', (_event, url: string) => {
@@ -629,7 +635,7 @@ function create_window(): BrowserWindow {
     log_event(`renderer: process-gone reason=${details.reason}`)
   )
   contents.on('preload-error', (_e, path, error) =>
-    log_event(`preload-error ${path}: ${error.message}`)
+    log_error(`preload-error ${path}`, error)
   )
   contents.on('console-message', (_e, level, message, line, source) =>
     log_event(`console[${level}] ${message} (${source}:${line})`)

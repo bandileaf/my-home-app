@@ -5,6 +5,7 @@ declare global {
     hub: {
       onStatus: (cb: (data: { message?: string; done: boolean }) => void) => void
       onProgress: (cb: (pct: number) => void) => void
+      close: () => void
     }
   }
 }
@@ -38,7 +39,18 @@ export default function App() {
       borderRadius: 10,
       width: '100%',
       height: '100%',
+      position: 'relative',
     }}>
+      <button
+        onClick={() => window.hub.close()}
+        style={{
+          position: 'absolute', top: 8, right: 10,
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#585b70', fontSize: 14, lineHeight: 1, padding: '2px 4px',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.color = '#CDD6F4')}
+        onMouseLeave={e => (e.currentTarget.style.color = '#585b70')}
+      >✕</button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ color: '#CBA6F7', fontSize: 26, lineHeight: 1, flexShrink: 0 }}>
           {FRAMES[frameIdx]}

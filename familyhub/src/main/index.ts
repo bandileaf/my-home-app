@@ -25,6 +25,12 @@ function log(msg: string): void {
   log_stream.write(`[${new Date().toISOString()}] ${msg}\n`)
 }
 
+function log_error(msg: string, err: unknown): void {
+  const e = err as Error
+  log(`${msg}: ${e.message}`)
+  if (e.stack) log(e.stack)
+}
+
 // ── window ────────────────────────────────────────────────────────────────────
 
 app.disableHardwareAcceleration()
@@ -186,10 +192,6 @@ function extract_version_from_url(url: string): string {
   return m ? m[1] : ''
 }
 
-function derive_myhome_version(exeName: string): string {
-  const m = (exeName || '').match(/_v([\d.]+)\.exe$/i)
-  return m ? `v${m[1]}` : ''
-}
 
 function compare_versions(a: string, b: string): number {
   const pa = (a || '0').replace(/^v/, '').split('.').map(Number)
@@ -270,7 +272,7 @@ async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> 
       for (const p of [zipDestPath, zipDestPath + '.tmp', destPath + '.tmp']) {
         try { unlinkSync(p) } catch { /* ignore */ }
       }
-      log(`${bin.dest}: FAILED — ${(err as Error).message}`)
+      log_error(`${bin.dest}: FAILED`, err)
     }
   }
 
@@ -362,7 +364,7 @@ async function main(): Promise<void> {
     release = await fetch_latest_release(repo)
     log(`[${ms()}] GitHub API responded`)
   } catch (err: unknown) {
-    log(`[${ms()}] Unable to reach ${repo}: ${(err as Error).message}`)
+    log_error(`[${ms()}] Unable to reach ${repo}`, err)
     set_status('연결에 실패하였습니다.')
     await new Promise<void>(r => setTimeout(r, 3000))
     quit_app()
@@ -402,7 +404,7 @@ async function main(): Promise<void> {
     await download_file(zipAsset.browser_download_url, zipPath, set_progress)
     log(`[${ms()}] Download complete`)
   } catch (err: unknown) {
-    log(`[${ms()}] Download failed: ${(err as Error).message}`)
+    log_error(`[${ms()}] Download failed`, err)
     try { unlinkSync(zipPath) } catch { /* ignore */ }
     set_status('다운로드 실패.')
     await new Promise<void>(r => setTimeout(r, 3000))
@@ -428,11 +430,12 @@ async function main(): Promise<void> {
 // ── app lifecycle ─────────────────────────────────────────────────────────────
 
 ipcMain.on('ping', () => {})
+ipcMain.on('close', () => quit_app())
 
 app.whenReady().then(() => {
   win = create_window()
   main().catch((err: unknown) => {
-    log(`Fatal: ${(err as Error).message}`)
+    log_error('Fatal', err)
     quit_app()
   })
 })
