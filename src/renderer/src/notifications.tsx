@@ -84,7 +84,7 @@ export function NotificationProvider({ children }: { children: ReactNode }): JSX
           <div key={toast.id} className={`toast toast-${toast.type}`}>
             <div className="toast-header">
               <span className="toast-title">
-                {toast.type === 'error' ? 'Error' : 'Music Finder'}
+                {toast.type === 'error' ? 'Error' : 'FamilyHub'}
               </span>
               <div className="toast-actions">
                 <button

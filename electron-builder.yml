@@ -1,5 +1,5 @@
-appId: com.rudi109.musicfinder
-productName: MusicFinder
+appId: com.rudi109.familyhub
+productName: FamilyHub
 directories:
   output: dist
   buildResources: build
