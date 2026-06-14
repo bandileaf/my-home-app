@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Music Finder: an Electron desktop app that quickly searches a local index of music files in configured folders, and falls back to searching/downloading audio from YouTube. Develops on Linux, ships as a Windows `.exe`. See `plan.md` for the full design and decision log.
 
+## 규칙
+
+- **git tag 는 직접 올리지 않는다.** 사용자가 태그를 올려달라고 해도 명령어만 알려주고 실행은 사용자가 직접 한다.
+
 ## Commands
 
 - `npm run dev` — run the full app (Electron window) with HMR. Needs a reachable X display (see "Running on Linux").
