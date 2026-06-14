@@ -83,7 +83,7 @@ function resolve_settings_path(): string {
 }
 
 function resolve_db_path(): string {
-  return join(app_dir(), 'musicfinder.db')
+  return join(app_dir(), 'indexing.db')
 }
 
 function default_settings_text(): string {
