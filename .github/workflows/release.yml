@@ -66,11 +66,22 @@ jobs:
       - name: Remove intermediate build folder
         run: Remove-Item -Recurse -Force myhome\dist\win-unpacked -ErrorAction SilentlyContinue
 
+      - name: Bundle zip
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
+          $myhomeExe = Get-ChildItem myhome\dist\myhome_v*.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path bundle
+          Copy-Item $myhomeExe.FullName bundle\
+          Copy-Item familyhub\dist\familyhub.exe bundle\
+          Copy-Item familyhub\settings.json bundle\
+          Compress-Archive -Path bundle\* -DestinationPath "familyhub_${tag}.zip"
+
       - name: Upload to Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            familyhub_v*.zip
             myhome/dist/myhome_v*.exe
             familyhub/dist/familyhub.exe
             familyhub/settings.json

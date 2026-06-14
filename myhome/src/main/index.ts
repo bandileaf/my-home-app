@@ -58,7 +58,10 @@ interface IndexState {
 }
 
 function app_dir(): string {
-  return app.isPackaged ? dirname(app.getPath('exe')) : process.cwd()
+  if (app.isPackaged) {
+    return process.env.PORTABLE_EXECUTABLE_DIR ?? dirname(app.getPath('exe'))
+  }
+  return process.cwd()
 }
 
 function log_event(message: string): void {
