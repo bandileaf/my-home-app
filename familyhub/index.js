@@ -87,8 +87,8 @@ function extract_version_from_url(url) {
 }
 
 function compare_versions(a, b) {
-  const pa = a.replace(/^v/, '').split('.').map(Number)
-  const pb = b.replace(/^v/, '').split('.').map(Number)
+  const pa = (a || '0').replace(/^v/, '').split('.').map(Number)
+  const pb = (b || '0').replace(/^v/, '').split('.').map(Number)
   for (let i = 0; i < 3; i++) {
     if ((pa[i] || 0) > (pb[i] || 0)) return 1
     if ((pa[i] || 0) < (pb[i] || 0)) return -1
@@ -233,8 +233,18 @@ async function main() {
   log('FamilyHub start')
 
   const settings = read_settings()
+
+  // migrate old key names
+  if (!settings['hub.tag'] && settings['hub.tag.myhome']) {
+    settings['hub.tag'] = settings['hub.tag.myhome']
+    delete settings['hub.tag.myhome']
+    delete settings['hub.tag.hub']
+    write_settings(settings)
+    log(`Migrated hub.tag.myhome → hub.tag (${settings['hub.tag']})`)
+  }
+
   const repo = settings['hub.repo']
-  const currentTag = settings['hub.tag']
+  const currentTag = settings['hub.tag'] || ''
   const currentExe = settings['hub.app.myhome']
 
   const bins = settings['hub.bins'] ?? []
