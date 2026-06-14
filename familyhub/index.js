@@ -264,7 +264,7 @@ async function main() {
 
   const latestTag = release.tag_name
   if (!latestTag) {
-    log('Update check FAILED: could not read latest tag from release')
+    log(`Update check FAILED: unable to reach ${repo} — cannot verify latest release`)
     log_stream.end()
     process.exit(0)
     return
