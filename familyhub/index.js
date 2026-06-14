@@ -10,7 +10,9 @@ const BASE_DIR = IS_PKG ? path.dirname(process.execPath) : __dirname
 const SETTINGS_PATH = path.join(BASE_DIR, 'settings.json')
 
 const EXE_NAME = path.basename(IS_PKG ? process.execPath : __filename).replace(/\.(exe|js)$/i, '')
-const LOG_PATH = path.join(BASE_DIR, `${EXE_NAME}.log`)
+const LOG_DIR = path.join(BASE_DIR, 'log')
+fs.mkdirSync(LOG_DIR, { recursive: true })
+const LOG_PATH = path.join(LOG_DIR, `${EXE_NAME}.log`)
 const log_stream = fs.createWriteStream(LOG_PATH, { flags: 'w' })
 
 function log(msg) {
@@ -57,18 +59,14 @@ function download_file(url, dest) {
         if (res.statusCode === 301 || res.statusCode === 302) {
           return follow(res.headers.location)
         }
-        const total = parseInt(res.headers['content-length'] || '0')
-        let received = 0
         const tmp = dest + '.tmp'
         const file = fs.createWriteStream(tmp)
-        res.on('data', chunk => {
-          received += chunk.length
-          file.write(chunk)
-        })
+        res.on('data', chunk => file.write(chunk))
         res.on('end', () => {
-          file.end()
-          fs.renameSync(tmp, dest)
-          resolve()
+          file.end(() => {
+            fs.renameSync(tmp, dest)
+            resolve()
+          })
         })
         res.on('error', reject)
       }).on('error', reject)
@@ -91,6 +89,7 @@ function launch(exeName) {
   const exePath = path.join(BASE_DIR, exeName)
   if (!fs.existsSync(exePath)) {
     log(`Not found: ${exePath}`)
+    log_stream.end()
     process.exit(1)
   }
   log(`Launching ${exeName}...`)
@@ -99,37 +98,69 @@ function launch(exeName) {
   process.exit(0)
 }
 
-async function ensure_bins(bins) {
+function extract_github_repo(url) {
+  const m = url.match(/github\.com\/([^/]+\/[^/]+)\/releases\//)
+  return m ? m[1] : null
+}
+
+async function ensure_bins(bins, settings) {
+  let dirty = false
+  const zipCache = new Map()
+
   for (const bin of bins) {
     const destPath = path.join(BASE_DIR, bin.dest)
     if (fs.existsSync(destPath)) {
-      log(`${bin.dest} OK`)
+      log(`${bin.dest}: already installed`)
       continue
     }
 
-    log(`Downloading ${bin.dest}...`)
+    log(`${bin.dest}: installing...`)
     fs.mkdirSync(path.dirname(destPath), { recursive: true })
 
-    const tmpPath = destPath + '.tmp'
-    try {
-      await download_file(bin.url, tmpPath)
+    let version = ''
+    const repo = extract_github_repo(bin.url)
+    if (repo) {
+      try {
+        const release = await fetch_latest_release(repo)
+        version = release.tag_name ?? ''
+      } catch (err) {
+        log(`${bin.dest}: version check failed (${err.message})`)
+      }
+    }
 
+    const zipDestPath = path.join(BASE_DIR, 'bin', path.basename(bin.url))
+    try {
       if (bin.zip) {
-        const zip = new AdmZip(tmpPath)
+        let zip = zipCache.get(bin.url)
+        if (!zip) {
+          const zipName = path.basename(bin.url)
+          log(`Downloading ${zipName}...`)
+          await download_file(bin.url, zipDestPath)
+          log(`Extracting from ${zipName}...`)
+          zip = new AdmZip(zipDestPath)
+          zipCache.set(bin.url, zip)
+          fs.unlinkSync(zipDestPath)
+        }
         const entry = zip.getEntry(bin.zip)
-        if (!entry) throw new Error(`${bin.zip} not found in zip`)
+        if (!entry) throw new Error(`entry not found in zip: ${bin.zip}`)
         fs.writeFileSync(destPath, entry.getData())
-        fs.unlinkSync(tmpPath)
       } else {
-        fs.renameSync(tmpPath, destPath)
+        log(`Downloading ${path.basename(bin.url)}...`)
+        await download_file(bin.url, destPath)
       }
 
-      log(`${bin.dest} installed`)
+      bin.version = version
+      dirty = true
+      log(`${bin.dest}: installed${version ? ' (' + version + ')' : ''}`)
     } catch (err) {
-      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
-      log(`Failed to install ${bin.dest}: ${err.message}`)
+      for (const p of [zipDestPath, zipDestPath + '.tmp', destPath + '.tmp']) {
+        try { fs.unlinkSync(p) } catch { }
+      }
+      log(`${bin.dest}: FAILED — ${err.message}`)
     }
   }
+
+  if (dirty) write_settings(settings)
 }
 
 async function main() {
@@ -141,28 +172,28 @@ async function main() {
   const currentExe = settings['hub.app.myhome']
 
   const bins = settings['hub.bins'] ?? []
-  await ensure_bins(bins)
+  await ensure_bins(bins, settings)
 
-  log(`Current: ${currentTag}`)
+  log(`Checking for updates... (current: ${currentTag})`)
 
   let release
   try {
     release = await fetch_latest_release(repo)
   } catch (err) {
-    log(`Cannot reach server: ${err.message}. Launching current version...`)
+    log(`Update check failed: ${err.message} — launching current version`)
     launch(currentExe)
     return
   }
 
   const latestTag = release.tag_name
-  log(`Latest:  ${latestTag}`)
+  log(`Latest: ${latestTag}`)
 
   if (compare_versions(latestTag, currentTag) > 0) {
     const newExeName = `myhome_${latestTag}.exe`
     const asset = release.assets.find(a => a.name === newExeName)
 
     if (asset) {
-      log(`Updating to ${latestTag}...`)
+      log(`Updating ${currentTag} → ${latestTag}...`)
       const dest = path.join(BASE_DIR, newExeName)
       await download_file(asset.browser_download_url, dest)
       settings['hub.tag.myhome'] = latestTag
@@ -171,7 +202,7 @@ async function main() {
       log('Update complete.')
       launch(newExeName)
     } else {
-      log(`Asset ${newExeName} not found. Launching current version...`)
+      log(`Asset ${newExeName} not found in release — launching current version`)
       launch(currentExe)
     }
   } else {
@@ -181,7 +212,7 @@ async function main() {
 }
 
 main().catch(err => {
-  log(`Error: ${err.message}`)
+  log(`Fatal: ${err.message}`)
   try {
     const settings = read_settings()
     launch(settings['hub.app.myhome'])
