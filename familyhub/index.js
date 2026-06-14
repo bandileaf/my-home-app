@@ -26,7 +26,7 @@ function fetch_latest_release(repo) {
     https.get({
       hostname: 'api.github.com',
       path: `/repos/${repo}/releases/latest`,
-      headers: { 'User-Agent': 'FamilyHub-Launcher' }
+      headers: { 'User-Agent': 'FamilyHub' }
     }, (res) => {
       let data = ''
       res.on('data', chunk => data += chunk)
@@ -42,7 +42,7 @@ function download_file(url, dest) {
   return new Promise((resolve, reject) => {
     const follow = (u) => {
       const mod = u.startsWith('https') ? https : http
-      mod.get(u, { headers: { 'User-Agent': 'FamilyHub-Launcher' } }, (res) => {
+      mod.get(u, { headers: { 'User-Agent': 'FamilyHub' } }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           return follow(res.headers.location)
         }

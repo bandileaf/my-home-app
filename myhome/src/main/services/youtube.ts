@@ -133,7 +133,7 @@ export function resolve_ytdlp_path(resourcesPath: string, isPackaged: boolean): 
 }
 
 export function resolve_ffmpeg_dir(isPackaged: boolean, userData: string): string {
-  // When packaged, launcher downloads ffmpeg/ffprobe to userData/bin
+  // When packaged, familyhub downloads ffmpeg/ffprobe to userData/bin
   return isPackaged
     ? join(userData, 'bin')
     : join(__dirname, '../../../bin')

@@ -53,7 +53,7 @@ jobs:
         run: npx electron-builder --win portable --publish never
         working-directory: myhome
 
-      - name: Build familyhub launcher
+      - name: Build familyhub
         run: npm run build
         working-directory: familyhub
 
