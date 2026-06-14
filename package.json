@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "집에서 필요한 모든 소프트웨어를 가족과 공유하는 홈 허브",
   "main": "./out/main/index.js",
-  "author": "rudi109",
+  "author": "nwork",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
