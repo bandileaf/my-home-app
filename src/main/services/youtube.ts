@@ -42,8 +42,37 @@ async function get_yt(): Promise<InnertubeType> {
 
 // ── 검색 ────────────────────────────────────────────────────────────────────
 
+function extract_video_id(query: string): string | null {
+  try {
+    const u = new URL(query)
+    if (u.hostname.includes('youtube.com')) return u.searchParams.get('v')
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1)
+  } catch {
+    // not a URL
+  }
+  return null
+}
+
 export async function youtube_search(query: string, limit = 10): Promise<YoutubeResult[]> {
   const yt = await get_yt()
+
+  // Direct URL → fetch video info instead of searching
+  const videoId = extract_video_id(query.trim())
+  if (videoId) {
+    const info = await yt.getInfo(videoId)
+    const b = info.basic_info
+    const thumbs = (b.thumbnail ?? []) as unknown[]
+    return [{
+      id: videoId,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      title: String(b.title ?? '(no title)'),
+      duration: typeof b.duration === 'number' ? b.duration : 0,
+      channel: String(b.author ?? ''),
+      thumbnail: pick_thumbnail(thumbs),
+      viewCount: typeof b.view_count === 'number' ? b.view_count : undefined,
+    }]
+  }
+
   const res = await yt.search(query, { type: 'video' })
   const out: YoutubeResult[] = []
   for (const item of res.results ?? []) {
