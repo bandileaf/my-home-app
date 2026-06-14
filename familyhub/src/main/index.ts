@@ -57,7 +57,7 @@ function create_window(): BrowserWindow {
   })
 
   if (app.isPackaged) {
-    w.loadFile(join(__dirname, '../../renderer/index.html'))
+    w.loadFile(join(__dirname, '../renderer/index.html'))
   } else {
     w.loadURL('http://localhost:5173')
   }
