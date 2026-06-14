@@ -50,7 +50,7 @@ jobs:
         working-directory: myhome
 
       - name: Package myhome (portable)
-        run: npx electron-builder --win portable
+        run: npx electron-builder --win portable --publish never
         working-directory: myhome
 
       - name: Build familyhub launcher
