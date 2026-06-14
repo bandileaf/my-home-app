@@ -133,10 +133,11 @@ export function resolve_ytdlp_path(resourcesPath: string, isPackaged: boolean): 
 }
 
 export function resolve_ffmpeg_dir(isPackaged: boolean, userData: string): string {
-  // When packaged, familyhub downloads ffmpeg/ffprobe to userData/bin
-  return isPackaged
-    ? join(userData, 'bin')
-    : join(__dirname, '../../../bin')
+  if (isPackaged) {
+    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
+    return portableDir ? join(portableDir, 'bin') : join(userData, 'bin')
+  }
+  return join(__dirname, '../../../bin')
 }
 
 function build_ytdlp_args(

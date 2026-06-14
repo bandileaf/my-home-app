@@ -501,6 +501,11 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged, app.getPath('userData'))
     log_event(`youtube:download dir=${downloadDir} fmt=${audioFormat}`)
 
+    if (!existsSync(ytdlpPath)) {
+      event.sender.send('youtube:error', { url, message: 'yt-dlp.exe not found. Run FamilyHub to download it.' })
+      return
+    }
+
     youtube_download(
       url,
       downloadDir,
@@ -540,6 +545,11 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     }
     const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
     const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged, app.getPath('userData'))
+
+    if (!existsSync(ytdlpPath)) {
+      event.sender.send('youtube:error-video', { url, message: 'yt-dlp.exe not found. Run FamilyHub to download it.' })
+      return
+    }
 
     youtube_download_video(
       url,
