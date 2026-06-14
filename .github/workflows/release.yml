@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. v0.0.2)'
+        required: true
+        default: 'v0.0.2'
 
 permissions:
   contents: write
@@ -21,7 +27,8 @@ jobs:
 
       - name: Set version from tag
         run: |
-          $ver = "${{ github.ref_name }}".TrimStart('v')
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
+          $ver = $tag.TrimStart('v')
           $replace = '"version": "' + $ver + '"'
           (Get-Content myhome\package.json) -replace '"version": "[^"]*"', $replace | Set-Content myhome\package.json
 
