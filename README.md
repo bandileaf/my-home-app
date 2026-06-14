@@ -1,91 +1,122 @@
 # Music Finder
 
-선택한 폴더에서 음악 파일을 빠르게 찾고, 없으면 YouTube에서 검색해 오디오를 내려받는 데스크톱 앱.
-Linux에서 개발하고, Windows `.exe`로 배포한다. VS Code 스타일의 라이트 테마 UI.
+로컬 음악 파일을 빠르게 검색하고, 없으면 YouTube에서 오디오를 내려받는 데스크톱 앱.
+Linux에서 개발하고 Windows `.exe`로 배포한다. VS Code 스타일 라이트 테마 UI.
 
-- 전체 설계·결정 기록: [`plan.md`](./plan.md)
-- 개발 가이드: [`CLAUDE.md`](./CLAUDE.md)
+## 기능
+
+- **로컬 검색** — 설정한 폴더를 SQLite로 인덱싱해 파일명 검색. 백그라운드 스캔, 파일 변경 자동 반영(fs.watch)
+- **YouTube 검색** — 검색어로 YouTube 동영상 10개 결과 표시 (썸네일·채널·조회수·길이)
+- **오디오 다운로드** — m4a(aac) 또는 webm(opus)으로 직접 저장, 변환 없음. 제목·썸네일 클릭 시 브라우저로 열기
+- **설정** — exe 옆 `settings.json` (JSONC), 변경 시 변경분만 재인덱싱
 
 ## 기술 스택
 
-Electron · React · Vite · TypeScript · (예정) SQLite 인덱스 · yt-dlp
+| 레이어 | 라이브러리 |
+|--------|-----------|
+| 앱 프레임워크 | Electron 33 |
+| UI | React 18 + Vite + TypeScript |
+| 빌드 | electron-vite + electron-builder |
+| 로컬 인덱스 | better-sqlite3 (exe 옆 musicfinder.db) |
+| YouTube 검색 | youtubei.js |
+| YouTube 다운로드 | @distube/ytdl-core |
+| 글로브 패턴 | picomatch |
 
-## 개발 실행
+## 개발 명령
 
 ```bash
 npm install
-
-# ① 전체 앱(네이티브 Electron 창) — X 디스플레이 필요
-npm run dev
-
-# ② 렌더러(React UI)만 브라우저로 미리보기 — 디스플레이 불필요
-npm run dev:web      # → http://localhost:5173
+npm run dev        # Electron 창 (X 디스플레이 필요)
+npm run dev:web    # UI만 브라우저로 — http://localhost:5173
+npm run typecheck  # tsc --noEmit
+npm run build:win  # dist/win-unpacked/ 생성
 ```
 
-| 명령 | 설명 |
+## Windows 배포
+
+`npm run build:win` 후 `dist/win-unpacked/` 폴더 전체를 Windows에 복사한다.
+이 머신은 `/home/rudi109`을 Samba 공유(`\\192.168.0.231\rudi109`)하므로:
+
+```
+\\192.168.0.231\rudi109\music\deploy-win.bat
+```
+
+을 Windows에서 실행하면 `C:\DEV\MusicFinder`로 복사 후 자동 실행.
+(목적지 변경: 배치 파일 상단 `set DST=` 수정)
+
+---
+
+## settings.json
+
+`MusicFinder.exe` 옆에 위치. 없으면 첫 실행 시 기본값으로 자동 생성된다.
+**JSONC 형식** (주석 `//` 허용, 마지막 쉼표 허용).
+
+### 예시
+
+```jsonc
+{
+  // 인덱싱할 폴더 목록. 여러 개 지정 가능.
+  // Windows 경로: 역슬래시 두 개(\\) 또는 슬래시(/) 사용
+  "musicSearch.searchDirectories": [
+    "D:\\Music",
+    "E:/Albums"
+  ],
+
+  // 인덱싱·검색에서 제외할 글로브 패턴.
+  // true = 제외, false = 포함 (또는 항목 삭제)
+  "musicSearch.exclude": {
+    "**/*.jpg": true,
+    "**/*.png": true,
+    "**/*.pdf": true,
+    "**/Temp/**": true
+  },
+
+  // YouTube 오디오 다운로드 저장 폴더.
+  // 비워두면 exe 옆 Downloads/ 폴더에 저장
+  "musicSearch.downloadDirectory": "D:\\Downloads\\Music"
+}
+```
+
+### 항목 설명
+
+| 키 | 타입 | 기본값 | 설명 |
+|----|------|--------|------|
+| `musicSearch.searchDirectories` | `string[]` | `[]` | 인덱싱할 폴더 절대 경로 목록 |
+| `musicSearch.exclude` | `{ [glob]: boolean }` | jpg·png 제외 | `true`인 패턴은 인덱싱·검색 모두 제외 |
+| `musicSearch.downloadDirectory` | `string` | `""` | 다운로드 저장 경로. 비우면 exe 옆 `Downloads/` |
+
+### 글로브 패턴 예시
+
+| 패턴 | 의미 |
 |------|------|
-| `npm run dev` | Electron 창 + HMR. 디스플레이가 있어야 창이 뜸 |
-| `npm run dev:web` | 순수 Vite로 UI만 서빙(브라우저 확인용). Electron 전용 기능은 비활성 |
-| `npm run build` | main/preload/renderer 번들 → `out/` |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run build:win` | Windows 실행 폴더(`dist/win-unpacked/`) 빌드. wine 불필요(dir 타깃) |
+| `**/*.jpg` | 모든 하위 폴더의 .jpg 파일 |
+| `**/*.png` | 모든 하위 폴더의 .png 파일 |
+| `**/Temp/**` | 이름이 Temp인 폴더 전체 |
+| `**/@eaDir/**` | Synology NAS 썸네일 폴더 |
+| `**/AlbumArt/**` | 앨범 아트 폴더 |
 
-## Remote-SSH에서 `localhost:5173` 이 어떻게 연결되나
+설정 변경 후 앱을 재시작하면 변경된 항목만 재인덱싱한다.
 
-VS Code Remote-SSH로 작업할 때, Vite 서버는 **원격 Linux 머신**에서 돌지만
-브라우저의 `http://localhost:5173` 으로 접속이 된다. 원리는 **VS Code의 자동 포트 포워딩(SSH 터널)** 이다.
+---
 
-```
-[로컬 PC - 브라우저]                         [원격 Linux 머신]
-
-localhost:5173  ──┐                      ┌──►  localhost:5173 (Vite 서버)
-                  │                      │
-            VS Code가 로컬에            VS Code Server가
-            5173 리스너를 염            여기서 받아 전달
-                  │                      │
-                  └──── 기존 SSH 연결 ────┘
-```
-
-1. Vite가 Linux에서 5173 포트로 listen 시작
-2. VS Code Server(Linux측)가 새 포트를 감지
-3. VS Code가 **로컬 PC에도** `localhost:5173` 리스너를 자동 생성
-4. 브라우저가 로컬 5173에 접속 → 기존 SSH 터널을 타고 → Linux의 5173 → Vite로 전달
-
-즉 `localhost`는 "내 PC"가 맞고, 그 포트를 VS Code가 **SSH 터널 입구**로 만들어 둔 것이라
-결국 원격 Linux까지 닿는다. (하단 `PORTS` 탭에 5173이 보이는 것이 그 증거)
-
-### 왜 웹은 되고 네이티브 Electron 창은 안 되나
-
-| | 포워딩 주체 | 이 환경 |
-|---|---|---|
-| **TCP 포트** (웹 5173) | VS Code가 자동 | ✅ |
-| **X11 디스플레이** (네이티브 창) | `ssh -X`로 수동 설정 필요 | ❌ "Missing X server" |
-
-포트는 터널로 쉽게 넘어가지만, **파일시스템·디스플레이**는 그렇지 않다.
-그래서 UI는 브라우저로 보고, 실제 네이티브 동작은 최종 타깃인 **Windows**에서 확인한다.
-
-## Windows에서 실행
-
-`npm run build:win` → `dist/win-unpacked/` 폴더가 만들어진다. 이 폴더 하나에
-`MusicFinder.exe` + Electron 런타임 + `resources/app.asar`(앱 코드 + 의존성 번들)이
-모두 들어있다. **Windows에서 npm install 불필요 — exe만 실행하면 된다.**
-
-이 개발 머신은 `/home/rudi109` 를 Samba로 공유(`\\192.168.0.231\rudi109`)하므로,
-빌드 결과물은 Windows에서 다음 경로로 접근된다:
+## 아키텍처
 
 ```
-\\192.168.0.231\rudi109\music\dist\win-unpacked
+src/
+├── main/            Electron 메인 프로세스
+│   ├── index.ts     창 생성, IPC 핸들러, 백그라운드 스캔 루프
+│   └── services/
+│       ├── db.ts        SQLite 래퍼 (스키마 버전 관리, 체크포인트)
+│       ├── indexer.ts   파일 스캔 + 글로브 필터
+│       ├── search.ts    SQLite LIKE 검색
+│       ├── settings.ts  JSONC 로딩 + 경로 정규화
+│       └── youtube.ts   검색(youtubei.js) + 다운로드(@distube/ytdl-core)
+├── preload/         contextBridge → window.api
+└── renderer/        React UI
+    ├── shell/        ActivityBar, TabBar, 아이콘 레지스트리
+    └── panels/       MusicSearchPanel, YoutubeSearchPanel
 ```
 
-1. 위 폴더를 Windows 로컬 디스크로 복사 (181MB exe를 SMB에서 바로 실행하면 느림)
-2. exe 옆 `settings.json` 편집 → `musicSearch.searchDirectories` 를 Windows 경로로
-   (예: `"C:\\Users\\me\\Music"`, 또는 `MyMusic` 폴더를 exe 옆에 두면 `"./MyMusic"`)
-3. `MusicFinder.exe` 실행 → 네이티브 창 + 실제 인덱싱/검색
-
-> 단일 portable `.exe`(설치형) 패키징은 서명/메타데이터 편집에 wine 이 필요하므로
-> Windows 또는 CI에서 빌드한다. 폴더(dir) 산출은 wine 없이 Linux에서 된다.
-
-## 상태
-
-1단계 Quick Search 완료: 설정(JSONC) 로딩 → 폴더 인덱싱 → 파일명 검색(폴더 열기·경로 복사).
-다음 단계: YouTube 검색·다운로드(yt-dlp), 탭 상태 `state.json` 이전, SQLite 영구 색인.
+**DB**: exe 옆 `musicfinder.db`. 이동 시 함께 옮기면 인덱스 유지.
+**DB 버전**: PRAGMA user_version. 스키마 변경 시 자동 재생성.
+**로그**: exe 옆 `musicfinder.log`.
