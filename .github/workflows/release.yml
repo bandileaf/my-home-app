@@ -42,12 +42,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Rename myhome exe
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $exe = Get-ChildItem "myhome\dist\*.exe" | Select-Object -First 1
+          Rename-Item $exe.FullName "myhome_${tag}.exe"
+
       - name: Build familyhub launcher
         run: npm run build
         working-directory: familyhub
-
-      - name: Create version.txt
-        run: echo ${{ github.ref_name }} > myhome\dist\version.txt
 
       - name: Remove intermediate build folder
         run: Remove-Item -Recurse -Force myhome\dist\win-unpacked -ErrorAction SilentlyContinue
@@ -56,7 +59,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            myhome/dist/*.exe
-            myhome/dist/version.txt
+            myhome/dist/myhome_*.exe
             familyhub/dist/launcher.exe
+            familyhub/settings.json
           generate_release_notes: true

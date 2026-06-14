@@ -4,35 +4,35 @@ const fs = require('fs')
 const path = require('path')
 const { spawn } = require('child_process')
 
-const REPO = 'bandileaf/my-home-app'
-const APP_EXE = 'FamilyHub.exe'
-const VERSION_FILE = path.join(path.dirname(process.execPath), 'version.txt')
-const APP_PATH = path.join(path.dirname(process.execPath), APP_EXE)
+const IS_PKG = typeof process.pkg !== 'undefined'
+const BASE_DIR = IS_PKG ? path.dirname(process.execPath) : __dirname
+const SETTINGS_PATH = path.join(BASE_DIR, 'settings.json')
 
-function read_local_version() {
+function read_settings() {
   try {
-    return fs.readFileSync(VERSION_FILE, 'utf8').trim()
+    return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'))
   } catch {
-    return '0.0.0'
+    console.error('settings.json not found:', SETTINGS_PATH)
+    process.exit(1)
   }
 }
 
-function fetch_latest_release() {
+function write_settings(settings) {
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8')
+}
+
+function fetch_latest_release(repo) {
   return new Promise((resolve, reject) => {
-    const options = {
+    https.get({
       hostname: 'api.github.com',
-      path: `/repos/${REPO}/releases/latest`,
+      path: `/repos/${repo}/releases/latest`,
       headers: { 'User-Agent': 'FamilyHub-Launcher' }
-    }
-    https.get(options, (res) => {
+    }, (res) => {
       let data = ''
       res.on('data', chunk => data += chunk)
       res.on('end', () => {
-        try {
-          resolve(JSON.parse(data))
-        } catch {
-          reject(new Error('Failed to parse release info'))
-        }
+        try { resolve(JSON.parse(data)) }
+        catch { reject(new Error('Failed to parse release info')) }
       })
     }).on('error', reject)
   })
@@ -44,8 +44,7 @@ function download_file(url, dest) {
       const mod = u.startsWith('https') ? https : http
       mod.get(u, { headers: { 'User-Agent': 'FamilyHub-Launcher' } }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
-          follow(res.headers.location)
-          return
+          return follow(res.headers.location)
         }
         const total = parseInt(res.headers['content-length'] || '0')
         let received = 0
@@ -55,8 +54,7 @@ function download_file(url, dest) {
           received += chunk.length
           file.write(chunk)
           if (total > 0) {
-            const pct = Math.round(received / total * 100)
-            process.stdout.write(`\rDownloading... ${pct}%`)
+            process.stdout.write(`\rDownloading... ${Math.round(received / total * 100)}%`)
           }
         })
         res.on('end', () => {
@@ -82,49 +80,64 @@ function compare_versions(a, b) {
   return 0
 }
 
-async function main() {
-  console.log('FamilyHub Launcher')
+function launch(exeName) {
+  const exePath = path.join(BASE_DIR, exeName)
+  if (!fs.existsSync(exePath)) {
+    console.error(`Not found: ${exePath}`)
+    process.exit(1)
+  }
+  console.log(`Launching ${exeName}...`)
+  spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
+  process.exit(0)
+}
 
-  const local = read_local_version()
-  console.log(`Current version: ${local}`)
+async function main() {
+  console.log('FamilyHub')
+
+  const settings = read_settings()
+  const repo = settings['hub.repo']
+  const currentTag = settings['hub.tag.myhome']
+  const currentExe = settings['hub.app.myhome']
+
+  console.log(`Current: ${currentTag}`)
 
   let release
   try {
-    release = await fetch_latest_release()
+    release = await fetch_latest_release(repo)
   } catch {
-    console.log('Could not check for updates. Starting app...')
-    launch_app()
+    console.log('Cannot reach server. Launching current version...')
+    launch(currentExe)
     return
   }
 
-  const remote = release.tag_name
-  console.log(`Latest version:  ${remote}`)
+  const latestTag = release.tag_name
+  console.log(`Latest:  ${latestTag}`)
 
-  if (compare_versions(remote, local) > 0) {
-    const asset = release.assets.find(a => a.name === APP_EXE)
+  if (compare_versions(latestTag, currentTag) > 0) {
+    const newExeName = `myhome_${latestTag}.exe`
+    const asset = release.assets.find(a => a.name === newExeName)
+
     if (asset) {
-      console.log(`Updating to ${remote}...`)
-      await download_file(asset.browser_download_url, APP_PATH)
-      fs.writeFileSync(VERSION_FILE, remote, 'utf8')
+      console.log(`Updating to ${latestTag}...`)
+      const dest = path.join(BASE_DIR, newExeName)
+      await download_file(asset.browser_download_url, dest)
+      settings['hub.tag.myhome'] = latestTag
+      settings['hub.app.myhome'] = newExeName
+      write_settings(settings)
       console.log('Update complete.')
+      launch(newExeName)
+    } else {
+      console.log(`Asset ${newExeName} not found. Launching current version...`)
+      launch(currentExe)
     }
   } else {
     console.log('Already up to date.')
+    launch(currentExe)
   }
-
-  launch_app()
-}
-
-function launch_app() {
-  if (!fs.existsSync(APP_PATH)) {
-    console.error(`${APP_EXE} not found.`)
-    process.exit(1)
-  }
-  spawn(APP_PATH, [], { detached: true, stdio: 'ignore' }).unref()
-  process.exit(0)
 }
 
 main().catch(err => {
   console.error('Error:', err.message)
-  launch_app()
+  const settings = read_settings()
+  launch(settings['hub.app.myhome'])
 })
