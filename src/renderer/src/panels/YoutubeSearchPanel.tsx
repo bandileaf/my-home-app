@@ -232,10 +232,9 @@ export function YoutubeSearchPanel(): JSX.Element {
 
                 {/* 다운로드 버튼 */}
                 <div className="yt-dl-row">
-                  {dl.status === 'idle' && (<>
-                    <button className="yt-dl-btn" onClick={() => do_download(item.url, 'm4a')}>↓ m4a</button>
+                  {dl.status === 'idle' && (
                     <button className="yt-dl-btn" onClick={() => do_download(item.url, 'mp3')}>↓ mp3</button>
-                  </>)}
+                  )}
                   {vdl.status === 'idle' && (
                     <button className="yt-dl-btn" onClick={() => do_download_video(item.url)}>↓ Video</button>
                   )}
@@ -249,7 +248,7 @@ export function YoutubeSearchPanel(): JSX.Element {
                   <DoneRow label="Audio" filePath={dl.filePath} onOpen={() => open_folder(dl.filePath)} />
                 )}
                 {dl.status === 'error' && (
-                  <ErrorRow message={dl.message} onRetry={() => do_download(item.url, 'm4a')} />
+                  <ErrorRow message={dl.message} onRetry={() => do_download(item.url, 'mp3')} />
                 )}
 
                 {vdl.status === 'downloading' && (
