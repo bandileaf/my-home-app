@@ -1,36 +1,35 @@
 @echo off
 setlocal
 
-set "SRC=X:\music\myhome\dist\win-unpacked"
+set "SSH_HOST=192.168.0.231"
+set "SSH_USER=rudi109"
+set "SRC_DIR=/home/rudi109/music/myhome/dist/win-unpacked"
 set "DST=C:\DEV\test"
 
 echo === My Home ===
 
-if not exist "%SRC%\myhome.exe" (
-  echo [ERROR] Source not found: %SRC%
-  echo Check that X: drive is connected and build was run.
-  pause
-  exit /b 1
-)
-
-rem First run: copy full distribution if myhome.exe not present
+rem First run: copy full distribution
 if not exist "%DST%\myhome.exe" (
   echo First run - copying full distribution...
   if not exist "%DST%" mkdir "%DST%"
-  robocopy "%SRC%" "%DST%" /E /COPY:DAT /FFT /R:3 /W:5 /NP /NFL /NDL /NJH /NJS
+  scp -r %SSH_USER%@%SSH_HOST%:%SRC_DIR%/* "%DST%\"
+  if errorlevel 1 (
+    echo [ERROR] scp failed
+    pause
+    exit /b 1
+  )
   goto launch
 )
 
-rem Subsequent runs: kill app, update only resources/ (app.asar changes each build)
+rem Subsequent runs: kill app, update only resources/
 echo Closing My Home...
 taskkill /F /T /IM myhome.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo Updating resources...
-robocopy "%SRC%\resources" "%DST%\resources" /E /IS /COPY:DAT /FFT /R:3 /W:5 /NP /NFL /NDL /NJH /NJS
-set RC=%ERRORLEVEL%
-if %RC% GEQ 8 (
-  echo [FAIL] Update failed - code %RC%
+scp -r %SSH_USER%@%SSH_HOST%:%SRC_DIR%/resources/* "%DST%\resources\"
+if errorlevel 1 (
+  echo [ERROR] scp failed
   pause
   exit /b 1
 )
