@@ -8,3 +8,4 @@ dist/
 *.db-shm
 MyMusic/
 build/ffmpeg.exe
+settings.json
