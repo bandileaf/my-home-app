@@ -54,14 +54,8 @@ jobs:
         working-directory: myhome
 
       - name: Build familyhub
-        run: npm run build
+        run: npx electron-vite build && npx electron-builder --win portable --publish never
         working-directory: familyhub
-
-      - name: Hide familyhub console window
-        run: |
-          $editbin = Get-ChildItem "C:\Program Files\Microsoft Visual Studio" -Recurse -Filter editbin.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($editbin) { & $editbin.FullName /SUBSYSTEM:WINDOWS familyhub\dist\familyhub.exe }
-          else { Write-Host "editbin not found, skipping" }
 
       - name: Patch settings.json
         run: |
