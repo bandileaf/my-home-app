@@ -27,15 +27,7 @@ Two host-specific gotchas when launching the Electron window on this Linux box:
 
 ## Building & running on Windows
 
-`npm run build:win` produces `dist/win-unpacked/` — a self-contained app folder (`MusicFinder.exe` + Electron runtime DLLs + `resources/app.asar` which bundles the app code and production deps). **No `npm install` on Windows; just run the exe.** `settings.json` is shipped next to the exe (via `extraFiles`) and is what a packaged build reads (`resolve_settings_path` → exe dir when `app.isPackaged`, else project root).
-
-This dev host shares `/home/nwork` over Samba as `\\192.168.0.231\nwork` (share `[nwork]`, host `me-mini109`). So the build output is reachable from Windows at:
-
-```
-\\192.168.0.231\nwork\music\dist\win-unpacked
-```
-
-To test on Windows: copy that folder to a local disk (running a 181 MB exe over SMB is slow), edit `settings.json` next to the exe so `musicSearch.searchDirectories` points at a Windows path (e.g. `"C:\\Users\\me\\Music"` or a mapped drive), then run `MusicFinder.exe`.
+`npm run build:win` produces `dist/win-unpacked/` for local testing. Windows 테스트 절차는 별도 배치 파일 참조.
 
 ## Architecture
 
