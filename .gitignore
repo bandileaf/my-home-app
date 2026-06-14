@@ -8,8 +8,7 @@ dist/
 *.db-shm
 MyMusic/
 build/ffmpeg.exe
-workspace/settings.json
-settings.json
+/settings.json
 bin/yt-dlp.exe
 bin/ffmpeg.exe
 bin/ffprobe.exe
