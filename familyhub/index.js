@@ -170,7 +170,7 @@ async function ensure_bins(bins, settings) {
 async function update_hub(release, settings) {
   if (!IS_PKG) return false
 
-  const currentTag = settings['hub.tag.hub'] || ''
+  const currentTag = settings['hub.tag'] || ''
   const latestTag = release.tag_name
 
   if (currentTag && compare_versions(latestTag, currentTag) <= 0) {
@@ -205,7 +205,7 @@ async function update_hub(release, settings) {
   fs.writeFileSync(newExePath, entry.getData())
   fs.unlinkSync(zipPath)
 
-  settings['hub.tag.hub'] = latestTag
+  settings['hub.tag'] = latestTag
   write_settings(settings)
 
   const batPath = path.join(BASE_DIR, '_hub_update.bat')
@@ -231,13 +231,13 @@ async function main() {
 
   const settings = read_settings()
   const repo = settings['hub.repo']
-  const currentTag = settings['hub.tag.myhome']
+  const currentTag = settings['hub.tag']
   const currentExe = settings['hub.app.myhome']
 
   const bins = settings['hub.bins'] ?? []
   await ensure_bins(bins, settings)
 
-  log(`Checking for updates... (hub: ${settings['hub.tag.hub'] || '?'}, myhome: ${currentTag})`)
+  log(`Checking for updates... (current: ${currentTag || '?'})`)
 
   let release
   try {
@@ -262,7 +262,7 @@ async function main() {
       log(`Updating myhome ${currentTag} → ${latestTag}...`)
       const dest = path.join(BASE_DIR, newExeName)
       await download_file(asset.browser_download_url, dest)
-      settings['hub.tag.myhome'] = latestTag
+      settings['hub.tag'] = latestTag
       settings['hub.app.myhome'] = newExeName
       write_settings(settings)
       log('Update complete.')
