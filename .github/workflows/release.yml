@@ -60,6 +60,6 @@ jobs:
         with:
           files: |
             myhome/dist/myhome_*.exe
-            familyhub/dist/launcher.exe
+            familyhub/dist/familyhub.exe
             familyhub/settings.json
           generate_release_notes: true
