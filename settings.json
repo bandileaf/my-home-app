@@ -1,5 +1,24 @@
 {
   "hub.repo": "bandileaf/my-home-app",
   "hub.tag.myhome": "",
-  "hub.app.myhome": ""
+  "hub.app.myhome": "",
+  "hub.bins": [
+    {
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
+      "dest": "bin/yt-dlp.exe",
+      "version": ""
+    },
+    {
+      "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
+      "zip": "ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe",
+      "dest": "bin/ffmpeg.exe",
+      "version": ""
+    },
+    {
+      "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
+      "zip": "ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe",
+      "dest": "bin/ffprobe.exe",
+      "version": ""
+    }
+  ]
 }
