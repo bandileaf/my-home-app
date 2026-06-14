@@ -10,7 +10,7 @@
     "dev:web": "vite --config vite.web.config.ts",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "build:win": "electron-vite build && electron-builder --win",
+    "build:win": "electron-vite build && electron-builder --win dir",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
