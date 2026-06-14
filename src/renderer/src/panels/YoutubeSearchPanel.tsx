@@ -233,7 +233,7 @@ export function YoutubeSearchPanel(): JSX.Element {
                 {/* 다운로드 버튼 */}
                 <div className="yt-dl-row">
                   {dl.status === 'idle' && (
-                    <button className="yt-dl-btn" onClick={() => do_download(item.url, 'mp3')}>↓ mp3</button>
+                    <button className="yt-dl-btn" onClick={() => do_download(item.url, 'mp3')}>↓ Audio</button>
                   )}
                   {vdl.status === 'idle' && (
                     <button className="yt-dl-btn" onClick={() => do_download_video(item.url)}>↓ Video</button>

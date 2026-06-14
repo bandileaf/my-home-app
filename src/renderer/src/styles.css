@@ -646,6 +646,12 @@ body {
 }
 
 /* 다운로드 버튼 */
+.yt-dl-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .yt-dl-btn {
   align-self: flex-start;
   padding: 3px 10px;
