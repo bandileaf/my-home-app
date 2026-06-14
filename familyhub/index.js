@@ -86,6 +86,12 @@ function extract_version_from_url(url) {
   return m ? m[1] : ''
 }
 
+// derives version from myhome exe filename: "myhome_v0.0.5.exe" → "v0.0.5"
+function derive_myhome_version(exeName) {
+  const m = (exeName || '').match(/_v([\d.]+)\.exe$/i)
+  return m ? `v${m[1]}` : ''
+}
+
 function compare_versions(a, b) {
   const pa = (a || '0').replace(/^v/, '').split('.').map(Number)
   const pb = (b || '0').replace(/^v/, '').split('.').map(Number)
@@ -94,19 +100,6 @@ function compare_versions(a, b) {
     if ((pa[i] || 0) < (pb[i] || 0)) return -1
   }
   return 0
-}
-
-function launch(exeName) {
-  const exePath = path.join(BASE_DIR, exeName)
-  if (!fs.existsSync(exePath)) {
-    log(`Not found: ${exePath}`)
-    log_stream.end()
-    process.exit(1)
-  }
-  log(`Launching ${exeName}...`)
-  log_stream.end()
-  spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
-  process.exit(0)
 }
 
 async function ensure_bins(bins, settings) {
@@ -169,11 +162,13 @@ async function ensure_bins(bins, settings) {
   if (dirty) write_settings(settings)
 }
 
-// returns true if hub was updated (process will exit)
+// hub.tag.myhome tracks last hub version processed.
+// if hub needs update: download new hub, set hub.tag.myhome = latestTag, restart via bat.
+// myhome version is derived separately from hub.app.myhome filename.
 async function update_hub(release, settings) {
   if (!IS_PKG) return false
 
-  const currentTag = settings['hub.tag'] || ''
+  const currentTag = settings['hub.tag.myhome'] || ''
   const latestTag = release.tag_name
 
   if (currentTag && compare_versions(latestTag, currentTag) <= 0) {
@@ -208,7 +203,8 @@ async function update_hub(release, settings) {
   fs.writeFileSync(newExePath, entry.getData())
   fs.unlinkSync(zipPath)
 
-  settings['hub.tag'] = latestTag
+  // mark hub as updated; myhome version is tracked via hub.app.myhome filename
+  settings['hub.tag.myhome'] = latestTag
   write_settings(settings)
 
   const batPath = path.join(BASE_DIR, '_hub_update.bat')
@@ -233,70 +229,75 @@ async function main() {
   log('FamilyHub start')
 
   const settings = read_settings()
-
-  // migrate old key names
-  if (!settings['hub.tag'] && settings['hub.tag.myhome']) {
-    settings['hub.tag'] = settings['hub.tag.myhome']
-    delete settings['hub.tag.myhome']
-    delete settings['hub.tag.hub']
-    write_settings(settings)
-    log(`Migrated hub.tag.myhome → hub.tag (${settings['hub.tag']})`)
-  }
-
   const repo = settings['hub.repo']
-  const currentTag = settings['hub.tag'] || ''
   const currentExe = settings['hub.app.myhome']
 
+  // launch myhome immediately — don't wait for update checks
+  if (currentExe) {
+    const exePath = path.join(BASE_DIR, currentExe)
+    if (fs.existsSync(exePath)) {
+      log(`Launching ${currentExe}...`)
+      spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref()
+    } else {
+      log(`Not found: ${exePath}`)
+    }
+  }
+
+  // background: ensure bins
   const bins = settings['hub.bins'] ?? []
   await ensure_bins(bins, settings)
 
-  log(`Checking for updates... (current: ${currentTag || '?'})`)
+  // background: check for updates
+  const currentHubTag = settings['hub.tag.myhome'] || ''
+  const currentMyhomeTag = derive_myhome_version(currentExe)
+  log(`Checking for updates... (hub: ${currentHubTag || '?'}, myhome: ${currentMyhomeTag || '?'})`)
 
   let release
   try {
     release = await fetch_latest_release(repo)
   } catch (err) {
-    log(`Update check failed: ${err.message} — launching current version`)
-    launch(currentExe)
+    log(`Update check FAILED: ${err.message}`)
+    log_stream.end()
+    process.exit(0)
     return
   }
 
-  await update_hub(release, settings)
-  // update_hub exits the process if a hub update was applied
-
   const latestTag = release.tag_name
+  if (!latestTag) {
+    log('Update check FAILED: could not read latest tag from release')
+    log_stream.end()
+    process.exit(0)
+    return
+  }
   log(`Latest: ${latestTag}`)
 
-  if (compare_versions(latestTag, currentTag) > 0) {
+  await update_hub(release, settings)
+  // update_hub exits the process if hub was updated
+
+  if (compare_versions(latestTag, currentMyhomeTag) > 0) {
     const newExeName = `myhome_${latestTag}.exe`
     const asset = release.assets.find(a => a.name === newExeName)
-
     if (asset) {
-      log(`Updating myhome ${currentTag} → ${latestTag}...`)
+      log(`Downloading myhome ${latestTag}...`)
       const dest = path.join(BASE_DIR, newExeName)
       await download_file(asset.browser_download_url, dest)
-      settings['hub.tag'] = latestTag
+      settings['hub.tag.myhome'] = latestTag
       settings['hub.app.myhome'] = newExeName
       write_settings(settings)
-      log('Update complete.')
-      launch(newExeName)
+      log(`myhome ${latestTag} 다운로드 완료 — 다음 실행 시 새 버전으로 시작합니다.`)
     } else {
-      log(`Asset ${newExeName} not found in release — launching current version`)
-      launch(currentExe)
+      log(`Update check FAILED: asset ${newExeName} not found in release`)
     }
   } else {
-    log('Already up to date.')
-    launch(currentExe)
+    log('myhome up to date.')
   }
+
+  log_stream.end()
+  process.exit(0)
 }
 
 main().catch(err => {
   log(`Fatal: ${err.message}`)
-  try {
-    const settings = read_settings()
-    launch(settings['hub.app.myhome'])
-  } catch {
-    log_stream.end()
-    process.exit(1)
-  }
+  log_stream.end()
+  process.exit(1)
 })
