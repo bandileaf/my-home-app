@@ -1,46 +1,41 @@
 @echo off
 setlocal
-rem === MusicFinder: copy build from network share (X:) to local (C:), then run ===
-rem Use xcopy (robocopy fails with error 87 on SMB shares).
+
 set "SRC=X:\music\dist\win-unpacked"
 set "DST=C:\DEV\test"
 
-echo Source : %SRC%
-echo Target : %DST%
-echo.
+echo === MusicFinder ===
 
 if not exist "%SRC%\MusicFinder.exe" (
-  echo [ERROR] Source not found: %SRC%\MusicFinder.exe
-  echo Check that the X: drive is connected.
+  echo [ERROR] Source not found: %SRC%
+  echo Check that X: drive is connected.
   pause
   exit /b 1
 )
 
-if not exist "%DST%" mkdir "%DST%"
-
-rem A running instance locks files (sharing violation), so close it first.
-rem /T also kills Electron child processes; wait for handles to release.
-echo Closing running MusicFinder...
-taskkill /F /T /IM MusicFinder.exe 2>nul
-timeout /t 2 /nobreak >nul
-
-echo Copying... (xcopy)
-xcopy "%SRC%\*" "%DST%\" /E /I /Y /R
-if errorlevel 4 (
-  echo First attempt failed, retrying in 3s...
-  timeout /t 3 /nobreak >nul
-  xcopy "%SRC%\*" "%DST%\" /E /I /Y /R
+rem First run: copy full distribution if MusicFinder.exe not present
+if not exist "%DST%\MusicFinder.exe" (
+  echo First run - copying full distribution...
+  if not exist "%DST%" mkdir "%DST%"
+  robocopy "%SRC%" "%DST%" /E /COPY:DAT /FFT /R:3 /W:5 /NP /NFL /NDL /NJH /NJS
+  goto launch
 )
-if errorlevel 4 (
-  echo.
-  echo [ERROR] Copy failed. errorlevel=%errorlevel%
-  echo Close all MusicFinder windows ^(check Task Manager^) and try again.
+
+rem Subsequent runs: kill app, update only resources/ (app.asar changes each build)
+echo Closing MusicFinder...
+taskkill /F /T /IM MusicFinder.exe >/dev/null 2>&1
+timeout /t 2 /nobreak >/dev/null
+
+echo Updating resources...
+robocopy "%SRC%\resources" "%DST%\resources" /E /IS /COPY:DAT /FFT /R:3 /W:5 /NP /NFL /NDL /NJH /NJS
+set RC=%ERRORLEVEL%
+if %RC% GEQ 8 (
+  echo [FAIL] Update failed - code %RC%
   pause
   exit /b 1
 )
 
-echo.
-echo Launching %DST%\MusicFinder.exe ...
+:launch
+echo Launching...
 start "" "%DST%\MusicFinder.exe"
-
 endlocal
