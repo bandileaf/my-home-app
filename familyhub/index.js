@@ -9,7 +9,7 @@ const IS_PKG = typeof process.pkg !== 'undefined'
 const BASE_DIR = IS_PKG ? path.dirname(process.execPath) : __dirname
 const SETTINGS_PATH = path.join(BASE_DIR, 'settings.json')
 
-const EXE_NAME = path.basename(IS_PKG ? process.execPath : __filename, '.js')
+const EXE_NAME = path.basename(IS_PKG ? process.execPath : __filename).replace(/\.(exe|js)$/i, '')
 const LOG_PATH = path.join(BASE_DIR, `${EXE_NAME}.log`)
 const log_stream = fs.createWriteStream(LOG_PATH, { flags: 'w' })
 
