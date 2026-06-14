@@ -82,12 +82,17 @@ export interface AppBridge {
   // YouTube
   youtube_search?: (query: string) => Promise<YoutubeResult[]>
   youtube_download?: (url: string) => void
+  youtube_download_video?: (url: string) => void
   youtube_cancel?: (url: string) => void
+  youtube_cancel_video?: (url: string) => void
   youtube_open_folder?: (filePath: string) => void
   youtube_open_url?: (url: string) => void
   on_youtube_progress?: (callback: (p: YoutubeProgress) => void) => () => void
   on_youtube_done?: (callback: (data: { url: string; filePath: string }) => void) => () => void
   on_youtube_error?: (callback: (data: { url: string; message: string }) => void) => () => void
+  on_youtube_progress_video?: (callback: (p: YoutubeProgress) => void) => () => void
+  on_youtube_done_video?: (callback: (data: { url: string; filePath: string }) => void) => () => void
+  on_youtube_error_video?: (callback: (data: { url: string; message: string }) => void) => () => void
 }
 
 export function get_bridge(): AppBridge | undefined {

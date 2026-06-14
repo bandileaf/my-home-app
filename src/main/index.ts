@@ -8,7 +8,9 @@ import {
   resolve_ytdlp_path,
   youtube_search,
   youtube_download,
+  youtube_download_video,
   youtube_cancel,
+  youtube_cancel_video,
   type YoutubeResult,
   type YoutubeProgress
 } from './services/youtube'
@@ -520,8 +522,51 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     youtube_cancel(url)
   })
 
+  ipcMain.on('youtube:download-video', (event, url: string) => {
+    log_event(`youtube:download-video url=${url}`)
+    let downloadDir: string
+    try {
+      const settings = load_settings(settingsPath)
+      downloadDir = resolve_download_dir(app_dir(), settings.downloadDirectory)
+    } catch {
+      downloadDir = resolve_download_dir(app_dir(), '')
+    }
+    const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
+
+    youtube_download_video(
+      url,
+      downloadDir,
+      ytdlpPath,
+      (progress: YoutubeProgress) => {
+        if (!event.sender.isDestroyed()) event.sender.send('youtube:progress-video', progress)
+      },
+      (filePath: string) => {
+        log_event(`youtube:done-video url=${url} file=${filePath}`)
+        if (!event.sender.isDestroyed()) event.sender.send('youtube:done-video', { url, filePath })
+      },
+      (message: string) => {
+        log_event(`youtube:error-video url=${url} msg=${message}`)
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('youtube:error-video', { url, message })
+          event.sender.send('notify', { message: `Video download failed: ${message}`, type: 'error' })
+        }
+      }
+    ).catch((err: Error) => log_event(`youtube:download-video unhandled: ${err.message}`))
+  })
+
+  ipcMain.on('youtube:cancel-video', (_event, url: string) => {
+    log_event(`youtube:cancel-video url=${url}`)
+    youtube_cancel_video(url)
+  })
+
   ipcMain.on('youtube:open-folder', (_event, filePath: string) => {
-    shell.showItemInFolder(filePath)
+    let folderPath = filePath
+    try {
+      if (!statSync(filePath).isDirectory()) folderPath = dirname(filePath)
+    } catch {
+      folderPath = dirname(filePath)
+    }
+    shell.openPath(folderPath)
   })
 
   ipcMain.on('youtube:open-url', (_event, url: string) => {

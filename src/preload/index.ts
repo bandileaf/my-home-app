@@ -81,7 +81,9 @@ const api = {
   youtube_search: (query: string): Promise<YoutubeResult[]> =>
     ipcRenderer.invoke('youtube:search', query),
   youtube_download: (url: string): void => ipcRenderer.send('youtube:download', url),
+  youtube_download_video: (url: string): void => ipcRenderer.send('youtube:download-video', url),
   youtube_cancel: (url: string): void => ipcRenderer.send('youtube:cancel', url),
+  youtube_cancel_video: (url: string): void => ipcRenderer.send('youtube:cancel-video', url),
   youtube_open_folder: (filePath: string): void => ipcRenderer.send('youtube:open-folder', filePath),
   youtube_open_url: (url: string): void => ipcRenderer.send('youtube:open-url', url),
 
@@ -99,6 +101,22 @@ const api = {
     const listener = (_e: unknown, data: { url: string; message: string }): void => callback(data)
     ipcRenderer.on('youtube:error', listener)
     return () => ipcRenderer.removeListener('youtube:error', listener)
+  },
+
+  on_youtube_progress_video: (callback: (p: YoutubeProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: YoutubeProgress): void => callback(p)
+    ipcRenderer.on('youtube:progress-video', listener)
+    return () => ipcRenderer.removeListener('youtube:progress-video', listener)
+  },
+  on_youtube_done_video: (callback: (data: { url: string; filePath: string }) => void): (() => void) => {
+    const listener = (_e: unknown, data: { url: string; filePath: string }): void => callback(data)
+    ipcRenderer.on('youtube:done-video', listener)
+    return () => ipcRenderer.removeListener('youtube:done-video', listener)
+  },
+  on_youtube_error_video: (callback: (data: { url: string; message: string }) => void): (() => void) => {
+    const listener = (_e: unknown, data: { url: string; message: string }): void => callback(data)
+    ipcRenderer.on('youtube:error-video', listener)
+    return () => ipcRenderer.removeListener('youtube:error-video', listener)
   }
 }
 

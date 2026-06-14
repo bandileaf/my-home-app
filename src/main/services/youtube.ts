@@ -132,50 +132,51 @@ export function resolve_ytdlp_path(resourcesPath: string, isPackaged: boolean): 
     : join(__dirname, '../../../bin/yt-dlp.exe')
 }
 
-export async function youtube_download(
+function build_ytdlp_args(
   url: string,
   outputDir: string,
+  format: string
+): string[] {
+  return [
+    '--no-playlist',
+    '--format', format,
+    '--newline',
+    '-o', join(outputDir, '%(title)s.%(ext)s'),
+    '--print', 'after_move:filepath',
+    url,
+  ]
+}
+
+async function run_ytdlp(
+  key: string,
+  args: string[],
   ytdlpPath: string,
+  url: string,
+  outputDir: string,
   on_progress: (p: YoutubeProgress) => void,
   on_done: (filePath: string) => void,
   on_error: (message: string) => void
 ): Promise<void> {
-  if (active_downloads.has(url)) return
-
-  const args = [
-    '--no-playlist',
-    '--format', 'bestaudio[ext=m4a]/bestaudio', // prefer m4a; fallback to best audio
-    '--newline',                                  // one progress line per update
-    '-o', join(outputDir, '%(title)s.%(ext)s'),
-    '--print', 'after_move:filepath',             // print final path after download
-    url,
-  ]
-
   on_progress({ url, percent: 0, speed: '', eta: '' })
 
   let stderrBuf = ''
 
   try {
     await new Promise<void>((resolve, reject) => {
-      // PYTHONIOENCODING=utf-8: ensures yt-dlp stdout is UTF-8 on Windows
       const proc = spawn(ytdlpPath, args, {
         env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
       })
 
-      active_downloads.set(url, () => {
+      active_downloads.set(key, () => {
         proc.kill()
-        active_downloads.delete(url)
+        active_downloads.delete(key)
       })
 
-      // Collect all stdout into a buffer; process only after close to avoid
-      // race conditions where close fires before the last data event.
       let stdoutBuf = ''
 
       proc.stdout.on('data', (data: Buffer) => {
         const text = data.toString('utf8')
         stdoutBuf += text
-
-        // Parse progress lines in real time for UI updates
         for (const line of text.split('\n')) {
           const m = line.trim().match(/\[download\]\s+([\d.]+)%.*?at\s+(\S+)\s+ETA\s+(\S+)/)
           if (m) on_progress({ url, percent: parseFloat(m[1]), speed: m[2], eta: m[3] })
@@ -187,9 +188,8 @@ export async function youtube_download(
       })
 
       proc.on('close', (code) => {
-        active_downloads.delete(url)
+        active_downloads.delete(key)
         if (code === 0) {
-          // Extract final filepath from collected stdout
           let finalPath = ''
           for (const line of stdoutBuf.split('\n')) {
             const t = line.trim()
@@ -211,13 +211,44 @@ export async function youtube_download(
       })
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    on_error(message)
+    on_error(err instanceof Error ? err.message : String(err))
   }
+}
+
+export async function youtube_download(
+  url: string,
+  outputDir: string,
+  ytdlpPath: string,
+  on_progress: (p: YoutubeProgress) => void,
+  on_done: (filePath: string) => void,
+  on_error: (message: string) => void
+): Promise<void> {
+  if (active_downloads.has(url)) return
+  const args = build_ytdlp_args(url, outputDir, 'bestaudio[ext=m4a]/bestaudio')
+  await run_ytdlp(url, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error)
+}
+
+export async function youtube_download_video(
+  url: string,
+  outputDir: string,
+  ytdlpPath: string,
+  on_progress: (p: YoutubeProgress) => void,
+  on_done: (filePath: string) => void,
+  on_error: (message: string) => void
+): Promise<void> {
+  const key = url + ':video'
+  if (active_downloads.has(key)) return
+  const args = build_ytdlp_args(url, outputDir, 'best[ext=mp4]/best')
+  await run_ytdlp(key, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error)
 }
 
 export function youtube_cancel(url: string): void {
   const cancel = active_downloads.get(url)
+  if (cancel) cancel()
+}
+
+export function youtube_cancel_video(url: string): void {
+  const cancel = active_downloads.get(url + ':video')
   if (cancel) cancel()
 }
 

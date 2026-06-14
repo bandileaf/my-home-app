@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { get_bridge, type YoutubeResult, type YoutubeProgress } from '../bridge'
+import { get_bridge, type YoutubeResult } from '../bridge'
 
 function format_duration(seconds: number): string {
   if (seconds <= 0) return 'LIVE'
@@ -22,49 +22,80 @@ type DownloadState =
   | { status: 'done'; filePath: string }
   | { status: 'error'; message: string }
 
+function ProgressBar({ label, percent, speed, eta, onCancel }: {
+  label: string; percent: number; speed: string; eta: string; onCancel: () => void
+}): JSX.Element {
+  return (
+    <div className="yt-progress-wrap">
+      <div className="yt-progress-bar">
+        <div className="yt-progress-fill" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="yt-progress-meta">
+        <span>{label} {Math.round(percent)}%</span>
+        {speed && <span>{speed}</span>}
+        {eta && <span>ETA {eta}</span>}
+        <button className="yt-cancel-btn" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+function DoneRow({ label, filePath, onOpen }: {
+  label: string; filePath: string; onOpen: () => void
+}): JSX.Element {
+  return (
+    <div className="yt-done">
+      <span className="yt-done-icon">✓</span>
+      <span className="yt-done-label">{label}</span>
+      <span className="yt-done-path" title={filePath} onClick={onOpen}>
+        {filePath.split(/[\\/]/).pop()}
+      </span>
+      <button className="yt-folder-btn" onClick={onOpen}>Open folder</button>
+    </div>
+  )
+}
+
+function ErrorRow({ message, onRetry }: { message: string; onRetry: () => void }): JSX.Element {
+  return (
+    <div className="yt-dl-error" title={message}>
+      <span>✗ Failed</span>
+      <button className="yt-retry-btn" onClick={onRetry}>Retry</button>
+    </div>
+  )
+}
+
 export function YoutubeSearchPanel(): JSX.Element {
   const [query, set_query] = useState('')
   const [results, set_results] = useState<YoutubeResult[]>([])
   const [searching, set_searching] = useState(false)
   const [searchError, set_searchError] = useState('')
   const [downloads, set_downloads] = useState<Record<string, DownloadState>>({})
+  const [videoDownloads, set_video_downloads] = useState<Record<string, DownloadState>>({})
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // 메인 → 렌더러 이벤트 구독
   useEffect(() => {
     const bridge = get_bridge()
 
-    const unsubProgress = bridge?.on_youtube_progress?.((p: YoutubeProgress) => {
-      set_downloads((prev) => ({
-        ...prev,
-        [p.url]: {
-          status: 'downloading',
-          percent: p.percent,
-          speed: p.speed,
-          eta: p.eta
-        }
-      }))
+    const u1 = bridge?.on_youtube_progress?.((p) => {
+      set_downloads((prev) => ({ ...prev, [p.url]: { status: 'downloading', percent: p.percent, speed: p.speed, eta: p.eta } }))
+    })
+    const u2 = bridge?.on_youtube_done?.((data) => {
+      set_downloads((prev) => ({ ...prev, [data.url]: { status: 'done', filePath: data.filePath } }))
+    })
+    const u3 = bridge?.on_youtube_error?.((data) => {
+      set_downloads((prev) => ({ ...prev, [data.url]: { status: 'error', message: data.message } }))
+    })
+    const u4 = bridge?.on_youtube_progress_video?.((p) => {
+      set_video_downloads((prev) => ({ ...prev, [p.url]: { status: 'downloading', percent: p.percent, speed: p.speed, eta: p.eta } }))
+    })
+    const u5 = bridge?.on_youtube_done_video?.((data) => {
+      set_video_downloads((prev) => ({ ...prev, [data.url]: { status: 'done', filePath: data.filePath } }))
+    })
+    const u6 = bridge?.on_youtube_error_video?.((data) => {
+      set_video_downloads((prev) => ({ ...prev, [data.url]: { status: 'error', message: data.message } }))
     })
 
-    const unsubDone = bridge?.on_youtube_done?.((data) => {
-      set_downloads((prev) => ({
-        ...prev,
-        [data.url]: { status: 'done', filePath: data.filePath }
-      }))
-    })
-
-    const unsubError = bridge?.on_youtube_error?.((data) => {
-      set_downloads((prev) => ({
-        ...prev,
-        [data.url]: { status: 'error', message: data.message }
-      }))
-    })
-
-    return () => {
-      unsubProgress?.()
-      unsubDone?.()
-      unsubError?.()
-    }
+    return () => { u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
   }, [])
 
   async function do_search(): Promise<void> {
@@ -97,13 +128,19 @@ export function YoutubeSearchPanel(): JSX.Element {
     }))
   }
 
+  function do_download_video(url: string): void {
+    get_bridge()?.youtube_download_video?.(url)
+    set_video_downloads((prev) => ({ ...prev, [url]: { status: 'downloading', percent: 0, speed: '', eta: '' } }))
+  }
+
   function do_cancel(url: string): void {
     get_bridge()?.youtube_cancel?.(url)
-    set_downloads((prev) => {
-      const next = { ...prev }
-      delete next[url]
-      return next
-    })
+    set_downloads((prev) => { const next = { ...prev }; delete next[url]; return next })
+  }
+
+  function do_cancel_video(url: string): void {
+    get_bridge()?.youtube_cancel_video?.(url)
+    set_video_downloads((prev) => { const next = { ...prev }; delete next[url]; return next })
   }
 
   function open_folder(filePath: string): void {
@@ -159,6 +196,7 @@ export function YoutubeSearchPanel(): JSX.Element {
 
         {results.map((item) => {
           const dl = downloads[item.url] ?? { status: 'idle' }
+          const vdl = videoDownloads[item.url] ?? { status: 'idle' }
           return (
             <div className="yt-result-row" key={item.id}>
               {/* 썸네일 — 클릭 시 브라우저로 열기 */}
@@ -192,52 +230,40 @@ export function YoutubeSearchPanel(): JSX.Element {
                   )}
                 </div>
 
-                {/* 다운로드 상태 */}
-                {dl.status === 'idle' && (
-                  <button className="yt-dl-btn" onClick={() => do_download(item.url)}>
-                    ↓ Download Audio
-                  </button>
-                )}
+                {/* 다운로드 버튼 */}
+                <div className="yt-dl-row">
+                  {dl.status === 'idle' && (
+                    <button className="yt-dl-btn" onClick={() => do_download(item.url)}>
+                      ↓ Audio
+                    </button>
+                  )}
+                  {vdl.status === 'idle' && (
+                    <button className="yt-dl-btn" onClick={() => do_download_video(item.url)}>
+                      ↓ Video
+                    </button>
+                  )}
+                </div>
 
                 {dl.status === 'downloading' && (
-                  <div className="yt-progress-wrap">
-                    <div className="yt-progress-bar">
-                      <div className="yt-progress-fill" style={{ width: `${dl.percent}%` }} />
-                    </div>
-                    <div className="yt-progress-meta">
-                      <span>{Math.round(dl.percent)}%</span>
-                      {dl.speed && <span>{dl.speed}</span>}
-                      {dl.eta && <span>ETA {dl.eta}</span>}
-                      <button className="yt-cancel-btn" onClick={() => do_cancel(item.url)}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
+                  <ProgressBar label="Audio" percent={dl.percent} speed={dl.speed} eta={dl.eta}
+                    onCancel={() => do_cancel(item.url)} />
                 )}
-
                 {dl.status === 'done' && (
-                  <div className="yt-done">
-                    <span className="yt-done-icon">✓</span>
-                    <span
-                      className="yt-done-path"
-                      title={dl.filePath}
-                      onClick={() => open_folder(dl.filePath)}
-                    >
-                      {dl.filePath.split(/[\\/]/).pop()}
-                    </span>
-                    <button className="yt-folder-btn" onClick={() => open_folder(dl.filePath)}>
-                      Open folder
-                    </button>
-                  </div>
+                  <DoneRow label="Audio" filePath={dl.filePath} onOpen={() => open_folder(dl.filePath)} />
+                )}
+                {dl.status === 'error' && (
+                  <ErrorRow message={dl.message} onRetry={() => do_download(item.url)} />
                 )}
 
-                {dl.status === 'error' && (
-                  <div className="yt-dl-error" title={dl.message}>
-                    <span>✗ Failed</span>
-                    <button className="yt-retry-btn" onClick={() => do_download(item.url)}>
-                      Retry
-                    </button>
-                  </div>
+                {vdl.status === 'downloading' && (
+                  <ProgressBar label="Video" percent={vdl.percent} speed={vdl.speed} eta={vdl.eta}
+                    onCancel={() => do_cancel_video(item.url)} />
+                )}
+                {vdl.status === 'done' && (
+                  <DoneRow label="Video" filePath={vdl.filePath} onOpen={() => open_folder(vdl.filePath)} />
+                )}
+                {vdl.status === 'error' && (
+                  <ErrorRow message={vdl.message} onRetry={() => do_download_video(item.url)} />
                 )}
               </div>
             </div>
