@@ -2,6 +2,7 @@ const https = require('https')
 const http = require('http')
 const fs = require('fs')
 const path = require('path')
+const AdmZip = require('adm-zip')
 const { spawn } = require('child_process')
 
 const IS_PKG = typeof process.pkg !== 'undefined'
@@ -103,6 +104,34 @@ function launch(exeName) {
   process.exit(0)
 }
 
+async function ensure_bins(bins) {
+  for (const bin of bins) {
+    const destPath = path.join(BASE_DIR, bin.dest)
+    if (fs.existsSync(destPath)) {
+      log(`${bin.dest} OK`)
+      continue
+    }
+
+    log(`Downloading ${bin.dest}...`)
+    fs.mkdirSync(path.dirname(destPath), { recursive: true })
+
+    const tmpPath = destPath + '.tmp'
+    await download_file(bin.url, tmpPath)
+
+    if (bin.zip) {
+      const zip = new AdmZip(tmpPath)
+      const entry = zip.getEntry(bin.zip)
+      if (!entry) throw new Error(`${bin.zip} not found in zip`)
+      fs.writeFileSync(destPath, entry.getData())
+      fs.unlinkSync(tmpPath)
+    } else {
+      fs.renameSync(tmpPath, destPath)
+    }
+
+    log(`${bin.dest} installed`)
+  }
+}
+
 async function main() {
   log('FamilyHub start')
 
@@ -110,6 +139,9 @@ async function main() {
   const repo = settings['hub.repo']
   const currentTag = settings['hub.tag.myhome']
   const currentExe = settings['hub.app.myhome']
+
+  const bins = settings['hub.bins'] ?? []
+  await ensure_bins(bins)
 
   log(`Current: ${currentTag}`)
 
