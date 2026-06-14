@@ -63,6 +63,7 @@ function create_window(): BrowserWindow {
     y: height - H - 16,
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     skipTaskbar: true,
     alwaysOnTop: true,
     resizable: false,
@@ -80,10 +81,10 @@ function create_window(): BrowserWindow {
     w.loadURL('http://localhost:5173')
   }
 
-  w.once('ready-to-show', () => w.show())
   w.webContents.once('did-finish-load', () => {
     rendererReady = true
     w.webContents.send('status', { message: lastStatus, done: false })
+    w.show()
   })
   return w
 }
@@ -140,7 +141,7 @@ interface GHRelease {
 
 function fetch_latest_release(repo: string): Promise<GHRelease> {
   return new Promise((resolve, reject) => {
-    https.get({
+    const req = https.get({
       hostname: 'api.github.com',
       path: `/repos/${repo}/releases/latest`,
       headers: { 'User-Agent': 'FamilyHub' }
@@ -152,6 +153,7 @@ function fetch_latest_release(repo: string): Promise<GHRelease> {
         catch { reject(new Error('Failed to parse release info')) }
       })
     }).on('error', reject)
+    req.setTimeout(5000, () => req.destroy(new Error('GitHub API timed out (5s)')))
   })
 }
 
@@ -335,6 +337,9 @@ async function update_hub(release: GHRelease, settings: Settings): Promise<boole
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  const t0 = Date.now()
+  const elapsed = () => `+${Date.now() - t0}ms`
+
   log('FamilyHub start')
 
   const settings   = read_settings()
@@ -344,19 +349,20 @@ async function main(): Promise<void> {
   const bins = settings['hub.bins'] ?? []
   if (bins.some((b: BinEntry) => !existsSync(join(BASE_DIR, b.dest)))) {
     set_status('필요한 도구를 설치하는 중...')
+    await ensure_bins(bins, settings)
   }
-  await ensure_bins(bins, settings)
 
   const currentHubTag    = settings['hub.tag'] || ''
   const currentMyhomeTag = derive_myhome_version(currentExe)
   set_status('업데이트 확인 중...')
-  log(`Checking for updates... (hub: ${currentHubTag || '?'}, myhome: ${currentMyhomeTag || '?'})`)
+  log(`[${elapsed()}] Checking for updates (hub: ${currentHubTag || '?'}, myhome: ${currentMyhomeTag || '?'})`)
 
   let release: GHRelease
   try {
     release = await fetch_latest_release(repo)
+    log(`[${elapsed()}] GitHub API responded`)
   } catch (err: unknown) {
-    log(`Unable to reach ${repo} — cannot verify latest release: ${(err as Error).message}`)
+    log(`[${elapsed()}] Unable to reach ${repo}: ${(err as Error).message}`)
     set_status('서버에 연결할 수 없습니다. 현재 버전을 실행합니다.')
     await new Promise<void>(r => setTimeout(r, 1500))
     launch(currentExe)
@@ -365,13 +371,13 @@ async function main(): Promise<void> {
 
   const latestTag = release.tag_name
   if (!latestTag) {
-    log(`Unable to reach ${repo} — cannot verify latest release`)
+    log(`[${elapsed()}] Unable to reach ${repo} — cannot verify latest release`)
     set_status('최신 버전을 확인할 수 없습니다. 현재 버전을 실행합니다.')
     await new Promise<void>(r => setTimeout(r, 1500))
     launch(currentExe)
     return
   }
-  log(`Latest: ${latestTag}`)
+  log(`[${elapsed()}] Latest: ${latestTag}`)
 
   const hubUpdated = await update_hub(release, settings)
   if (hubUpdated) return
@@ -386,15 +392,18 @@ async function main(): Promise<void> {
       settings['hub.tag']        = latestTag
       settings['hub.app.myhome'] = newExeName
       write_settings(settings)
-      log(`myhome updated to ${latestTag}`)
+      log(`[${elapsed()}] myhome updated to ${latestTag}`)
+      log(`[${elapsed()}] Calling launch: ${newExeName}`)
       launch(newExeName)
     } else {
-      log(`Asset ${newExeName} not found in release`)
+      log(`[${elapsed()}] Asset ${newExeName} not found in release`)
+      log(`[${elapsed()}] Calling launch: ${currentExe}`)
       launch(currentExe)
     }
   } else {
-    log('Already up to date.')
+    log(`[${elapsed()}] Already up to date.`)
     set_status('My Home 실행 중...')
+    log(`[${elapsed()}] Calling launch: ${currentExe}`)
     launch(currentExe)
   }
 }
