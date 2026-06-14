@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
@@ -28,8 +28,13 @@ jobs:
           New-Item -ItemType Directory -Force -Path bin
           Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "bin/yt-dlp.exe"
 
-      - name: Build
-        run: npx electron-vite build && npx electron-builder --win portable
+      - name: Build renderer and main
+        run: npx electron-vite build
+
+      - name: Package portable exe
+        run: npx electron-builder --win portable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
