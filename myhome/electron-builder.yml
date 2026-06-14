@@ -1,6 +1,7 @@
 appId: com.nwork.myhome
 productName: myhome
 artifactName: "myhome_v${version}.exe"
+publish: never
 directories:
   output: dist
   buildResources: build
