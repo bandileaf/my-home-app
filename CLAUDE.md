@@ -59,9 +59,9 @@ npm run typecheck  # tsc --noEmit
 npm run build:win  # dist/win-unpacked/ 생성 (로컬 테스트용)
 ```
 
-## UI 아이콘
+## UI Icons
 
-아이콘은 **lucide-react** 를 기본으로 사용한다. 커스텀 SVG 아이콘을 새로 만들지 않는다.
+Use **lucide-react** for all icons. Do not create custom SVG icons.
 
 ## Naming Conventions
 
