@@ -10,9 +10,10 @@ import { get_bridge } from './bridge'
 import { useNotify } from './notifications'
 import { doc_types, resolve_doc_type } from './docs'
 
-export const TabTitleContext = createContext<((title: string) => void) | null>(null)
-export function useTabTitle(): (title: string) => void {
-  return useContext(TabTitleContext) ?? (() => {})
+interface TabCtx { tabId: string; setTitle: (t: string) => void }
+const TabContext = createContext<TabCtx | null>(null)
+export function useTabCtx(): TabCtx {
+  return useContext(TabContext) ?? { tabId: '', setTitle: () => {} }
 }
 
 type OpenTab =
@@ -464,6 +465,11 @@ export function App(): JSX.Element {
       })
     }
 
+    // feature 탭 검색어 정리
+    if (tab?.kind === 'feature') {
+      get_bridge()?.app_state_set?.(`tab:query:${id}`, '')
+    }
+
     const remaining = tabs.filter((t) => t.id !== id)
     set_tabs(remaining)
     if (activeId === id) {
@@ -505,7 +511,7 @@ export function App(): JSX.Element {
     const entry = icon_registry.find((icon) => icon.id === tab.iconId)
     const Panel = entry?.panel
     return Panel
-      ? <TabTitleContext.Provider value={(title) => rename_tab(tab.id, title)}><Panel /></TabTitleContext.Provider>
+      ? <TabContext.Provider value={{ tabId: tab.id, setTitle: (t) => rename_tab(tab.id, t) }}><Panel /></TabContext.Provider>
       : <div className="empty-hint" />
   }
 

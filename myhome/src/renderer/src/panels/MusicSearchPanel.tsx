@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { get_bridge, type SearchHit } from '../bridge'
-import { useTabTitle } from '../App'
+import { useTabCtx } from '../App'
 
 const MAX_TITLE = 20
 function tab_title(q: string): string {
@@ -19,12 +19,26 @@ function format_size(bytes: number): string {
 }
 
 export function MusicSearchPanel(): JSX.Element {
-  const set_tab_title = useTabTitle()
+  const { tabId, setTitle } = useTabCtx()
   const [query, set_query] = useState('')
   const [hits, set_hits] = useState<SearchHit[]>([])
   const [total, set_total] = useState(0)
   const [truncated, set_truncated] = useState(false)
   const [available, set_available] = useState(true)
+
+  // 복원: 저장된 검색어 로드
+  useEffect(() => {
+    if (!tabId) return
+    get_bridge()?.app_state_get?.(`tab:query:${tabId}`).then((saved) => {
+      if (saved) set_query(saved)
+    }).catch(() => {})
+  }, [tabId])
+
+  // 저장: 검색어 변경 시 DB 에 기록
+  useEffect(() => {
+    if (!tabId || !query) return
+    get_bridge()?.app_state_set?.(`tab:query:${tabId}`, query)
+  }, [tabId, query])
 
   useEffect(() => {
     const bridge = get_bridge()
@@ -36,7 +50,7 @@ export function MusicSearchPanel(): JSX.Element {
     set_available(true)
 
     const needle = query.trim()
-    set_tab_title(tab_title(needle))
+    setTitle(tab_title(needle))
     if (needle === '') {
       set_hits([])
       set_total(0)

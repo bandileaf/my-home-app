@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { get_bridge, type YoutubeResult } from '../bridge'
+import { useTabCtx } from '../App'
+
+const MAX_TITLE = 20
+function tab_title(q: string): string {
+  return q ? `YouTube — ${q.length > MAX_TITLE ? q.slice(0, MAX_TITLE) + '…' : q}` : 'YouTube Search'
+}
 
 function format_duration(seconds: number): string {
   if (seconds <= 0) return 'LIVE'
@@ -65,6 +71,7 @@ function ErrorRow({ message, onRetry }: { message: string; onRetry: () => void }
 }
 
 export function YoutubeSearchPanel(): JSX.Element {
+  const { tabId, setTitle } = useTabCtx()
   const [query, set_query] = useState('')
   const [results, set_results] = useState<YoutubeResult[]>([])
   const [searching, set_searching] = useState(false)
@@ -72,7 +79,25 @@ export function YoutubeSearchPanel(): JSX.Element {
   const [downloads, set_downloads] = useState<Record<string, DownloadState>>({})
   const [videoDownloads, set_video_downloads] = useState<Record<string, DownloadState>>({})
   const [ytdlpReady, set_ytdlpReady] = useState(false)
+  const pendingSearch = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // 복원: 저장된 검색어 로드
+  useEffect(() => {
+    if (!tabId) return
+    get_bridge()?.app_state_get?.(`tab:query:${tabId}`).then((saved) => {
+      if (saved) { set_query(saved); pendingSearch.current = true }
+    }).catch(() => {})
+  }, [tabId])
+
+  // ytdlpReady 되면 pending 검색 실행
+  useEffect(() => {
+    if (ytdlpReady && pendingSearch.current) {
+      pendingSearch.current = false
+      void do_search()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ytdlpReady])
 
   useEffect(() => {
     const bridge = get_bridge()
@@ -109,6 +134,8 @@ export function YoutubeSearchPanel(): JSX.Element {
     try {
       const res = await search(q)
       set_results(res)
+      setTitle(tab_title(q))
+      if (tabId) get_bridge()?.app_state_set?.(`tab:query:${tabId}`, q)
     } catch (err) {
       set_searchError(err instanceof Error ? err.message : String(err))
     } finally {
