@@ -101,7 +101,7 @@ export function YoutubeSearchPanel(): JSX.Element {
 
   useEffect(() => {
     const bridge = get_bridge()
-    const u0 = bridge?.on_bins_ready?.((bins) => { set_ytdlpReady('yt-dlp.exe' in bins) })
+    void bridge?.get_bins?.().then((bins) => { set_ytdlpReady('yt-dlp.exe' in bins) })
     const u1 = bridge?.on_youtube_progress?.((p) => {
       set_downloads((prev) => ({ ...prev, [p.url]: { status: 'downloading', percent: p.percent, speed: p.speed, eta: p.eta } }))
     })
@@ -120,7 +120,7 @@ export function YoutubeSearchPanel(): JSX.Element {
     const u6 = bridge?.on_youtube_error_video?.((data) => {
       set_video_downloads((prev) => ({ ...prev, [data.url]: { status: 'error', message: data.message } }))
     })
-    return () => { u0?.(); u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
+    return () => { u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
   }, [])
 
   async function do_search(): Promise<void> {

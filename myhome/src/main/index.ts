@@ -605,29 +605,27 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
   })
 }
 
-function scan_bins(win: BrowserWindow): void {
-  setImmediate(() => {
-    try {
-      const raw = JSON.parse(readFileSync(join(app_dir(), 'settings.json'), 'utf-8')) as {
-        'hub.bins'?: Array<{ exes?: string | string[] }>
-      }
-      const bins = raw['hub.bins'] ?? []
-      const found: Record<string, string> = {}
-      for (const bin of bins) {
-        const exes = Array.isArray(bin.exes) ? bin.exes : (bin.exes ? [bin.exes] : [])
-        for (const exe of exes) {
-          const name = basename(exe)
-          const p = join(app_dir(), 'bin', name)
-          if (existsSync(p)) found[name] = p
-        }
-      }
-      log_event(`bins:ready ${JSON.stringify(Object.keys(found))}`)
-      if (!win.isDestroyed()) win.webContents.send('bins:ready', found)
-    } catch (err) {
-      log_error('scan_bins', err)
-      if (!win.isDestroyed()) win.webContents.send('bins:ready', {})
+function scan_bins(): Record<string, string> {
+  try {
+    const raw = JSON.parse(readFileSync(join(app_dir(), 'settings.json'), 'utf-8')) as {
+      'hub.bins'?: Array<{ exes?: string | string[] }>
     }
-  })
+    const bins = raw['hub.bins'] ?? []
+    const found: Record<string, string> = {}
+    for (const bin of bins) {
+      const exes = Array.isArray(bin.exes) ? bin.exes : (bin.exes ? [bin.exes] : [])
+      for (const exe of exes) {
+        const name = basename(exe)
+        const p = join(app_dir(), 'bin', name)
+        if (existsSync(p)) found[name] = p
+      }
+    }
+    log_event(`scan_bins: ${JSON.stringify(Object.keys(found))}`)
+    return found
+  } catch (err) {
+    log_error('scan_bins', err)
+    return {}
+  }
 }
 
 function resolve_icon(): string {
@@ -724,13 +722,11 @@ app.whenReady().then(() => {
   }
 
   register_ipc(settingsPath, db, state)
-  const win = create_window()
-  scan_bins(win)
+  ipcMain.handle('get-bins', () => scan_bins())
+  create_window()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      scan_bins(create_window())
-    }
+    if (BrowserWindow.getAllWindows().length === 0) create_window()
   })
 })
 

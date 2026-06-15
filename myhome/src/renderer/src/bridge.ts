@@ -80,7 +80,7 @@ export interface AppBridge {
   app_state_get?: (key: string) => Promise<string | null>
   app_state_set?: (key: string, value: string) => void
   // bin 스캔 결과
-  on_bins_ready?: (callback: (bins: Record<string, string>) => void) => () => void
+  get_bins?: () => Promise<Record<string, string>>
   // YouTube
   youtube_search?: (query: string) => Promise<YoutubeResult[]>
   youtube_download?: (url: string, audioFormat: string) => void
