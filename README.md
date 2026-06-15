@@ -50,3 +50,23 @@
 | `**/AlbumArt/**` | 앨범 아트 폴더 |
 
 설정 변경 후 앱을 재시작하면 변경된 항목만 재인덱싱한다.
+
+### hub 설정 항목
+
+FamilyHub 자체 동작을 제어하는 필드. `familyhub.exe` 가 읽고 자동으로 갱신한다.
+
+| 키 | 타입 | 기본값 | 설명 |
+|----|------|--------|------|
+| `hub.repo` | `string` | — | GitHub 저장소 (`owner/repo`) |
+| `hub.tag` | `string` | `""` | 현재 설치된 버전 태그. familyhub 가 업데이트 시 자동 갱신 |
+| `hub.app.myhome` | `string` | `""` | 실행할 myhome exe 파일명. 업데이트 시 자동 갱신 |
+| `hub.auto-update` | `boolean` | `true` | `false` 로 설정하면 GitHub 버전 확인 및 자동 업데이트 건너뜀 |
+| `hub.bins` | `BinEntry[]` | — | 자동 설치할 외부 도구 목록 (yt-dlp, ffmpeg 등) |
+
+**BinEntry 구조**
+
+| 키 | 타입 | 설명 |
+|----|------|------|
+| `url` | `string` | 다운로드 URL. `.zip` 으로 끝나면 압축 해제 모드 |
+| `exes` | `string \| string[]` | zip 내부 경로(들) 또는 직접 다운로드 파일명. `bin/<basename>` 위치에 저장됨 |
+| `version` | `string` | 설치된 버전. familyhub 가 자동 기록 |
