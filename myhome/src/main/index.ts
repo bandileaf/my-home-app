@@ -605,6 +605,31 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
   })
 }
 
+function scan_bins(win: BrowserWindow): void {
+  setImmediate(() => {
+    try {
+      const raw = JSON.parse(readFileSync(join(app_dir(), 'settings.json'), 'utf-8')) as {
+        'hub.bins'?: Array<{ exes?: string | string[] }>
+      }
+      const bins = raw['hub.bins'] ?? []
+      const found: Record<string, string> = {}
+      for (const bin of bins) {
+        const exes = Array.isArray(bin.exes) ? bin.exes : (bin.exes ? [bin.exes] : [])
+        for (const exe of exes) {
+          const name = basename(exe)
+          const p = join(app_dir(), 'bin', name)
+          if (existsSync(p)) found[name] = p
+        }
+      }
+      log_event(`bins:ready ${JSON.stringify(Object.keys(found))}`)
+      if (!win.isDestroyed()) win.webContents.send('bins:ready', found)
+    } catch (err) {
+      log_error('scan_bins', err)
+      if (!win.isDestroyed()) win.webContents.send('bins:ready', {})
+    }
+  })
+}
+
 function resolve_icon(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'icon.ico')
@@ -699,11 +724,12 @@ app.whenReady().then(() => {
   }
 
   register_ipc(settingsPath, db, state)
-  create_window()
+  const win = create_window()
+  scan_bins(win)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      create_window()
+      scan_bins(create_window())
     }
   })
 })

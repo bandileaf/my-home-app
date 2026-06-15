@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useReducer, useRef, useState } from 'react'
 import { ActivityBar } from './shell/ActivityBar'
 import { MenuBar } from './shell/MenuBar'
 import { TabBar } from './shell/TabBar'
@@ -9,6 +9,11 @@ import { EditorPanel } from './panels/EditorPanel'
 import { get_bridge } from './bridge'
 import { useNotify } from './notifications'
 import { doc_types, resolve_doc_type } from './docs'
+
+export const TabTitleContext = createContext<((title: string) => void) | null>(null)
+export function useTabTitle(): (title: string) => void {
+  return useContext(TabTitleContext) ?? (() => {})
+}
 
 type OpenTab =
   | { id: string; kind: 'feature'; iconId: string; title: string }
@@ -307,6 +312,10 @@ export function App(): JSX.Element {
     set_activeId(targetId)
   }
 
+  function rename_tab(id: string, title: string): void {
+    set_tabs((prev) => prev.map((t) => t.id === id ? { ...t, title } : t))
+  }
+
   function reorder_tabs(fromId: string, toId: string): void {
     if (fromId === toId) {
       return
@@ -495,7 +504,9 @@ export function App(): JSX.Element {
     }
     const entry = icon_registry.find((icon) => icon.id === tab.iconId)
     const Panel = entry?.panel
-    return Panel ? <Panel /> : <div className="empty-hint" />
+    return Panel
+      ? <TabTitleContext.Provider value={(title) => rename_tab(tab.id, title)}><Panel /></TabTitleContext.Provider>
+      : <div className="empty-hint" />
   }
 
   return (

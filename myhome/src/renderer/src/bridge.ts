@@ -79,6 +79,8 @@ export interface AppBridge {
   // 앱 상태(탭 등) DB 영속화
   app_state_get?: (key: string) => Promise<string | null>
   app_state_set?: (key: string, value: string) => void
+  // bin 스캔 결과
+  on_bins_ready?: (callback: (bins: Record<string, string>) => void) => () => void
   // YouTube
   youtube_search?: (query: string) => Promise<YoutubeResult[]>
   youtube_download?: (url: string, audioFormat: string) => void

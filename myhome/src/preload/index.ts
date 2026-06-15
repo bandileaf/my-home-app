@@ -77,6 +77,13 @@ const api = {
   app_state_set: (key: string, value: string): void =>
     ipcRenderer.send('app_state:set', key, value),
 
+  // bin 스캔 결과 (name → path). 앱 시작 후 백그라운드에서 한 번 전송됨.
+  on_bins_ready: (callback: (bins: Record<string, string>) => void): (() => void) => {
+    const listener = (_e: unknown, bins: Record<string, string>): void => callback(bins)
+    ipcRenderer.on('bins:ready', listener)
+    return () => ipcRenderer.removeListener('bins:ready', listener)
+  },
+
   // ── YouTube ──────────────────────────────────────────────────────────────
   youtube_search: (query: string): Promise<YoutubeResult[]> =>
     ipcRenderer.invoke('youtube:search', query),

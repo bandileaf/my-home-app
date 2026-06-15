@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
 import { get_bridge, type SearchHit } from '../bridge'
+import { useTabTitle } from '../App'
+
+const MAX_TITLE = 20
+function tab_title(q: string): string {
+  return q ? `Search — ${q.length > MAX_TITLE ? q.slice(0, MAX_TITLE) + '…' : q}` : 'Search'
+}
 
 function format_size(bytes: number): string {
   if (bytes < 1024) {
@@ -13,6 +19,7 @@ function format_size(bytes: number): string {
 }
 
 export function MusicSearchPanel(): JSX.Element {
+  const set_tab_title = useTabTitle()
   const [query, set_query] = useState('')
   const [hits, set_hits] = useState<SearchHit[]>([])
   const [total, set_total] = useState(0)
@@ -29,6 +36,7 @@ export function MusicSearchPanel(): JSX.Element {
     set_available(true)
 
     const needle = query.trim()
+    set_tab_title(tab_title(needle))
     if (needle === '') {
       set_hits([])
       set_total(0)
@@ -100,12 +108,8 @@ export function MusicSearchPanel(): JSX.Element {
                 </div>
                 <span className="result-size">{format_size(hit.sizeBytes)}</span>
                 <div className="result-actions">
-                  <button title="Open folder" onClick={() => reveal_hit(hit.fullPath)}>
-                    Folder
-                  </button>
-                  <button title="Copy path" onClick={() => copy_hit(hit.fullPath)}>
-                    Path
-                  </button>
+                  <button title="Open folder" onClick={() => reveal_hit(hit.fullPath)}>📂</button>
+                  <button title="Copy path" onClick={() => copy_hit(hit.fullPath)}>📋</button>
                 </div>
               </div>
             ))}

@@ -71,11 +71,12 @@ export function YoutubeSearchPanel(): JSX.Element {
   const [searchError, set_searchError] = useState('')
   const [downloads, set_downloads] = useState<Record<string, DownloadState>>({})
   const [videoDownloads, set_video_downloads] = useState<Record<string, DownloadState>>({})
+  const [ytdlpReady, set_ytdlpReady] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const bridge = get_bridge()
-
+    const u0 = bridge?.on_bins_ready?.((bins) => { set_ytdlpReady('yt-dlp.exe' in bins) })
     const u1 = bridge?.on_youtube_progress?.((p) => {
       set_downloads((prev) => ({ ...prev, [p.url]: { status: 'downloading', percent: p.percent, speed: p.speed, eta: p.eta } }))
     })
@@ -94,8 +95,7 @@ export function YoutubeSearchPanel(): JSX.Element {
     const u6 = bridge?.on_youtube_error_video?.((data) => {
       set_video_downloads((prev) => ({ ...prev, [data.url]: { status: 'error', message: data.message } }))
     })
-
-    return () => { u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
+    return () => { u0?.(); u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
   }, [])
 
   async function do_search(): Promise<void> {
@@ -151,7 +151,8 @@ export function YoutubeSearchPanel(): JSX.Element {
     get_bridge()?.youtube_open_url?.(url)
   }
 
-  const available = Boolean(get_bridge()?.youtube_search)
+  const bridgeAvailable = Boolean(get_bridge()?.youtube_search)
+  const ready = bridgeAvailable && ytdlpReady
 
   return (
     <div className="search-panel">
@@ -164,20 +165,23 @@ export function YoutubeSearchPanel(): JSX.Element {
           value={query}
           onChange={(e) => set_query(e.target.value)}
           onKeyDown={on_key_down}
-          disabled={!available}
+          disabled={!ready}
         />
         <button
           className="yt-search-btn"
           onClick={() => void do_search()}
-          disabled={!available || searching || !query.trim()}
+          disabled={!ready || searching || !query.trim()}
         >
           {searching ? '…' : 'Search'}
         </button>
       </div>
 
       {/* 상태 메시지 */}
-      {!available && (
+      {!bridgeAvailable && (
         <div className="empty-hint">YouTube search runs in the app (Electron).</div>
+      )}
+      {bridgeAvailable && !ytdlpReady && (
+        <div className="empty-hint">yt-dlp 준비 중...</div>
       )}
       {searchError && (
         <div className="yt-error">{searchError}</div>
@@ -188,7 +192,7 @@ export function YoutubeSearchPanel(): JSX.Element {
 
       {/* 결과 목록 */}
       <div className="result-list">
-        {!searching && results.length === 0 && !searchError && available && (
+        {!searching && results.length === 0 && !searchError && ready && (
           <div className="empty-hint">
             {query.trim() === '' ? 'Type to search YouTube.' : 'No results.'}
           </div>
@@ -233,10 +237,10 @@ export function YoutubeSearchPanel(): JSX.Element {
                 {/* 다운로드 버튼 */}
                 <div className="yt-dl-row">
                   {dl.status === 'idle' && (
-                    <button className="yt-dl-btn" onClick={() => do_download(item.url, 'mp3')}>↓ Audio</button>
+                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download(item.url, 'mp3')}>↓ Audio</button>
                   )}
                   {vdl.status === 'idle' && (
-                    <button className="yt-dl-btn" onClick={() => do_download_video(item.url)}>↓ Video</button>
+                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download_video(item.url)}>↓ Video</button>
                   )}
                 </div>
 

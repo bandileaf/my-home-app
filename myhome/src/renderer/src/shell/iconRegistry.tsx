@@ -17,7 +17,7 @@ export interface IconEntry {
  * 하드코딩이 아니라 이 목록 + 표시여부(visibility)로 구성 → 새 기능은 여기에 추가만 하면 됨.
  */
 export const icon_registry: IconEntry[] = [
-  { id: 'musicSearch', label: 'Music Search', Icon: SearchIcon, panel: MusicSearchPanel },
+  { id: 'musicSearch', label: 'Search', Icon: SearchIcon, panel: MusicSearchPanel },
   { id: 'youtubeSearch', label: 'YouTube Search', Icon: PlayIcon, panel: YoutubeSearchPanel },
   // settings 는 패널이 아니라 settings.json 을 에디터 탭으로 연다 (App 에서 처리)
   { id: 'settings', label: 'Settings', Icon: GearIcon, align: 'bottom' }
