@@ -2,6 +2,7 @@
   "hub.repo": "bandileaf/my-home-app",
   "hub.tag": "",
   "hub.app.myhome": "",
+  "hub.auto-update": true,
   "hub.bins": [
     {
       "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",

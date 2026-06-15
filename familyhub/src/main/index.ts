@@ -87,8 +87,19 @@ function set_progress(pct: number): void {
   if (rendererReady) win?.webContents.send('progress', pct)
 }
 
-function quit_app(): void {
-  setTimeout(() => app.quit(), 150)
+function quit_app(delayMs = 150): void {
+  if (!rendererReady) {
+    // 창이 뜨기 전에 종료하면 사용자가 에러를 못 봄 — 최대 3s 대기
+    const deadline = Date.now() + 3000
+    const iv = setInterval(() => {
+      if (rendererReady || Date.now() >= deadline) {
+        clearInterval(iv)
+        setTimeout(() => app.quit(), delayMs)
+      }
+    }, 50)
+  } else {
+    setTimeout(() => app.quit(), delayMs)
+  }
 }
 
 // ── settings ──────────────────────────────────────────────────────────────────
@@ -112,6 +123,7 @@ interface Settings {
   'hub.tag': string
   'hub.app.myhome': string
   'hub.bins': BinEntry[]
+  'hub.auto-update'?: boolean
 }
 
 const SETTINGS_PATH = join(BASE_DIR, 'settings.json')
@@ -119,9 +131,11 @@ const SETTINGS_PATH = join(BASE_DIR, 'settings.json')
 function read_settings(): Settings {
   try {
     return JSON.parse(readFileSync(SETTINGS_PATH, 'utf8')) as Settings
-  } catch {
-    log('settings.json not found: ' + SETTINGS_PATH)
-    process.exit(1)
+  } catch (e) {
+    const isNotFound = (e as NodeJS.ErrnoException).code === 'ENOENT'
+    throw new Error(isNotFound
+      ? `settings.json 없음: ${SETTINGS_PATH}`
+      : `settings.json 파싱 오류: ${(e as Error).message}`)
   }
 }
 
@@ -362,6 +376,13 @@ async function main(): Promise<void> {
     do_launch(currentExe)
   }
 
+  // auto-update 꺼져 있으면 종료
+  if (settings['hub.auto-update'] === false) {
+    log(`[${ms()}] auto-update disabled — skipping`)
+    quit_app()
+    return
+  }
+
   // Background: check GitHub
   set_status('릴리즈 버전 확인 중...')
   log(`[${ms()}] Checking for updates (hub: ${settings['hub.tag'] || '?'})`)
@@ -441,8 +462,11 @@ ipcMain.on('close', () => quit_app())
 
 app.whenReady().then(() => {
   win = create_window()
-  main().catch((err: unknown) => {
+  main().catch(async (err: unknown) => {
     log_error('Fatal', err)
+    const e = err as Error
+    set_status(`오류: ${e.message}`)
+    await new Promise<void>(r => setTimeout(r, 4000))
     quit_app()
   })
 })
