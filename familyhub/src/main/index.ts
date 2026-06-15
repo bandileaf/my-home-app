@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import {
-  existsSync, mkdirSync, createWriteStream,
+  existsSync, mkdirSync, appendFileSync, createWriteStream,
   writeFileSync, readFileSync, unlinkSync
 } from 'fs'
 import { join, basename, dirname } from 'path'
@@ -18,11 +18,12 @@ const BASE_DIR = app.isPackaged
 const LOG_DIR   = join(BASE_DIR, 'log')
 mkdirSync(LOG_DIR, { recursive: true })
 
-const EXE_NAME   = basename(app.isPackaged ? process.execPath : 'familyhub').replace(/\.exe$/i, '')
-const log_stream = createWriteStream(join(LOG_DIR, `${EXE_NAME}.log`), { flags: 'w' })
+const EXE_NAME = basename(app.isPackaged ? process.execPath : 'familyhub').replace(/\.exe$/i, '')
+const LOG_FILE = join(LOG_DIR, `${EXE_NAME}.log`)
+writeFileSync(LOG_FILE, '')  // 시작 시 초기화 (동기)
 
 function log(msg: string): void {
-  log_stream.write(`[${new Date().toISOString()}] ${msg}\n`)
+  appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`)
 }
 
 function log_error(msg: string, err: unknown): void {
@@ -87,7 +88,6 @@ function set_progress(pct: number): void {
 }
 
 function quit_app(): void {
-  log_stream.end()
   setTimeout(() => app.quit(), 150)
 }
 
