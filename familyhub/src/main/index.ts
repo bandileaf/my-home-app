@@ -41,7 +41,7 @@ let lastStatus    = '시작 중...'
 
 function create_window(): BrowserWindow {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
-  const W = 380, H = 112
+  const W = 420, H = 130
 
   const w = new BrowserWindow({
     width: W,
