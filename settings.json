@@ -5,11 +5,12 @@
   "hub.bins": [
     {
       "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
+      "exes": ["yt-dlp.exe"],
       "version": ""
     },
     {
       "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
-      "zip": ["ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe", "ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe"],
+      "exes": ["ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe", "ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe"],
       "version": ""
     }
   ]

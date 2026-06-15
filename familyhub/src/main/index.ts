@@ -95,14 +95,14 @@ function quit_app(): void {
 
 interface BinEntry {
   url: string
-  zip?: string | string[]
+  exes?: string | string[]
   version: string
 }
 
 function bin_dests(bin: BinEntry): string[] {
-  if (bin.zip) {
-    const zips = Array.isArray(bin.zip) ? bin.zip : [bin.zip]
-    return zips.map(z => `bin/${basename(z)}`)
+  if (bin.exes) {
+    const exes = Array.isArray(bin.exes) ? bin.exes : [bin.exes]
+    return exes.map(e => `bin/${basename(e)}`)
   }
   return [`bin/${basename(bin.url)}`]
 }
@@ -234,7 +234,8 @@ async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> 
 
   for (const bin of bins) {
     const dests = bin_dests(bin)
-    const zips  = bin.zip ? (Array.isArray(bin.zip) ? bin.zip : [bin.zip]) : []
+    const isZip = bin.url.toLowerCase().endsWith('.zip')
+    const exes  = bin.exes ? (Array.isArray(bin.exes) ? bin.exes : [bin.exes]) : []
 
     const allPresent = dests.every(d => existsSync(join(BASE_DIR, d)))
     if (allPresent && bin.version) {
@@ -247,7 +248,7 @@ async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> 
     const zipDestPath = join(BASE_DIR, 'bin', basename(bin.url))
     try {
       let version = ''
-      if (zips.length > 0) {
+      if (isZip) {
         let zip: AdmZip
         if (existsSync(zipDestPath)) {
           log(`${basename(bin.url)}: using cached zip`)
@@ -260,9 +261,9 @@ async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> 
           log(`Extracting from ${basename(bin.url)}...`)
           zip = new AdmZip(zipDestPath)
         }
-        for (let i = 0; i < zips.length; i++) {
-          const entry = zip.getEntry(zips[i])
-          if (!entry) throw new Error(`entry not found in zip: ${zips[i]}`)
+        for (let i = 0; i < exes.length; i++) {
+          const entry = zip.getEntry(exes[i])
+          if (!entry) throw new Error(`entry not found in zip: ${exes[i]}`)
           writeFileSync(join(BASE_DIR, dests[i]), entry.getData())
           log(`${dests[i]}: extracted`)
         }
