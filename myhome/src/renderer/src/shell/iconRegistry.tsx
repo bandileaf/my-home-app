@@ -1,8 +1,7 @@
 import type { ComponentType } from 'react'
-import { AlignHorizontalDistributeCenter } from 'lucide-react'
+import { AlignHorizontalDistributeCenter, Search, FileVideo } from 'lucide-react'
 import { MusicSearchPanel } from '../panels/MusicSearchPanel'
 import { YoutubeSearchPanel } from '../panels/YoutubeSearchPanel'
-import { SearchIcon, PlayIcon } from './icons'
 
 /** 액티비티 바에 등록되는 항목 1개. panel 이 없으면 클릭 동작은 App 이 처리(예: settings → 에디터). */
 export interface IconEntry {
@@ -18,8 +17,8 @@ export interface IconEntry {
  * 하드코딩이 아니라 이 목록 + 표시여부(visibility)로 구성 → 새 기능은 여기에 추가만 하면 됨.
  */
 export const icon_registry: IconEntry[] = [
-  { id: 'musicSearch', label: 'Search', Icon: SearchIcon, panel: MusicSearchPanel },
-  { id: 'youtubeSearch', label: 'YouTube Search', Icon: PlayIcon, panel: YoutubeSearchPanel },
+  { id: 'musicSearch', label: 'Search', Icon: Search, panel: MusicSearchPanel },
+  { id: 'youtubeSearch', label: 'YouTube Search', Icon: FileVideo, panel: YoutubeSearchPanel },
   // settings 는 패널이 아니라 settings.json 을 에디터 탭으로 연다 (App 에서 처리)
   { id: 'settings', label: 'Settings', Icon: AlignHorizontalDistributeCenter, align: 'bottom' }
 ]
