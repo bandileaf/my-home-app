@@ -95,9 +95,16 @@ function quit_app(): void {
 
 interface BinEntry {
   url: string
-  dest: string
-  zip?: string
+  zip?: string | string[]
   version: string
+}
+
+function bin_dests(bin: BinEntry): string[] {
+  if (bin.zip) {
+    const zips = Array.isArray(bin.zip) ? bin.zip : [bin.zip]
+    return zips.map(z => `bin/${basename(z)}`)
+  }
+  return [`bin/${basename(bin.url)}`]
 }
 
 interface Settings {
@@ -224,55 +231,54 @@ function do_launch(exeName: string): boolean {
 
 async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> {
   let dirty = false
-  const zipCache:   Map<string, AdmZip> = new Map()
-  const zipVersion: Map<string, string>  = new Map()
 
   for (const bin of bins) {
-    const destPath = join(BASE_DIR, bin.dest)
-    if (existsSync(destPath)) {
-      if (bin.version) {
-        log(`${bin.dest}: already installed (${bin.version})`)
-        continue
-      }
-      log(`${bin.dest}: no version info, re-downloading...`)
-      unlinkSync(destPath)
+    const dests = bin_dests(bin)
+    const zips  = bin.zip ? (Array.isArray(bin.zip) ? bin.zip : [bin.zip]) : []
+
+    const allPresent = dests.every(d => existsSync(join(BASE_DIR, d)))
+    if (allPresent && bin.version) {
+      log(`${dests[0]}: already installed (${bin.version})`)
+      continue
     }
 
-    set_status(`${basename(bin.dest)} 다운로드 중...`)
-    mkdirSync(dirname(destPath), { recursive: true })
+    mkdirSync(join(BASE_DIR, 'bin'), { recursive: true })
 
     const zipDestPath = join(BASE_DIR, 'bin', basename(bin.url))
     try {
       let version = ''
-      if (bin.zip) {
-        let zip = zipCache.get(bin.url)
-        if (!zip) {
+      if (zips.length > 0) {
+        let zip: AdmZip
+        if (existsSync(zipDestPath)) {
+          log(`${basename(bin.url)}: using cached zip`)
+          zip = new AdmZip(zipDestPath)
+          version = bin.version || 'unknown'
+        } else {
           set_status(`${basename(bin.url)} 다운로드 중...`)
           const finalUrl = await download_file(bin.url, zipDestPath, set_progress)
           version = extract_version_from_url(finalUrl)
           log(`Extracting from ${basename(bin.url)}...`)
           zip = new AdmZip(zipDestPath)
-          zipCache.set(bin.url, zip)
-          zipVersion.set(bin.url, version)
-          unlinkSync(zipDestPath)
-        } else {
-          version = zipVersion.get(bin.url) ?? ''
         }
-        const entry = zip.getEntry(bin.zip)
-        if (!entry) throw new Error(`entry not found in zip: ${bin.zip}`)
-        writeFileSync(destPath, entry.getData())
+        for (let i = 0; i < zips.length; i++) {
+          const entry = zip.getEntry(zips[i])
+          if (!entry) throw new Error(`entry not found in zip: ${zips[i]}`)
+          writeFileSync(join(BASE_DIR, dests[i]), entry.getData())
+          log(`${dests[i]}: extracted`)
+        }
       } else {
-        const finalUrl = await download_file(bin.url, destPath, set_progress)
+        set_status(`${basename(dests[0])} 다운로드 중...`)
+        const finalUrl = await download_file(bin.url, join(BASE_DIR, dests[0]), set_progress)
         version = extract_version_from_url(finalUrl)
       }
       bin.version = version || 'unknown'
       dirty = true
-      log(`${bin.dest}: installed${version ? ' (' + version + ')' : ''}`)
+      log(`${dests.join(', ')}: installed${version ? ' (' + version + ')' : ''}`)
     } catch (err: unknown) {
-      for (const p of [zipDestPath, zipDestPath + '.tmp', destPath + '.tmp']) {
+      for (const p of [zipDestPath + '.tmp', ...dests.map(d => join(BASE_DIR, d) + '.tmp')]) {
         try { unlinkSync(p) } catch { /* ignore */ }
       }
-      log_error(`${bin.dest}: FAILED`, err)
+      log_error(`${dests[0]}: FAILED`, err)
     }
   }
 
@@ -343,7 +349,7 @@ async function main(): Promise<void> {
 
   // Block only if bins are missing (first install)
   const bins = settings['hub.bins'] ?? []
-  if (bins.some((b: BinEntry) => !existsSync(join(BASE_DIR, b.dest)))) {
+  if (bins.some(b => bin_dests(b).some(d => !existsSync(join(BASE_DIR, d))))) {
     set_status('필요한 도구를 설치하는 중...')
     await ensure_bins(bins, settings)
   }

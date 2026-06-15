@@ -509,8 +509,8 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     } catch {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
-    const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
-    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged, app.getPath('userData'))
+    const ytdlpPath = resolve_ytdlp_path(app.isPackaged)
+    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged)
     log_event(`youtube:download dir=${downloadDir} fmt=${audioFormat}`)
 
     if (!existsSync(ytdlpPath)) {
@@ -555,8 +555,8 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     } catch {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
-    const ytdlpPath = resolve_ytdlp_path(process.resourcesPath, app.isPackaged)
-    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged, app.getPath('userData'))
+    const ytdlpPath = resolve_ytdlp_path(app.isPackaged)
+    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged)
 
     if (!existsSync(ytdlpPath)) {
       event.sender.send('youtube:error-video', { url, message: 'yt-dlp.exe not found. Run FamilyHub to download it.' })
