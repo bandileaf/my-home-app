@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
 import {
   existsSync, mkdirSync, appendFileSync, createWriteStream,
   writeFileSync, readFileSync, unlinkSync
@@ -39,6 +39,7 @@ app.disableHardwareAcceleration()
 let win: BrowserWindow | null = null
 let rendererReady = false
 let lastStatus    = '시작 중...'
+let hubVersion    = ''
 
 function create_window(): BrowserWindow {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
@@ -71,6 +72,7 @@ function create_window(): BrowserWindow {
 
   w.webContents.once('did-finish-load', () => {
     rendererReady = true
+    w.webContents.send('init', { version: hubVersion, logPath: LOG_FILE })
     w.webContents.send('status', { message: lastStatus, done: false })
     w.show()
   })
@@ -245,6 +247,7 @@ function do_launch(exeName: string): boolean {
 
 async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> {
   let dirty = false
+  let failed = false
 
   for (const bin of bins) {
     const dests = bin_dests(bin)
@@ -290,14 +293,16 @@ async function ensure_bins(bins: BinEntry[], settings: Settings): Promise<void> 
       dirty = true
       log(`${dests.join(', ')}: installed${version ? ' (' + version + ')' : ''}`)
     } catch (err: unknown) {
-      for (const p of [zipDestPath + '.tmp', ...dests.map(d => join(BASE_DIR, d) + '.tmp')]) {
+      for (const p of [zipDestPath, zipDestPath + '.tmp', ...dests.map(d => join(BASE_DIR, d) + '.tmp')]) {
         try { unlinkSync(p) } catch { /* ignore */ }
       }
       log_error(`${dests[0]}: FAILED`, err)
+      failed = true
     }
   }
 
   if (dirty) write_settings(settings)
+  if (failed) throw new Error('도구 설치에 실패했습니다.')
 }
 
 // ── update via zip ────────────────────────────────────────────────────────────
@@ -359,6 +364,7 @@ async function main(): Promise<void> {
   log('FamilyHub start')
 
   const settings   = read_settings()
+  hubVersion       = settings['hub.tag'] || ''
   const repo       = settings['hub.repo']
   const currentExe = settings['hub.app.myhome']
 
@@ -459,14 +465,16 @@ async function main(): Promise<void> {
 
 ipcMain.on('ping', () => {})
 ipcMain.on('close', () => quit_app())
+ipcMain.on('open-log', () => { void shell.openPath(LOG_FILE) })
 
 app.whenReady().then(() => {
   win = create_window()
   main().catch(async (err: unknown) => {
     log_error('Fatal', err)
     const e = err as Error
-    set_status(`오류: ${e.message}`)
-    await new Promise<void>(r => setTimeout(r, 4000))
+    set_status(`실패: ${e.message}`)
+    win?.webContents.send('error', LOG_FILE)
+    await new Promise<void>(r => setTimeout(r, 10000))
     quit_app()
   })
 })
