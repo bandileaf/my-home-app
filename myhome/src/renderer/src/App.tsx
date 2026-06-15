@@ -4,7 +4,7 @@ import { MenuBar } from './shell/MenuBar'
 import { TabBar } from './shell/TabBar'
 import { StatusBar, type IndexStatus } from './shell/StatusBar'
 import { icon_registry, default_icon_visibility } from './shell/iconRegistry'
-import { FileIcon } from './shell/icons'
+import { File } from 'lucide-react'
 import { EditorPanel } from './panels/EditorPanel'
 import { get_bridge } from './bridge'
 import { useNotify } from './notifications'
@@ -484,7 +484,7 @@ export function App(): JSX.Element {
     Icon:
       tab.kind === 'feature'
         ? icon_registry.find((icon) => icon.id === tab.iconId)?.Icon
-        : FileIcon
+        : File
   }))
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? null
