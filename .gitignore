@@ -12,3 +12,4 @@ familyhub/settings.json
 bin/yt-dlp.exe
 bin/ffmpeg.exe
 bin/ffprobe.exe
+run-on-windows.bat
