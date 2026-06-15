@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { AlignHorizontalDistributeCenter, Search, FileVideo } from 'lucide-react'
 import { MusicSearchPanel } from '../panels/MusicSearchPanel'
 import { YoutubeSearchPanel } from '../panels/YoutubeSearchPanel'
@@ -7,7 +8,7 @@ import { YoutubeSearchPanel } from '../panels/YoutubeSearchPanel'
 export interface IconEntry {
   id: string
   label: string
-  Icon: ComponentType
+  Icon: LucideIcon
   panel?: ComponentType
   align?: 'top' | 'bottom' // 기본 top. bottom 은 바 맨 아래(VS Code 의 설정 아이콘처럼)
 }

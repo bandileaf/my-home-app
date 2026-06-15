@@ -26,7 +26,7 @@ export function ActivityBar({
         title={icon.label}
         onClick={() => on_select(icon.id)}
       >
-        <Icon />
+        <Icon strokeWidth={1.5} />
       </button>
     )
   }

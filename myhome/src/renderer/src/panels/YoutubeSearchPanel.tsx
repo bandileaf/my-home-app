@@ -265,10 +265,10 @@ export function YoutubeSearchPanel(): JSX.Element {
                 {/* 다운로드 버튼 */}
                 <div className="yt-dl-row">
                   {dl.status === 'idle' && (
-                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download(item.url, 'mp3')} title="Download Audio"><AudioLines size={14} /></button>
+                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download(item.url, 'mp3')} title="Download Audio"><AudioLines size={14} strokeWidth={1.5} /></button>
                   )}
                   {vdl.status === 'idle' && (
-                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download_video(item.url)} title="Download Video"><FileVideo2 size={14} /></button>
+                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download_video(item.url)} title="Download Video"><FileVideo2 size={14} strokeWidth={1.5} /></button>
                   )}
                 </div>
 

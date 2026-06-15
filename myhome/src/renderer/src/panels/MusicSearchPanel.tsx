@@ -123,8 +123,8 @@ export function MusicSearchPanel(): JSX.Element {
                 </div>
                 <span className="result-size">{format_size(hit.sizeBytes)}</span>
                 <div className="result-actions">
-                  <button title="Open folder" onClick={() => reveal_hit(hit.fullPath)}><FolderOpen size={14} /></button>
-                  <button title="Copy path" onClick={() => copy_hit(hit.fullPath)}><Copy size={14} /></button>
+                  <button title="Open folder" onClick={() => reveal_hit(hit.fullPath)}><FolderOpen size={14} strokeWidth={1.5} /></button>
+                  <button title="Copy path" onClick={() => copy_hit(hit.fullPath)}><Copy size={14} strokeWidth={1.5} /></button>
                 </div>
               </div>
             ))}
