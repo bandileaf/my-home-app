@@ -1,8 +1,10 @@
 {
   "hub.repo": "bandileaf/my-home-app",
-  "hub.tag": "",
-  "hub.app.myhome": "",
   "hub.auto-update": true,
+  "hub.app.media.version": "0.0.1",
+  "hub.app.media.name": "family_media.exe",
+  "hub.app.bulletin.version": "0.0.1",
+  "hub.app.bulletin.name": "family_bulletin.exe",
   "hub.bins": [
     {
       "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",

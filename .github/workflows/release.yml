@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g. v0.0.2)'
+        description: 'Version (e.g. v0.0.12)'
         required: true
-        default: 'v0.0.2'
+        default: 'v0.0.12'
 
 permissions:
   contents: write
@@ -30,61 +30,53 @@ jobs:
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
           $ver = $tag.TrimStart('v')
           $replace = '"version": "' + $ver + '"'
-          (Get-Content myhome\package.json) -replace '"version": "[^"]*"', $replace | Set-Content myhome\package.json
+          (Get-Content media\package.json)   -replace '"version": "[^"]*"', $replace | Set-Content media\package.json
+          (Get-Content bulletin\package.json) -replace '"version": "[^"]*"', $replace | Set-Content bulletin\package.json
 
-      - name: Install myhome dependencies
+      - name: Install media dependencies
         run: npm ci
-        working-directory: myhome
+        working-directory: media
 
-      - name: Install familyhub dependencies
+      - name: Install bulletin dependencies
         run: npm ci
-        working-directory: familyhub
+        working-directory: bulletin
 
-      - name: Download yt-dlp
+      - name: Download yt-dlp for media
         run: |
-          New-Item -ItemType Directory -Force -Path myhome\bin
-          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "myhome\bin\yt-dlp.exe"
+          New-Item -ItemType Directory -Force -Path media\bin
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "media\bin\yt-dlp.exe"
 
-      - name: Build myhome app
+      - name: Build media
         run: npx electron-vite build
-        working-directory: myhome
+        working-directory: media
 
-      - name: Package myhome (portable)
+      - name: Package media (portable)
         run: npx electron-builder --win portable --publish never
-        working-directory: myhome
+        working-directory: media
 
-      - name: Build familyhub
-        run: npx electron-vite build && npx electron-builder --win portable --publish never
-        working-directory: familyhub
+      - name: Build bulletin
+        run: npx electron-vite build
+        working-directory: bulletin
 
-      - name: Patch settings.json
+      - name: Package bulletin (portable)
+        run: npx electron-builder --win portable --publish never
+        working-directory: bulletin
+
+      - name: Patch settings.json versions
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
+          $ver = $tag.TrimStart('v')
           $json = Get-Content settings.json | ConvertFrom-Json
-          $json.'hub.tag' = $tag
-          $json.'hub.app.myhome' = "myhome_${tag}.exe"
-          $json | ConvertTo-Json | Out-File settings.json -Encoding utf8NoBOM
-
-      - name: Remove intermediate build folder
-        run: Remove-Item -Recurse -Force myhome\dist\win-unpacked -ErrorAction SilentlyContinue
-
-      - name: Bundle zip
-        run: |
-          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
-          $myhomeExe = Get-ChildItem myhome\dist\myhome_v*.exe | Select-Object -First 1
-          New-Item -ItemType Directory -Force -Path bundle
-          Copy-Item $myhomeExe.FullName bundle\
-          Copy-Item familyhub\dist\familyhub.exe bundle\
-          Copy-Item settings.json bundle\
-          Compress-Archive -Path bundle\* -DestinationPath "familyhub_${tag}.zip"
+          $json.'hub.app.media.version'    = $ver
+          $json.'hub.app.bulletin.version' = $ver
+          $json | ConvertTo-Json -Depth 10 | Out-File settings.json -Encoding utf8NoBOM
 
       - name: Upload to Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            familyhub_v*.zip
-            myhome/dist/myhome_v*.exe
-            familyhub/dist/familyhub.exe
+            media/dist/family_media.exe
+            bulletin/dist/family_bulletin.exe
             settings.json
           generate_release_notes: true
