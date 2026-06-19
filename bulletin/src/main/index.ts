@@ -96,7 +96,7 @@ function create_window(): BrowserWindow {
 
 function create_tray(window: BrowserWindow): Tray {
   const t = new Tray(resolve_icon())
-  t.setToolTip('Family Bulletin')
+  t.setToolTip(app_display_name())
   t.setContextMenu(
     Menu.buildFromTemplate([
       { label: '열기', click: () => window.show() },
@@ -108,7 +108,12 @@ function create_tray(window: BrowserWindow): Tray {
   return t
 }
 
+function app_display_name(): string {
+  return app.isPackaged ? basename(process.execPath, '.exe') : app.getName()
+}
+
 function register_ipc(baseDir: string, identity: Identity, state: NoticeState): void {
+  ipcMain.handle('app:name',     (): string => app_display_name())
   ipcMain.handle('identity:get', (): Identity => identity)
   ipcMain.handle('notice:list',  (): Notice[] => list_notices(state))
   ipcMain.handle('notice:create', (_event, text: string): Notice =>
@@ -138,7 +143,7 @@ app.whenReady().then(() => {
   tray = create_tray(win)
 
   void run_update_check(
-    { baseDir, settingsPath, appKey: 'bulletin' },
+    { baseDir, settingsPath, appKey: app.getName() },
     {
       set_status:   (msg) => { toast.webContents.send('toast:status', msg);   if (!toast.isVisible()) toast.show() },
       set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },

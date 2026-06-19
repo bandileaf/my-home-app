@@ -40,12 +40,13 @@ export interface UpdateCallbacks {
 const LOCK_TIMEOUT_MS = 2 * 60 * 1000
 
 function fetch_latest_release(repo: string): Promise<GHRelease> {
+  const ua = repo.split('/')[1] ?? repo
   return new Promise((resolve, reject) => {
     const req = https.get(
       {
         hostname: 'api.github.com',
         path: `/repos/${repo}/releases/latest`,
-        headers: { 'User-Agent': 'FamilyHub' },
+        headers: { 'User-Agent': ua },
       },
       (res) => {
         let data = ''
@@ -63,12 +64,13 @@ function fetch_latest_release(repo: string): Promise<GHRelease> {
 function download_file(
   url: string,
   dest: string,
+  ua: string,
   onProgress?: (pct: number) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const follow = (u: string): void => {
       const mod = u.startsWith('https') ? https : http
-      mod.get(u, { headers: { 'User-Agent': 'FamilyHub' } }, (res) => {
+      mod.get(u, { headers: { 'User-Agent': ua } }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           return follow(res.headers.location!)
         }
@@ -184,6 +186,8 @@ export async function run_update_check(
   if (!batName) { cb.log('update: hub.update-bat not set — skipping'); return }
   if (autoUpdate === false) { cb.log('update: hub.auto-update is false — skipping'); return }
 
+  const ua = repo.split('/')[1] ?? repo
+
   cb.log(`update: checking ${repo} (hub.tag=${localTag ?? 'none'})`)
 
   let release: GHRelease
@@ -247,7 +251,7 @@ export async function run_update_check(
     const zipPath = join(tmpDir, zipName)
 
     try {
-      await download_file(asset.browser_download_url, zipPath, cb.set_progress)
+      await download_file(asset.browser_download_url, zipPath, ua, cb.set_progress)
       cb.log(`update: downloaded ${zipName}`)
     } catch (err: unknown) {
       cb.log(`update: download failed — ${(err as Error).message}`)

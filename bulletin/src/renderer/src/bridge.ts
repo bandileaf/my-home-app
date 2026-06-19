@@ -25,6 +25,7 @@ export interface Notice {
 }
 
 export interface AppBridge {
+  app_name?: () => Promise<string>
   get_identity?: () => Promise<Identity>
   list_notices?: () => Promise<Notice[]>
   create_notice?: (text: string) => Promise<Notice>

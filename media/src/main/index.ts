@@ -96,8 +96,15 @@ function resolve_settings_path(): string {
   return join(app_dir(), 'settings.json')
 }
 
-function resolve_db_path(): string {
-  return join(app_dir(), 'indexing.db')
+function resolve_db_path(settingsPath: string): string {
+  try {
+    const raw = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
+    const key = `hub.app.${app.getName()}.db`
+    const dbFile = typeof raw[key] === 'string' ? (raw[key] as string) : 'indexing.db'
+    return join(app_dir(), dbFile)
+  } catch {
+    return join(app_dir(), 'indexing.db')
+  }
 }
 
 function default_settings_text(): string {
@@ -522,7 +529,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     log_event(`youtube:download dir=${downloadDir} fmt=${audioFormat}`)
 
     if (!existsSync(ytdlpPath)) {
-      event.sender.send('youtube:error', { url, message: 'yt-dlp.exe not found. Run FamilyHub to download it.' })
+      event.sender.send('youtube:error', { url, message: '실행 환경이 구성되지 않았습니다. 잠시 후 다시 시도하세요.' })
       return
     }
 
@@ -567,7 +574,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged)
 
     if (!existsSync(ytdlpPath)) {
-      event.sender.send('youtube:error-video', { url, message: 'yt-dlp.exe not found. Run FamilyHub to download it.' })
+      event.sender.send('youtube:error-video', { url, message: '실행 환경이 구성되지 않았습니다. 잠시 후 다시 시도하세요.' })
       return
     }
 
@@ -747,8 +754,8 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
   log_event(`app ready. packaged=${app.isPackaged} appDir=${app_dir()}`)
 
-  const dbPath = resolve_db_path()
   const settingsPath = resolve_settings_path()
+  const dbPath = resolve_db_path(settingsPath)
   log_event(`db path: ${dbPath}`)
 
   const { db, recreated } = open_db(dbPath)
@@ -788,7 +795,7 @@ app.whenReady().then(() => {
   void ensure_bins_once(window.webContents, app_dir(), settingsPath, state)
 
   void run_update_check(
-    { baseDir: app_dir(), settingsPath, appKey: 'media' },
+    { baseDir: app_dir(), settingsPath, appKey: app.getName() },
     {
       set_status: (msg) => { toast.webContents.send('toast:status', msg);   if (!toast.isVisible()) toast.show() },
       set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },

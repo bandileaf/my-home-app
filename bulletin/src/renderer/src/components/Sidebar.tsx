@@ -6,14 +6,15 @@ export type Section = 'notices' | 'messenger' | 'calendar'
 interface SidebarProps {
   active: Section
   identity: Identity | null
+  appName: string
 }
 
 const ICON_PROPS = { size: 16, strokeWidth: 1.5 }
 
-export function Sidebar({ active, identity }: SidebarProps): JSX.Element {
+export function Sidebar({ active, identity, appName }: SidebarProps): JSX.Element {
   return (
     <div className="sidebar">
-      <div className="brand">🏠 FamilyHub News</div>
+      <div className="brand">🏠 {appName || '...'}</div>
       <hr />
       <div className={`nav-item ${active === 'notices' ? 'active' : ''}`}>
         <span className="ic"><StickyNote {...ICON_PROPS} /></span>

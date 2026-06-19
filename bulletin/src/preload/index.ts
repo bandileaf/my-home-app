@@ -3,6 +3,7 @@ import type { Identity } from '../main/services/identity'
 import type { Notice } from '../main/services/store'
 
 const api = {
+  app_name: (): Promise<string> => ipcRenderer.invoke('app:name'),
   get_identity: (): Promise<Identity> => ipcRenderer.invoke('identity:get'),
   list_notices: (): Promise<Notice[]> => ipcRenderer.invoke('notice:list'),
   create_notice: (text: string): Promise<Notice> => ipcRenderer.invoke('notice:create', text),
