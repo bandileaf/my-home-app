@@ -23,6 +23,31 @@ interface Settings {
   [key: string]: unknown
 }
 
+function parse_settings_text(text: string): Settings {
+  // Strip // and /* */ comments (JSONC format), respecting string literals
+  let out = ''
+  let i = 0
+  while (i < text.length) {
+    if (text[i] === '"') {
+      out += text[i++]
+      while (i < text.length) {
+        if (text[i] === '\\') { out += text[i] + text[i + 1]; i += 2 }
+        else if (text[i] === '"') { out += text[i++]; break }
+        else { out += text[i++] }
+      }
+    } else if (text[i] === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++
+    } else if (text[i] === '/' && text[i + 1] === '*') {
+      i += 2
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++
+      i += 2
+    } else {
+      out += text[i++]
+    }
+  }
+  return JSON.parse(out) as Settings
+}
+
 export interface UpdateConfig {
   baseDir: string
   settingsPath: string
@@ -165,7 +190,7 @@ export async function run_update_check(
 ): Promise<void> {
   let settings: Settings
   try {
-    settings = JSON.parse(readFileSync(config.settingsPath, 'utf8')) as Settings
+    settings = parse_settings_text(readFileSync(config.settingsPath, 'utf8'))
   } catch {
     cb.log('update: could not read settings.json — skipping')
     return
@@ -233,7 +258,7 @@ export async function run_update_check(
   try {
     // Re-check tag after acquiring lock in case another process already updated
     try {
-      const fresh = JSON.parse(readFileSync(config.settingsPath, 'utf8')) as Settings
+      const fresh = parse_settings_text(readFileSync(config.settingsPath, 'utf8'))
       if ((fresh['hub.tag'] as string | undefined) === latestTag) {
         cb.log('update: already up to date (updated while waiting)')
         return
@@ -273,7 +298,7 @@ export async function run_update_check(
 
     // Write updated hub.tag before bat runs
     try {
-      const current = JSON.parse(readFileSync(config.settingsPath, 'utf8')) as Settings
+      const current = parse_settings_text(readFileSync(config.settingsPath, 'utf8'))
       current['hub.tag'] = latestTag
       writeFileSync(config.settingsPath, JSON.stringify(current, null, 2), 'utf8')
       cb.log(`update: hub.tag updated to ${latestTag}`)

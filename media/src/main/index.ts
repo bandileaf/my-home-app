@@ -99,7 +99,8 @@ function resolve_settings_path(): string {
 
 function resolve_db_path(settingsPath: string): string {
   try {
-    const raw = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
+    const { parse: parse_jsonc } = require('jsonc-parser') as typeof import('jsonc-parser')
+    const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
     const key = `hub.app.${app.getName()}.db`
     const dbFile = typeof raw[key] === 'string' ? (raw[key] as string) : 'indexing.db'
     return join(app_dir(), dbFile)
