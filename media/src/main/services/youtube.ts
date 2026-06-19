@@ -279,6 +279,11 @@ export function youtube_cancel_video(url: string): void {
   if (cancel) cancel()
 }
 
+export function youtube_cancel_all(): void {
+  for (const cancel of active_downloads.values()) cancel()
+  active_downloads.clear()
+}
+
 export function resolve_download_dir(appDir: string, configured: string): string {
   const dir = configured.trim() || join(appDir, 'Downloads')
   mkdirSync(dir, { recursive: true })

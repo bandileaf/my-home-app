@@ -12,6 +12,7 @@ import {
   youtube_download_video,
   youtube_cancel,
   youtube_cancel_video,
+  youtube_cancel_all,
   type YoutubeResult,
   type YoutubeProgress
 } from './services/youtube'
@@ -807,6 +808,14 @@ app.whenReady().then(() => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().filter(w => w !== toast).length === 0) create_window()
+  })
+
+  app.on('before-quit', () => {
+    youtube_cancel_all()
+    for (const w of state.dirWatchers.values())  w.close()
+    for (const w of state.fileWatchers.values()) w.close()
+    for (const t of state.dirUpdateTimers.values()) clearTimeout(t)
+    db.close()
   })
 })
 
