@@ -167,6 +167,9 @@ function write_bat(
   const log = join(tmpDir, 'update.log')
   const L = (msg: string) => `echo [%DATE% %TIME%] ${msg} >> "${log}"`
 
+  // ping -n N 127.0.0.1 waits N-1 seconds — works in hidden CMD unlike timeout
+  const wait = (sec: number) => `ping -n ${sec + 1} 127.0.0.1 >nul`
+
   const lines: string[] = [
     '@echo off',
     `echo [%DATE% %TIME%] === update.bat START === > "${log}"`,
@@ -176,10 +179,7 @@ function write_bat(
     `echo [%DATE% %TIME%] cd=%CD% >> "${log}"`,
   ]
 
-  lines.push(L('step: waiting 1s for app to exit'))
-  lines.push('timeout /t 1 /nobreak >nul')
-
-  // Remember which apps were running before we kill them
+  // Check was_running FIRST before any wait (apps still alive at this point)
   for (let i = 0; i < appNames.length; i++) {
     lines.push(L(`step: check running ${appNames[i]}`))
     lines.push(`set WAS_RUNNING_${i}=0`)
@@ -188,14 +188,19 @@ function write_bat(
     lines.push(L(`${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
   }
 
+  // Wait for app to quit naturally (app calls app.quit() after 1.8s)
+  lines.push(L('step: waiting 3s for apps to exit naturally'))
+  lines.push(wait(3))
+
+  // Taskkill as insurance in case app didn't exit
   for (const name of appNames) {
     lines.push(L(`step: taskkill ${name}`))
     lines.push(`taskkill /F /IM ${name} >nul 2>&1`)
     lines.push(L(`taskkill ${name} errorlevel=%ERRORLEVEL%`))
   }
 
-  lines.push(L('step: waiting 3s for processes to exit'))
-  lines.push('timeout /t 3 /nobreak >nul')
+  lines.push(L('step: waiting 1s after taskkill'))
+  lines.push(wait(1))
 
   // Move new exe — retry once if src still exists (move failed)
   for (const name of appNames) {
