@@ -169,7 +169,11 @@ function write_bat(
   const L = (msg: string) => `echo [%DATE% %TIME%] ${msg} >> "${log}"`
 
   // ping -n N 127.0.0.1 waits N-1 seconds — works in hidden CMD unlike timeout
-  const wait = (sec: number) => `ping -n ${sec + 1} 127.0.0.1 >nul`
+  const wait = (sec: number, label: string) => [
+    L(`wait:${label} start (expected ${sec}s)`),
+    `ping -n ${sec + 1} 127.0.0.1 >nul`,
+    L(`wait:${label} end`),
+  ].join('\r\n')
 
   const lines: string[] = [
     '@echo off',
@@ -191,7 +195,7 @@ function write_bat(
 
   // Wait for app to quit naturally (app calls app.quit() after 1.8s)
   lines.push(L('step: waiting 3s for apps to exit naturally'))
-  lines.push(wait(3))
+  lines.push(wait(3, 'natural-exit'))
 
   // Taskkill as insurance in case app didn't exit
   for (const name of appNames) {
@@ -201,7 +205,7 @@ function write_bat(
   }
 
   lines.push(L('step: waiting 1s after taskkill'))
-  lines.push(wait(1))
+  lines.push(wait(1, 'post-kill'))
 
   // Move new exe — backup old to .bak first, restore on failure
   for (const name of appNames) {
@@ -235,6 +239,14 @@ function write_bat(
     lines.push(`if %WAS_RUNNING_${i}%==0 ${L(`skip relaunch ${appNames[i]} (was not running)`)}`)
   }
 
+  // Final result: SUCCESS if all dest files exist, FAILED otherwise
+  lines.push('set UPDATE_OK=1')
+  for (const name of appNames) {
+    const dest = join(baseDir, name)
+    lines.push(`if not exist "${dest}" set UPDATE_OK=0`)
+  }
+  lines.push(`if %UPDATE_OK%==1 ${L('=== RESULT: SUCCESS ===')}`)
+  lines.push(`if %UPDATE_OK%==0 ${L('=== RESULT: FAILED — one or more files missing ===')}`)
   lines.push(L('=== update.bat DONE ==='))
   lines.push('(goto) 2>nul & del "%~f0"')
   writeFileSync(batPath, lines.join('\r\n'), 'ascii')
@@ -371,9 +383,15 @@ export async function run_update_check(
     try { unlinkSync(lockPath) } catch { /* ignore */ }
 
     cb.set_status(`새 버전(${latestTag})으로 교체 중입니다. 잠시 후 재시작됩니다...`)
-    cb.log(`update: spawning cmd.exe /C ${batPath}`)
-    const child = spawn('cmd.exe', ['/C', batPath], { stdio: 'ignore', windowsHide: true })
-    cb.log(`update: bat pid=${child.pid ?? 'unknown'}`)
+    cb.log(`update: spawning bat via PowerShell Start-Process (Job Object escape)`)
+    // Wrap in PowerShell Start-Process so the CMD process is independent of Electron's Job Object.
+    // Direct spawn('cmd.exe') inherits Electron's Job Object and gets killed when Electron exits.
+    const q = batPath.replace(/'/g, "''")
+    const child = spawn('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+      '-Command', `Start-Process cmd.exe -ArgumentList '/C "${q}"' -WindowStyle Hidden`,
+    ], { stdio: 'ignore', windowsHide: true })
+    cb.log(`update: launcher pid=${child.pid ?? 'unknown'}`)
     child.unref()
 
     await new Promise<void>(r => setTimeout(r, 1800))
