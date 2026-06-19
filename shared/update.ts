@@ -202,21 +202,25 @@ function write_bat(
   lines.push(L('step: waiting 1s after taskkill'))
   lines.push(wait(1))
 
-  // Move new exe — retry once if src still exists (move failed)
+  // Move new exe — backup old to .bak first, restore on failure
   for (const name of appNames) {
     const src  = join(tmpDir, name)
     const dest = join(baseDir, name)
+    const bak  = dest + '.bak'
     lines.push(L(`step: move ${name}`))
     lines.push(`if exist "${src}" ${L(`src exists: ${src}`)}`)
     lines.push(`if not exist "${src}" ${L(`src MISSING: ${src}`)}`)
+    // Backup old exe so it can be restored if the new one fails
+    lines.push(`if exist "${dest}" del /F /Q "${bak}" >nul 2>&1`)
+    lines.push(`if exist "${dest}" move /Y "${dest}" "${bak}" >nul 2>&1`)
+    lines.push(L(`backup ${name} errorlevel=%ERRORLEVEL%`))
+    // Move new exe into place
     lines.push(`move /Y "${src}" "${dest}" >nul 2>&1`)
     lines.push(L(`move ${name} errorlevel=%ERRORLEVEL%`))
-    lines.push(`if exist "${src}" ${L(`move ${name} STILL PRESENT — retry`)}`)
-    lines.push(`if exist "${src}" timeout /t 2 /nobreak >nul`)
-    lines.push(`if exist "${src}" move /Y "${src}" "${dest}" >nul 2>&1`)
-    lines.push(`if exist "${src}" ${L(`move ${name} FAILED after retry`)}`)
-    lines.push(`if not exist "${src}" ${L(`move ${name} ok`)}`)
-    lines.push(`if exist "${dest}" ${L(`dest exists: ${dest}`)}`)
+    // If move failed, restore from backup
+    lines.push(`if not exist "${dest}" if exist "${bak}" move /Y "${bak}" "${dest}" >nul 2>&1`)
+    lines.push(`if not exist "${dest}" if exist "${bak}" ${L(`RESTORED ${name} from backup`)}`)
+    lines.push(`if exist "${dest}" ${L(`dest ok: ${dest}`)}`)
     lines.push(`if not exist "${dest}" ${L(`dest MISSING after move: ${dest}`)}`)
   }
 
