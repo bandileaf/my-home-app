@@ -1102,3 +1102,18 @@ body {
 }
 
 .cv-remove-btn:hover { background: rgba(0,0,0,0.08); color: var(--text); }
+
+.cv-convert-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.cv-convert-btn:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cv-convert-btn:disabled { opacity: 0.4; cursor: default; }

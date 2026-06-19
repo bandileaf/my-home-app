@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, X } from 'lucide-react'
+import { ArrowRightLeft, FolderOpen, X } from 'lucide-react'
 import { get_bridge } from '../bridge'
 import { useTabCtx } from '../App'
 
@@ -15,15 +15,17 @@ type ItemState =
 interface ConvertItem {
   srcPath: string
   fileName: string
+  srcExt: string
   targetFmt: Fmt
   state: ItemState
 }
 
-function ConvertRow({ item, disabled, onRemove, onFmt }: {
+function ConvertRow({ item, disabled, onRemove, onFmt, onConvert }: {
   item: ConvertItem
   disabled: boolean
   onRemove: () => void
   onFmt: (f: Fmt) => void
+  onConvert: () => void
 }): JSX.Element {
   const { state } = item
   return (
@@ -54,9 +56,18 @@ function ConvertRow({ item, disabled, onRemove, onFmt }: {
               key={f}
               className={`cv-fmt-btn${item.targetFmt === f ? ' active' : ''}`}
               onClick={() => onFmt(f)}
-              disabled={disabled}
+              disabled={disabled || item.srcExt === f}
+              title={item.srcExt === f ? '이미 같은 형식입니다' : undefined}
             >.{f}</button>
           ))}
+          <button
+            className="cv-convert-btn"
+            title="변환"
+            onClick={onConvert}
+            disabled={disabled}
+          >
+            <ArrowRightLeft size={12} strokeWidth={1.5} />
+          </button>
         </div>
       )}
 
@@ -114,12 +125,16 @@ export function ConvertPanel(): JSX.Element {
   useEffect(() => {
     if (!folder || !targetFmt) { set_items([]); return }
     bridge?.convert_scan_folder?.(folder, targetFmt).then((files) => {
-      set_items(files.map(f => ({
-        srcPath: f,
-        fileName: f.split(/[\\/]/).pop() ?? f,
-        targetFmt: targetFmt!,
-        state: { status: 'idle' },
-      })))
+      set_items(files.map(f => {
+        const ext = (f.split('.').pop() ?? '').toLowerCase() as Fmt
+        return {
+          srcPath: f,
+          fileName: f.split(/[\\/]/).pop() ?? f,
+          srcExt: ext,
+          targetFmt: targetFmt!,
+          state: { status: 'idle' },
+        }
+      }))
     }).catch(() => {})
   }, [folder, targetFmt])
 
@@ -129,6 +144,13 @@ export function ConvertPanel(): JSX.Element {
 
   function set_item_fmt(srcPath: string, fmt: Fmt): void {
     set_items(prev => prev.map(i => i.srcPath === srcPath ? { ...i, targetFmt: fmt } : i))
+  }
+
+  function start_one(item: ConvertItem): void {
+    set_items(prev => prev.map(i =>
+      i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
+    ))
+    bridge?.convert_start?.(item.srcPath, item.targetFmt)
   }
 
   function bulk_convert(): void {
@@ -182,6 +204,7 @@ export function ConvertPanel(): JSX.Element {
             disabled={busy}
             onRemove={() => remove_item(item.srcPath)}
             onFmt={(f) => set_item_fmt(item.srcPath, f)}
+            onConvert={() => start_one(item)}
           />
         ))}
       </div>
