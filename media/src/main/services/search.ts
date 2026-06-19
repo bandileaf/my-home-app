@@ -45,6 +45,10 @@ export function search_files(
     return { hits: [], total: 0, truncated: false }
   }
 
+  // 공백 제거 버전: "바람 바람 바람" → "바람바람바람" 으로도 검색
+  const needle_compact = needle.replace(/\s+/g, '')
+  const has_spaces = needle_compact !== needle
+
   const limit = options.limit ?? 500
   const extSet =
     options.extensions && options.extensions.length > 0
@@ -63,7 +67,11 @@ export function search_files(
     if (is_excluded(to_posix(entry.fullPath))) {
       continue
     }
-    if (!entry.fileName.toLowerCase().includes(needle)) {
+    const name_lower = entry.fileName.toLowerCase()
+    const matches =
+      name_lower.includes(needle) ||
+      (has_spaces && name_lower.replace(/\s+/g, '').includes(needle_compact))
+    if (!matches) {
       continue
     }
     total += 1
