@@ -1,6 +1,6 @@
-appId: com.nwork.myhome
-productName: myhome
-artifactName: "myhome_v${version}.exe"
+appId: com.nwork.media
+productName: media
+artifactName: "family_media.exe"
 directories:
   output: dist
   buildResources: build
@@ -12,7 +12,7 @@ extraResources:
     to: bin/yt-dlp.exe
   - from: build/icon.ico
     to: icon.ico
-# settings.json 은 동봉하지 않는다. 앱이 첫 실행 때 없으면 생성하고, 이후 재배포는 건드리지 않는다.
+# settings.json is not bundled — the app creates it on first launch and never overwrites it after
 win:
   icon: build/icon.ico
   signAndEditExecutable: false

@@ -17,6 +17,30 @@
   box-sizing: border-box;
 }
 
+/* Same native scrollbar width, just recolored to blend into the theme instead of clashing with it */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border: 3px solid var(--bg);
+  border-radius: 7px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 html,
 body,
 #root {
@@ -550,6 +574,95 @@ body {
 .yt-search-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.yt-search-row-disabled {
+  opacity: 0.6;
+}
+
+.yt-search-input:disabled {
+  background: var(--border);
+  color: var(--hint);
+  cursor: not-allowed;
+}
+
+/* bin(yt-dlp, ffmpeg 등) 설치 상태 박스 — 항목마다 [파일명] / [진행률 바 + 상태] 2줄 카드, 완료되면 사라지고 나머지가 위로 올라온다 */
+.bins-status-box {
+  margin: 8px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bins-status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  transition: opacity 0.3s ease;
+}
+
+.bins-status-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bins-status-progress-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bins-status-bar {
+  flex: 1;
+  min-width: 0;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bins-status-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.bins-status-row-installed .bins-status-bar-fill {
+  background: #1a7f37;
+}
+
+.bins-status-row-failed .bins-status-bar-fill {
+  background: #b5341b;
+}
+
+.bins-status-state {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--hint);
+}
+
+.bins-status-row-downloading .bins-status-state,
+.bins-status-row-extracting .bins-status-state {
+  color: var(--accent);
+}
+
+.bins-status-row-installed .bins-status-state {
+  color: #1a7f37;
+}
+
+.bins-status-row-failed .bins-status-state {
+  color: #b5341b;
 }
 
 .yt-error {

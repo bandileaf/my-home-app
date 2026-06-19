@@ -52,6 +52,14 @@ export interface YoutubeProgress {
   eta: string
 }
 
+export type BinState = 'pending' | 'downloading' | 'extracting' | 'installed' | 'failed'
+
+export interface BinStatusEntry {
+  name: string
+  state: BinState
+  percent: number
+}
+
 export interface AppBridge {
   close_window?: () => void
   start_indexing?: () => Promise<IndexSummary>
@@ -79,8 +87,11 @@ export interface AppBridge {
   // 앱 상태(탭 등) DB 영속화
   app_state_get?: (key: string) => Promise<string | null>
   app_state_set?: (key: string, value: string) => void
-  // bin 스캔 결과
-  get_bins?: () => Promise<Record<string, string>>
+  // bin 설치 확인/다운로드 (yt-dlp, ffmpeg 등)
+  ensure_bins?: () => Promise<Record<string, string>>
+  get_bins_status?: () => Promise<BinStatusEntry[]>
+  on_bins_status?: (callback: (data: { name: string; state: BinState }) => void) => () => void
+  on_bins_progress?: (callback: (data: { name: string; percent: number }) => void) => () => void
   // YouTube
   youtube_search?: (query: string) => Promise<YoutubeResult[]>
   youtube_download?: (url: string, audioFormat: string) => void

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { AudioLines, FileVideo2 } from 'lucide-react'
-import { get_bridge, type YoutubeResult } from '../bridge'
+import { AudioLines, CheckCircle2, Clock, Download, FileVideo2, PackageOpen, XCircle } from 'lucide-react'
+import { get_bridge, type BinState, type YoutubeResult } from '../bridge'
 import { useTabCtx } from '../App'
 
 const MAX_TITLE = 20
@@ -71,6 +71,56 @@ function ErrorRow({ message, onRetry }: { message: string; onRetry: () => void }
   )
 }
 
+interface BinRow { name: string; state: BinState; percent: number }
+
+function bin_state_label(state: BinState): string {
+  switch (state) {
+    case 'pending': return 'Pending'
+    case 'downloading': return 'Downloading'
+    case 'extracting': return 'Extracting'
+    case 'installed': return 'Installed'
+    case 'failed': return 'Failed'
+  }
+}
+
+function bin_bar_percent(row: BinRow): number {
+  if (row.state === 'pending') return 0
+  if (row.state === 'downloading') return row.percent
+  return 100 // extracting / installed / failed
+}
+
+function BinStateIcon({ state }: { state: BinState }): JSX.Element {
+  const props = { size: 13, strokeWidth: 1.5 }
+  switch (state) {
+    case 'pending': return <Clock {...props} />
+    case 'downloading': return <Download {...props} />
+    case 'extracting': return <PackageOpen {...props} />
+    case 'installed': return <CheckCircle2 {...props} />
+    case 'failed': return <XCircle {...props} />
+  }
+}
+
+function BinsStatusBox({ rows }: { rows: BinRow[] }): JSX.Element {
+  return (
+    <div className="bins-status-box">
+      {rows.map((row) => (
+        <div className={`bins-status-row bins-status-row-${row.state}`} key={row.name}>
+          <div className="bins-status-name">{row.name}</div>
+          <div className="bins-status-progress-line">
+            <div className="bins-status-bar">
+              <div className="bins-status-bar-fill" style={{ width: `${bin_bar_percent(row)}%` }} />
+            </div>
+            <div className="bins-status-state">
+              <BinStateIcon state={row.state} />
+              <span>{bin_state_label(row.state)}{row.state === 'downloading' ? ` ${row.percent}%` : ''}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function YoutubeSearchPanel(): JSX.Element {
   const { tabId, setTitle } = useTabCtx()
   const [query, set_query] = useState('')
@@ -80,8 +130,10 @@ export function YoutubeSearchPanel(): JSX.Element {
   const [downloads, set_downloads] = useState<Record<string, DownloadState>>({})
   const [videoDownloads, set_video_downloads] = useState<Record<string, DownloadState>>({})
   const [ytdlpReady, set_ytdlpReady] = useState(false)
+  const [binRows, set_binRows] = useState<BinRow[]>([])
   const pendingSearch = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const binRemovalScheduled = useRef<Set<string>>(new Set())
 
   // 복원: 저장된 검색어 로드
   useEffect(() => {
@@ -102,7 +154,17 @@ export function YoutubeSearchPanel(): JSX.Element {
 
   useEffect(() => {
     const bridge = get_bridge()
-    void bridge?.get_bins?.().then((bins) => { set_ytdlpReady('yt-dlp.exe' in bins) })
+    // 먼저 구독해야 snapshot 조회와 그 사이에 일어난 업데이트를 놓치지 않는다.
+    const u0a = bridge?.on_bins_status?.(({ name, state }) => {
+      set_binRows((prev) => prev.map((r) =>
+        r.name === name ? { ...r, state, percent: state === 'installed' ? 100 : r.percent } : r
+      ))
+    })
+    const u0b = bridge?.on_bins_progress?.(({ name, percent }) => {
+      set_binRows((prev) => prev.map((r) => (r.name === name ? { ...r, percent } : r)))
+    })
+    void bridge?.get_bins_status?.().then((entries) => set_binRows(entries))
+    void bridge?.ensure_bins?.().then((bins) => { set_ytdlpReady('yt-dlp.exe' in bins) })
     const u1 = bridge?.on_youtube_progress?.((p) => {
       set_downloads((prev) => ({ ...prev, [p.url]: { status: 'downloading', percent: p.percent, speed: p.speed, eta: p.eta } }))
     })
@@ -121,8 +183,20 @@ export function YoutubeSearchPanel(): JSX.Element {
     const u6 = bridge?.on_youtube_error_video?.((data) => {
       set_video_downloads((prev) => ({ ...prev, [data.url]: { status: 'error', message: data.message } }))
     })
-    return () => { u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
+    return () => { u0a?.(); u0b?.(); u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
   }, [])
+
+  // 설치 완료된 항목은 잠시 후 목록에서 제거 → 남은 항목이 위로 올라온다.
+  useEffect(() => {
+    for (const row of binRows) {
+      if (row.state === 'installed' && !binRemovalScheduled.current.has(row.name)) {
+        binRemovalScheduled.current.add(row.name)
+        setTimeout(() => {
+          set_binRows((prev) => prev.filter((r) => r.name !== row.name))
+        }, 1200)
+      }
+    }
+  }, [binRows])
 
   async function do_search(): Promise<void> {
     const q = query.trim()
@@ -185,7 +259,7 @@ export function YoutubeSearchPanel(): JSX.Element {
   return (
     <div className="search-panel">
       {/* 검색 입력 */}
-      <div className="yt-search-row">
+      <div className={`yt-search-row ${!ready ? 'yt-search-row-disabled' : ''}`}>
         <input
           ref={inputRef}
           className="search-box yt-search-input"
@@ -209,7 +283,9 @@ export function YoutubeSearchPanel(): JSX.Element {
         <div className="empty-hint">YouTube search runs in the app (Electron).</div>
       )}
       {bridgeAvailable && !ytdlpReady && (
-        <div className="empty-hint">yt-dlp 준비 중...</div>
+        binRows.length > 0
+          ? <BinsStatusBox rows={binRows} />
+          : <div className="empty-hint">yt-dlp 준비 중...</div>
       )}
       {searchError && (
         <div className="yt-error">{searchError}</div>

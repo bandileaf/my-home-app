@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IndexProgress, IndexSummary } from '../main/services/indexer'
 import type { SearchOptions, SearchResult } from '../main/services/search'
 import type { YoutubeResult, YoutubeProgress } from '../main/services/youtube'
+import type { BinState, BinStatusEntry } from '../main/services/bins'
 
 // 렌더러에 노출할 API.
 const api = {
@@ -77,7 +78,20 @@ const api = {
   app_state_set: (key: string, value: string): void =>
     ipcRenderer.send('app_state:set', key, value),
 
-  get_bins: (): Promise<Record<string, string>> => ipcRenderer.invoke('get-bins'),
+  // bin 설치 확인/다운로드 (yt-dlp, ffmpeg 등). 미설치 항목은 다운로드 후 설치된 경로 맵을 반환.
+  ensure_bins: (): Promise<Record<string, string>> => ipcRenderer.invoke('bins:ensure'),
+  // 현재까지의 설치 상태 스냅샷 (패널이 늦게 열려도 진행 중인 항목을 바로 보여주기 위함).
+  get_bins_status: (): Promise<BinStatusEntry[]> => ipcRenderer.invoke('bins:snapshot'),
+  on_bins_status: (callback: (data: { name: string; state: BinState }) => void): (() => void) => {
+    const listener = (_e: unknown, data: { name: string; state: BinState }): void => callback(data)
+    ipcRenderer.on('bins:status', listener)
+    return () => ipcRenderer.removeListener('bins:status', listener)
+  },
+  on_bins_progress: (callback: (data: { name: string; percent: number }) => void): (() => void) => {
+    const listener = (_e: unknown, data: { name: string; percent: number }): void => callback(data)
+    ipcRenderer.on('bins:progress', listener)
+    return () => ipcRenderer.removeListener('bins:progress', listener)
+  },
 
   // ── YouTube ──────────────────────────────────────────────────────────────
   youtube_search: (query: string): Promise<YoutubeResult[]> =>
