@@ -105,7 +105,7 @@ function init_log_path(settingsPath: string): void {
     const logDir = join(app_dir(), 'log')
     mkdirSync(logDir, { recursive: true })
     _log_path = join(logDir, `${_display_name}.log`)
-    const BUILD_NUMBER = 7
+    const BUILD_NUMBER = 8
     appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid} build=${BUILD_NUMBER}\n`)
   } catch {
     // fallback: lazy init in log_event will set it
@@ -882,8 +882,8 @@ process.on('uncaughtException', (error) => log_event(`uncaughtException: ${error
 process.on('unhandledRejection', (reason) => log_event(`unhandledRejection: ${String(reason)}`))
 
 // 중복 실행 방지 — 이미 실행 중이면 기존 창을 앞으로 가져오고 종료
-if (!app.requestSingleInstanceLock()) {
-  // 이미 실행 중인 인스턴스가 있음 — 로그에 기록 후 종료
+const got_lock = app.requestSingleInstanceLock()
+if (!got_lock) {
   try {
     const logDir = join(app.isPackaged
       ? (process.env.PORTABLE_EXECUTABLE_DIR ?? dirname(app.getPath('exe')))
@@ -893,6 +893,7 @@ if (!app.requestSingleInstanceLock()) {
     appendFileSync(logPath, `\n[${new Date().toISOString()}] DUPLICATE LAUNCH rejected pid=${process.pid} argv=${JSON.stringify(process.argv)}\n`)
   } catch { /* ignore */ }
   app.quit()
+  process.exit(0)
 }
 
 app.on('second-instance', (_event, argv, cwd) => {
@@ -902,6 +903,7 @@ app.on('second-instance', (_event, argv, cwd) => {
 })
 
 app.whenReady().then(() => {
+  if (!got_lock) return
   Menu.setApplicationMenu(null)
   const settingsPath = resolve_settings_path()
   init_log_path(settingsPath)
