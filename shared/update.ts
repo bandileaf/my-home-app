@@ -163,7 +163,8 @@ function write_bat(
   batPath: string,
   baseDir: string,
   tmpDir: string,
-  appNames: string[]
+  appNames: string[],
+  zipName?: string
 ): string[] {
   const log = join(tmpDir, 'update.log')
   const L = (msg: string) => `echo [%DATE% %TIME%] ${msg} >> "${log}"`
@@ -222,9 +223,10 @@ function write_bat(
     // Move new exe into place
     lines.push(`move /Y "${src}" "${dest}" >nul 2>&1`)
     lines.push(L(`move ${name} errorlevel=%ERRORLEVEL%`))
-    // If move failed, restore from backup
+    // If move failed, restore from backup; if succeeded, delete backup
     lines.push(`if not exist "${dest}" if exist "${bak}" move /Y "${bak}" "${dest}" >nul 2>&1`)
     lines.push(`if not exist "${dest}" if exist "${bak}" ${L(`RESTORED ${name} from backup`)}`)
+    lines.push(`if exist "${dest}" if exist "${bak}" del /F /Q "${bak}" >nul 2>&1`)
     lines.push(`if exist "${dest}" ${L(`dest ok: ${dest}`)}`)
     lines.push(`if not exist "${dest}" ${L(`dest MISSING after move: ${dest}`)}`)
   }
@@ -247,6 +249,12 @@ function write_bat(
   }
   lines.push(`if %UPDATE_OK%==1 ${L('=== RESULT: SUCCESS ===')}`)
   lines.push(`if %UPDATE_OK%==0 ${L('=== RESULT: FAILED — one or more files missing ===')}`)
+  // Cleanup tmp: zip file
+  if (zipName) {
+    const zipPath = join(tmpDir, zipName)
+    lines.push(`if exist "${zipPath}" del /F /Q "${zipPath}" >nul 2>&1`)
+    lines.push(L(`cleanup: deleted ${zipName}`))
+  }
   lines.push(L('=== update.bat DONE ==='))
   lines.push('(goto) 2>nul & del "%~f0"')
   writeFileSync(batPath, lines.join('\r\n'), 'ascii')
@@ -375,7 +383,7 @@ export async function run_update_check(
     } catch { /* non-fatal */ }
 
     const batPath = join(config.baseDir, batName)
-    const batLines = write_bat(batPath, config.baseDir, tmpDir, appNames)
+    const batLines = write_bat(batPath, config.baseDir, tmpDir, appNames, zipName)
     cb.log(`update: bat written to ${batPath} (${batLines.length} lines)`)
     batLines.forEach((line, i) => cb.log(`  bat[${String(i).padStart(2, '0')}]: ${line}`))
 
