@@ -71,12 +71,17 @@ jobs:
           $json.'hub.app.bulletin.version' = $ver
           $json | ConvertTo-Json -Depth 10 | Out-File settings.json -Encoding utf8NoBOM
 
+      - name: List dist outputs
+        run: |
+          Get-ChildItem media\dist -ErrorAction SilentlyContinue
+          Get-ChildItem bulletin\dist -ErrorAction SilentlyContinue
+
       - name: Upload to Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            media/dist/family_media.exe
-            bulletin/dist/family_bulletin.exe
+            media/dist/*.exe
+            bulletin/dist/*.exe
             settings.json
           generate_release_notes: true
