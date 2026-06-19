@@ -162,10 +162,16 @@ function write_bat(
   batPath: string,
   baseDir: string,
   tmpDir: string,
-  appNames: string[],   // all apps to kill + replace (exe file lock)
-  relaunchName: string  // only the triggering app is relaunched
+  appNames: string[]
 ): void {
   const lines: string[] = ['@echo off', 'timeout /t 1 /nobreak >nul']
+
+  // Remember which apps were running before we kill them
+  for (let i = 0; i < appNames.length; i++) {
+    const varName = `WAS_RUNNING_${i}`
+    lines.push(`set ${varName}=0`)
+    lines.push(`tasklist /FI "IMAGENAME eq ${appNames[i]}" 2>nul | find /I "${appNames[i]}" >nul && set ${varName}=1`)
+  }
 
   for (const name of appNames) {
     lines.push(`taskkill /F /IM ${name} >nul 2>&1`)
@@ -178,8 +184,11 @@ function write_bat(
     lines.push(`if exist "${src}" move /Y "${src}" "${dest}"`)
   }
 
-  const finalExe = join(baseDir, relaunchName)
-  lines.push(`if exist "${finalExe}" start "" "${finalExe}"`)
+  // Relaunch only apps that were running before the update
+  for (let i = 0; i < appNames.length; i++) {
+    const finalExe = join(baseDir, appNames[i])
+    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}"`)
+  }
 
   lines.push('(goto) 2>nul & del "%~f0"')
   writeFileSync(batPath, lines.join('\r\n'), 'ascii')
@@ -304,14 +313,9 @@ export async function run_update_check(
       cb.log(`update: hub.tag saved as ${latestTag}`)
     } catch { /* non-fatal */ }
 
-    const triggerName = settings[`hub.app.${config.appKey}.name`] as string | undefined
-    if (!triggerName) {
-      cb.log(`update: hub.app.${config.appKey}.name not set — cannot relaunch`)
-      return
-    }
     const batPath = join(config.baseDir, batName)
-    write_bat(batPath, config.baseDir, tmpDir, appNames, triggerName)
-    cb.log(`update: relaunch script written — ${batName} (relaunch: ${triggerName})`)
+    write_bat(batPath, config.baseDir, tmpDir, appNames)
+    cb.log(`update: relaunch script written — ${batName}`)
 
     // Release lock before the bat kills this process
     try { unlinkSync(lockPath) } catch { /* ignore */ }
