@@ -154,8 +154,9 @@ function register_ipc(baseDir: string, identity: Identity, state: NoticeState): 
   )
 }
 
-// 중복 실행 방지 — 이미 실행 중이면 기존 창을 앞으로 가져오고 종료
-const got_lock = app.requestSingleInstanceLock()
+// --post-update: launched by update.bat — skip lock check (old process is dead, OS mutex may not have released yet)
+const isPostUpdate = process.argv.includes('--post-update')
+const got_lock = isPostUpdate || app.requestSingleInstanceLock()
 if (!got_lock) {
   try {
     const logDir = join(app.isPackaged

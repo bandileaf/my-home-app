@@ -158,6 +158,7 @@ function try_acquire_lock(lockPath: string): boolean {
   }
 }
 
+
 function write_bat(
   batPath: string,
   baseDir: string,
@@ -225,11 +226,12 @@ function write_bat(
   }
 
   // Relaunch only apps that were running before the update
+  // --post-update flag tells the app to skip single-instance lock check
   for (let i = 0; i < appNames.length; i++) {
     const finalExe = join(baseDir, appNames[i])
     lines.push(L(`step: relaunch check ${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
     lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" ${L(`starting ${appNames[i]}`)}`)
-    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}"`)
+    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}" --post-update`)
     lines.push(`if %WAS_RUNNING_${i}%==0 ${L(`skip relaunch ${appNames[i]} (was not running)`)}`)
   }
 
