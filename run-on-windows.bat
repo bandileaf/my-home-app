@@ -4,7 +4,7 @@ setlocal
 set "SSH_HOST=192.168.0.231"
 set "SSH_USER=rudi109"
 set "ROOT=/home/rudi109/my_home_app"
-set "DST=C:\DEV\Familyhub"
+set "DST=C:\DEV\test"
 
 echo === FamilyHub dev build ===
 
