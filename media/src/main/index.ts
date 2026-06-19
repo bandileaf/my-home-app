@@ -345,7 +345,7 @@ async function background_scan(
     for (const dir of existing) {
       // 체크포인트 확인: 이 dir 가 같은 exclude 패턴으로 완전히 스캔됐으면 스킵
       if (db_is_dir_done(db, dir, excludeSig)) {
-        log_event(`skip (checkpoint ok): ${dir}`)
+        log_event(`index: ${dir} — up to date, no rescan needed`)
         continue
       }
 

@@ -191,8 +191,8 @@ export async function run_update_check(
   let settings: Settings
   try {
     settings = parse_settings_text(readFileSync(config.settingsPath, 'utf8'))
-  } catch {
-    cb.log('update: could not read settings.json — skipping')
+  } catch (err: unknown) {
+    cb.log(`update: ${config.settingsPath} — ${(err as Error).message}`)
     return
   }
 
@@ -206,33 +206,33 @@ export async function run_update_check(
     .map(k => settings[k] as string)
     .filter(Boolean)
 
-  if (!repo)    { cb.log('update: hub.repo not set — skipping'); return }
-  if (!zipName) { cb.log('update: hub.zip not set — skipping'); return }
-  if (!batName) { cb.log('update: hub.update-bat not set — skipping'); return }
-  if (autoUpdate === false) { cb.log('update: hub.auto-update is false — skipping'); return }
+  if (!repo)    { cb.log('update: hub.repo not set in settings'); return }
+  if (!zipName) { cb.log('update: hub.zip not set in settings'); return }
+  if (!batName) { cb.log('update: hub.update-bat not set in settings'); return }
+  if (autoUpdate === false) { cb.log('update: auto-update disabled (hub.auto-update=false)'); return }
 
   const ua = repo.split('/')[1] ?? repo
 
-  cb.log(`update: checking ${repo} (hub.tag=${localTag ?? 'none'})`)
+  cb.log(`update: checking ${repo} — local=${localTag ?? 'none'}`)
 
   let release: GHRelease
   try {
     release = await fetch_latest_release(repo)
   } catch (err: unknown) {
-    cb.log(`update: GitHub API failed — ${(err as Error).message}`)
+    cb.log(`update: GitHub API error — ${(err as Error).message}`)
     return
   }
 
   const latestTag = release.tag_name
-  if (!latestTag) { cb.log('update: no tag_name in release'); return }
-  cb.log(`update: latest tag=${latestTag}`)
+  if (!latestTag) { cb.log('update: release has no tag_name'); return }
+  cb.log(`update: latest=${latestTag}`)
 
   if (localTag === latestTag) {
-    cb.log(`update: already up to date (${localTag})`)
+    cb.log(`update: already on ${localTag}`)
     return
   }
 
-  cb.log(`update: new release ${localTag ?? 'none'} → ${latestTag}`)
+  cb.log(`update: ${localTag ?? 'none'} → ${latestTag}`)
 
   const tmpDir   = join(config.baseDir, 'tmp')
   mkdirSync(tmpDir, { recursive: true })
@@ -249,25 +249,25 @@ export async function run_update_check(
       return
     }
     cb.set_status('다른 앱이 업데이트 중입니다. 완료될 때까지 기다리고 있습니다...')
-    cb.log('update: waiting for lock...')
+    cb.log('update: another process holds lock, waiting...')
     await new Promise(r => setTimeout(r, 3000))
   }
 
-  cb.log('update: lock acquired')
+  cb.log('update: lock acquired, proceeding')
 
   try {
     // Re-check tag after acquiring lock in case another process already updated
     try {
       const fresh = parse_settings_text(readFileSync(config.settingsPath, 'utf8'))
       if ((fresh['hub.tag'] as string | undefined) === latestTag) {
-        cb.log('update: already up to date (updated while waiting)')
+        cb.log(`update: already on ${latestTag} (another process updated while waiting)`)
         return
       }
     } catch { /* ignore */ }
 
     const asset = release.assets.find(a => a.name === zipName)
     if (!asset) {
-      cb.log(`update: asset ${zipName} not found in release`)
+      cb.log(`update: ${zipName} not found in release assets`)
       cb.on_error(`업데이트 파일을 찾을 수 없습니다: ${zipName}`)
       return
     }
@@ -277,7 +277,7 @@ export async function run_update_check(
 
     try {
       await download_file(asset.browser_download_url, zipPath, ua, cb.set_progress)
-      cb.log(`update: downloaded ${zipName}`)
+      cb.log(`update: download complete — ${zipName}`)
     } catch (err: unknown) {
       cb.log(`update: download failed — ${(err as Error).message}`)
       cb.on_error('다운로드 실패.')
@@ -289,24 +289,23 @@ export async function run_update_check(
       extract_zip(zipPath, tmpDir)
       cb.log(`update: extracted to ${tmpDir}`)
       unblock_files(appNames.map(name => join(tmpDir, name)))
-      cb.log('update: unblocked extracted files')
+      cb.log(`update: unblocked ${appNames.join(', ')}`)
     } catch (err: unknown) {
       cb.log(`update: extraction failed — ${(err as Error).message}`)
       cb.on_error('압축 해제 실패.')
       return
     }
 
-    // Write updated hub.tag before bat runs
     try {
       const current = parse_settings_text(readFileSync(config.settingsPath, 'utf8'))
       current['hub.tag'] = latestTag
       writeFileSync(config.settingsPath, JSON.stringify(current, null, 2), 'utf8')
-      cb.log(`update: hub.tag updated to ${latestTag}`)
+      cb.log(`update: hub.tag saved as ${latestTag}`)
     } catch { /* non-fatal */ }
 
     const batPath = join(config.baseDir, batName)
     write_bat(batPath, config.baseDir, tmpDir, appNames)
-    cb.log(`update: wrote ${batName}`)
+    cb.log(`update: relaunch script written — ${batName}`)
 
     // Release lock before the bat kills this process
     try { unlinkSync(lockPath) } catch { /* ignore */ }
