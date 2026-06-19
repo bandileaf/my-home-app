@@ -3,6 +3,7 @@ import { basename, join } from 'path'
 import https from 'https'
 import http from 'http'
 import AdmZip from 'adm-zip'
+import { parse as parse_jsonc } from 'jsonc-parser'
 
 export interface BinEntry {
   url: string
@@ -33,7 +34,7 @@ export function bin_dests(bin: BinEntry): string[] {
 
 export function read_bin_entries(settingsPath: string): BinEntry[] {
   try {
-    const raw = JSON.parse(readFileSync(settingsPath, 'utf-8')) as BinsFile
+    const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as BinsFile
     return raw['hub.bins'] ?? []
   } catch {
     return []
@@ -103,7 +104,7 @@ function download_file(url: string, dest: string, onProgress?: (pct: number) => 
 
 function write_bin_entries(settingsPath: string, bins: BinEntry[]): void {
   try {
-    const raw = JSON.parse(readFileSync(settingsPath, 'utf-8')) as BinsFile
+    const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as BinsFile
     raw['hub.bins'] = bins
     writeFileSync(settingsPath, JSON.stringify(raw, null, 2), 'utf-8')
   } catch {
