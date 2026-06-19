@@ -143,16 +143,18 @@ app.whenReady().then(() => {
   win = create_window()
   tray = create_tray(win)
 
-  void run_update_check(
-    { baseDir, settingsPath, appKey: app.getName() },
-    {
-      set_status:   (msg) => { toast.webContents.send('toast:status', msg);   if (!toast.isVisible()) toast.show() },
-      set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
-      on_error:     (msg) => { toast.webContents.send('toast:error', msg);     toast.show() },
-      on_quit:      () => { isQuitting = true; app.quit() },
-      log:          log_event,
-    }
-  )
+  toast.webContents.once('did-finish-load', () => {
+    void run_update_check(
+      { baseDir, settingsPath, appKey: app.getName() },
+      {
+        set_status:   (msg) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
+        set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
+        on_error:     (msg) => { toast.webContents.send('toast:error', msg); toast.show() },
+        on_quit:      () => { isQuitting = true; app.quit() },
+        log:          log_event,
+      }
+    )
+  })
 
   app.on('activate', () => {
     if (win) win.show()

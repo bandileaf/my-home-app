@@ -804,16 +804,21 @@ app.whenReady().then(() => {
   const window = create_window()
   void ensure_bins_once(window.webContents, app_dir(), settingsPath, state)
 
-  void run_update_check(
-    { baseDir: app_dir(), settingsPath, appKey: app.getName() },
-    {
-      set_status: (msg) => { toast.webContents.send('toast:status', msg);   if (!toast.isVisible()) toast.show() },
-      set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
-      on_error:  (msg) => { toast.webContents.send('toast:error', msg);     toast.show() },
-      on_quit:   () => app.quit(),
-      log:       log_event,
-    }
-  )
+  // toast renderer 가 준비된 후에 업데이트 체크를 시작해야
+  // 첫 번째 toast:status IPC 가 유실되지 않는다.
+  toast.webContents.once('did-finish-load', () => {
+    log_event('toast: ready')
+    void run_update_check(
+      { baseDir: app_dir(), settingsPath, appKey: app.getName() },
+      {
+        set_status: (msg) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
+        set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
+        on_error:  (msg) => { toast.webContents.send('toast:error', msg); toast.show() },
+        on_quit:   () => app.quit(),
+        log:       log_event,
+      }
+    )
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().filter(w => w !== toast).length === 0) create_window()
