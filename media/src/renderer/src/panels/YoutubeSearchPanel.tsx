@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AudioLines, CheckCircle2, Clock, Download, FileVideo2, FolderOpen, PackageOpen, XCircle } from 'lucide-react'
+import { AudioLines, CheckCircle2, Clock, Copy, Download, FileVideo2, FolderOpen, PackageOpen, XCircle } from 'lucide-react'
 import { get_bridge, type BinState, type YoutubeResult } from '../bridge'
 import { useTabCtx } from '../App'
 
@@ -50,6 +50,9 @@ function ProgressBar({ label, percent, speed, eta, onCancel }: {
 function DoneRow({ label, filePath, onOpen }: {
   label: string; filePath: string; onOpen: () => void
 }): JSX.Element {
+  function copy_path(): void {
+    navigator.clipboard.writeText(filePath).catch(() => {})
+  }
   return (
     <div className="yt-done">
       <span className="yt-done-icon">✓</span>
@@ -58,6 +61,7 @@ function DoneRow({ label, filePath, onOpen }: {
         {filePath.split(/[\\/]/).pop()}
       </span>
       <button className="yt-folder-btn" title="Open folder" onClick={onOpen}><FolderOpen size={14} strokeWidth={1.5} /></button>
+      <button className="yt-folder-btn" title="클립보드에 복사" onClick={copy_path}><Copy size={14} strokeWidth={1.5} /></button>
     </div>
   )
 }
