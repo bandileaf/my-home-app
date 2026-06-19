@@ -45,6 +45,8 @@ function parse_settings_text(text: string): Settings {
       out += text[i++]
     }
   }
+  // Remove trailing commas before } or ] (JSONC allows them, JSON.parse does not)
+  out = out.replace(/,(\s*[}\]])/g, '$1')
   return JSON.parse(out) as Settings
 }
 
