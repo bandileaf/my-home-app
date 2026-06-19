@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain, Menu, shell, type WebContents } from 'electron'
+import { app, BrowserWindow, clipboard, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync } from 'fs'
 import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
@@ -24,6 +24,8 @@ import {
   type IndexSummary
 } from './services/indexer'
 import { search_files, type SearchOptions, type SearchResult } from './services/search'
+import { ensure_bins, installed_bins, list_bins, read_bin_entries, type BinState, type BinStatusEntry } from './services/bins'
+import { run_update_check } from '@shared/update'
 import {
   open_db,
   db_load_entries,
@@ -55,6 +57,9 @@ interface IndexState {
   currentExcludeSig: string
   lastSummary: IndexSummary | null
   scanning: boolean
+  binsPromise: Promise<Record<string, string>> | null
+  // 현재까지의 bin 설치 상태 스냅샷 — 렌더러가 늦게 마운트돼도 'bins:snapshot' 으로 즉시 조회 가능
+  binStatus: BinStatusEntry[]
 }
 
 function app_dir(): string {
@@ -70,7 +75,7 @@ function log_event(message: string): void {
     if (!_log_path) {
       const logDir = join(app_dir(), 'log')
       mkdirSync(logDir, { recursive: true })
-      _log_path = join(logDir, `myhome_v${app.getVersion()}.log`)
+      _log_path = join(logDir, `media.log`)
     }
     appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
   } catch {
@@ -605,33 +610,78 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
   })
 }
 
-function scan_bins(): Record<string, string> {
-  try {
-    const raw = JSON.parse(readFileSync(join(app_dir(), 'settings.json'), 'utf-8')) as {
-      'hub.bins'?: Array<{ exes?: string | string[] }>
-    }
-    const bins = raw['hub.bins'] ?? []
-    const found: Record<string, string> = {}
-    for (const bin of bins) {
-      const exes = Array.isArray(bin.exes) ? bin.exes : (bin.exes ? [bin.exes] : [])
-      for (const exe of exes) {
-        const name = basename(exe)
-        const p = join(app_dir(), 'bin', name)
-        if (existsSync(p)) found[name] = p
-      }
-    }
-    log_event(`scan_bins: ${JSON.stringify(Object.keys(found))}`)
-    return found
-  } catch (err) {
-    log_error('scan_bins', err)
-    return {}
+// state.binStatus 에 있는 항목 하나를 갱신한다 (렌더러가 늦게 마운트돼도 'bins:snapshot' 으로 항상 최신 상태 조회 가능).
+function update_bin_status(state: IndexState, name: string, patch: Partial<BinStatusEntry>): void {
+  const row = state.binStatus.find((r) => r.name === name)
+  if (row) Object.assign(row, patch)
+}
+
+// bin 설치(yt-dlp, ffmpeg 등)는 한 번만 진행하고, 동시 호출은 같은 promise 를 공유한다.
+function ensure_bins_once(
+  sender: WebContents,
+  baseDir: string,
+  settingsPath: string,
+  state: IndexState
+): Promise<Record<string, string>> {
+  if (!state.binsPromise) {
+    state.binStatus = list_bins(baseDir, settingsPath)
+    state.binsPromise = ensure_bins(
+      baseDir,
+      settingsPath,
+      (name, binState: BinState) => {
+        update_bin_status(state, name, { state: binState, ...(binState === 'installed' ? { percent: 100 } : {}) })
+        if (!sender.isDestroyed()) sender.send('bins:status', { name, state: binState })
+      },
+      (name, percent) => {
+        update_bin_status(state, name, { percent })
+        if (!sender.isDestroyed()) sender.send('bins:progress', { name, percent })
+      },
+      log_event
+    )
+      .then(() => {
+        const result = installed_bins(baseDir, read_bin_entries(settingsPath))
+        log_event(`ensure_bins done: ${JSON.stringify(Object.keys(result))}`)
+        if (!sender.isDestroyed()) sender.send('bins:done', result)
+        return result
+      })
+      .catch((err: unknown) => {
+        log_error('ensure_bins', err)
+        if (!sender.isDestroyed()) {
+          notify_renderer(sender, err instanceof Error ? err.message : String(err), 'error')
+        }
+        state.binsPromise = null // 실패 시 다음 호출에서 재시도
+        return installed_bins(baseDir, read_bin_entries(settingsPath))
+      })
   }
+  return state.binsPromise
 }
 
 function resolve_icon(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'icon.ico')
     : join(__dirname, '../../../build/icon.ico')
+}
+
+function create_toast_window(): BrowserWindow {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize
+  const W = 420, H = 130
+  const toast = new BrowserWindow({
+    width: W, height: H,
+    x: width - W - 16, y: height - H - 24,
+    frame: false, transparent: true,
+    backgroundColor: '#00000000',
+    skipTaskbar: true, alwaysOnTop: true,
+    resizable: false, movable: false,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/toast.js'),
+      contextIsolation: true,
+    }
+  })
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (devUrl) toast.loadURL(`${devUrl}/toast.html`)
+  else toast.loadFile(join(__dirname, '../renderer/toast.html'))
+  return toast
 }
 
 function create_window(): BrowserWindow {
@@ -718,15 +768,35 @@ app.whenReady().then(() => {
     currentExcludePatterns: [],
     currentExcludeSig: '',
     lastSummary: cachedSummary,
-    scanning: false
+    scanning: false,
+    binsPromise: null,
+    binStatus: []
   }
 
   register_ipc(settingsPath, db, state)
-  ipcMain.handle('get-bins', () => scan_bins())
-  create_window()
+  ipcMain.handle('bins:ensure', (event) => ensure_bins_once(event.sender, app_dir(), settingsPath, state))
+  ipcMain.handle('bins:snapshot', (): BinStatusEntry[] => state.binStatus)
+
+  const toast = create_toast_window()
+  ipcMain.on('toast:close',    () => toast.hide())
+  ipcMain.on('toast:open-log', () => { if (_log_path) void shell.openPath(_log_path) })
+
+  const window = create_window()
+  void ensure_bins_once(window.webContents, app_dir(), settingsPath, state)
+
+  void run_update_check(
+    { baseDir: app_dir(), settingsPath, appKey: 'media' },
+    {
+      set_status: (msg) => { toast.webContents.send('toast:status', msg);   if (!toast.isVisible()) toast.show() },
+      set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
+      on_error:  (msg) => { toast.webContents.send('toast:error', msg);     toast.show() },
+      on_quit:   () => app.quit(),
+      log:       log_event,
+    }
+  )
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) create_window()
+    if (BrowserWindow.getAllWindows().filter(w => w !== toast).length === 0) create_window()
   })
 })
 

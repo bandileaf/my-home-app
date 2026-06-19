@@ -10,7 +10,7 @@ import {
   type Notice,
   type NoticeState
 } from './services/store'
-import { run_update_check } from './services/update'
+import { run_update_check } from '@shared/update'
 
 function app_dir(): string {
   if (app.isPackaged) {
@@ -135,7 +135,7 @@ app.whenReady().then(() => {
   tray = create_tray(win)
 
   void run_update_check(
-    { baseDir, settingsPath, versionKey: 'hub.app.bulletin.version', exeName: 'family_bulletin.exe', processName: 'family_bulletin' },
+    { baseDir, settingsPath, appKey: 'bulletin' },
     {
       set_status:   (msg) => { toast.webContents.send('toast:status', msg);   if (!toast.isVisible()) toast.show() },
       set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },

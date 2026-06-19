@@ -1,9 +1,10 @@
 {
   "hub.repo": "bandileaf/my-home-app",
   "hub.auto-update": true,
-  "hub.app.media.version": "0.0.1",
+  "hub.tag": "v0.0.1",
+  "hub.zip": "myhome_app.zip",
+  "hub.update-bat": "update.bat",
   "hub.app.media.name": "family_media.exe",
-  "hub.app.bulletin.version": "0.0.1",
   "hub.app.bulletin.name": "family_bulletin.exe",
   "hub.bins": [
     {

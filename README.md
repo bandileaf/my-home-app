@@ -55,15 +55,16 @@
 
 각 앱이 시작할 때 `settings.json` 을 읽어 자신의 버전을 확인하고 자동 업데이트한다. `hub.bins` 는 `family_media.exe` 가 읽고 자동으로 설치/갱신한다.
 
-업데이트 흐름: 앱 시작 → GitHub 최신 릴리즈 확인 → 릴리즈의 `settings.json` 다운로드 → 자신의 버전 비교 → 버전이 높으면 새 exe 다운로드 → PS1 스크립트로 자기 교체 후 재시작.
+업데이트 흐름: 앱 시작 → GitHub 최신 릴리즈 태그 확인 → 로컬 `hub.tag` 와 비교 → 태그가 다르면 zip 다운로드 → 압축 해제 → `hub.tag` 갱신 → 배치 파일 실행(프로세스 종료 → exe 교체 → 재시작).
 
 | 키 | 타입 | 기본값 | 설명 |
 |----|------|--------|------|
 | `hub.repo` | `string` | — | GitHub 저장소 (`owner/repo`) |
-| `hub.auto-update` | `boolean` | `true` | `false` 로 설정하면 GitHub 버전 확인 및 자동 업데이트 건너뜀 |
-| `hub.app.media.version` | `string` | `"0.0.1"` | 현재 설치된 media 버전. 업데이트 시 자동 갱신 |
+| `hub.auto-update` | `boolean` | `true` | `false` 로 설정하면 자동 업데이트 건너뜀 |
+| `hub.tag` | `string` | `"v0.0.1"` | 현재 설치된 릴리즈 태그. 업데이트 후 자동 갱신 |
+| `hub.zip` | `string` | `"myhome_app.zip"` | 릴리즈에서 다운로드할 zip 파일명 (media + bulletin + settings 포함) |
+| `hub.update-bat` | `string` | `"update.bat"` | 자동 교체 배치 파일명. 업데이트 시 자동 생성됨 |
 | `hub.app.media.name` | `string` | `"family_media.exe"` | media exe 파일명 |
-| `hub.app.bulletin.version` | `string` | `"0.0.1"` | 현재 설치된 bulletin 버전. 업데이트 시 자동 갱신 |
 | `hub.app.bulletin.name` | `string` | `"family_bulletin.exe"` | bulletin exe 파일명 |
 | `hub.bins` | `BinEntry[]` | — | media 가 자동 설치할 외부 도구 목록 (yt-dlp, ffmpeg 등) |
 

@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g. v0.0.12)'
+        description: 'Version (e.g. v0.0.13)'
         required: true
-        default: 'v0.0.12'
+        default: 'v0.0.13'
 
 permissions:
   contents: write
@@ -62,26 +62,28 @@ jobs:
         run: npx electron-builder --win portable --publish never
         working-directory: bulletin
 
-      - name: Patch settings.json versions
+      - name: Patch settings.json hub.tag
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
-          $ver = $tag.TrimStart('v')
           $json = Get-Content settings.json | ConvertFrom-Json
-          $json.'hub.app.media.version'    = $ver
-          $json.'hub.app.bulletin.version' = $ver
+          $json.'hub.tag' = $tag
           $json | ConvertTo-Json -Depth 10 | Out-File settings.json -Encoding utf8NoBOM
 
-      - name: List dist outputs
+      - name: Create myhome_app.zip
         run: |
-          Get-ChildItem media\dist -ErrorAction SilentlyContinue
-          Get-ChildItem bulletin\dist -ErrorAction SilentlyContinue
+          $mediaExe    = (Get-ChildItem media\dist    -Filter "*.exe" | Select-Object -First 1).FullName
+          $bulletinExe = (Get-ChildItem bulletin\dist -Filter "*.exe" | Select-Object -First 1).FullName
+          New-Item -ItemType Directory -Force -Path _release
+          Copy-Item $mediaExe    _release\family_media.exe
+          Copy-Item $bulletinExe _release\family_bulletin.exe
+          Copy-Item settings.json _release\settings.json
+          Compress-Archive -Path _release\* -DestinationPath myhome_app.zip -Force
+          Write-Host "=== myhome_app.zip contents ==="
+          Get-ChildItem _release
 
       - name: Upload to Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            media/dist/*.exe
-            bulletin/dist/*.exe
-            settings.json
+          files: myhome_app.zip
           generate_release_notes: true
