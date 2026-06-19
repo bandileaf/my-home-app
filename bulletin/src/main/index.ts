@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, Tray } from 'electron'
 import { appendFileSync, mkdirSync } from 'fs'
-import { dirname, join } from 'path'
+import { basename, dirname, join } from 'path'
 import { load_identity, type Identity } from './services/identity'
 import {
   load_notice_state,
@@ -25,7 +25,10 @@ function log_event(message: string): void {
     if (!_log_path) {
       const logDir = join(app_dir(), 'log')
       mkdirSync(logDir, { recursive: true })
-      _log_path = join(logDir, 'bulletin.log')
+      const appName = app.isPackaged
+        ? basename(process.execPath, '.exe')
+        : app.getName()
+      _log_path = join(logDir, `${appName}.log`)
     }
     appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
   } catch { /* ignore */ }

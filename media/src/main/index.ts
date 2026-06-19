@@ -75,7 +75,10 @@ function log_event(message: string): void {
     if (!_log_path) {
       const logDir = join(app_dir(), 'log')
       mkdirSync(logDir, { recursive: true })
-      _log_path = join(logDir, `media.log`)
+      const appName = app.isPackaged
+        ? basename(process.execPath, '.exe')
+        : app.getName()
+      _log_path = join(logDir, `${appName}.log`)
     }
     appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
   } catch {
