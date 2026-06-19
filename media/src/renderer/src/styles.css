@@ -324,7 +324,7 @@ body {
 
 .result-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   padding: 8px 8px;
   border-radius: 4px;
@@ -1034,7 +1034,7 @@ body {
 
 .cv-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   padding: 8px 8px;
   border-radius: 4px;
