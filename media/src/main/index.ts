@@ -1,5 +1,5 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync } from 'fs'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, watch, writeFileSync } from 'fs'
 import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
 import { load_settings } from './services/settings'
@@ -725,6 +725,10 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     proc.on('close', (code) => {
       active_converts.delete(srcPath)
       if (code === 0) {
+        try {
+          const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
+          if (raw['hub.app.media.change.remvoe'] === true) unlinkSync(srcPath)
+        } catch { /* ignore */ }
         event.sender.send('convert:done', { srcPath, destPath })
       } else {
         event.sender.send('convert:error', { srcPath, message: stderr.slice(-300) })

@@ -6,6 +6,7 @@
   "hub.update-bat": "update.bat",
   "hub.app.media.name": "family_media.exe",
   "hub.app.media.db": "indexing.db",
+  "hub.app.media.change.remvoe": false,
   "hub.app.bulletin.name": "family_bulletin.exe",
   "hub.bins": [
     {
@@ -19,4 +20,5 @@
       "version": ""
     }
   ]
+
 }

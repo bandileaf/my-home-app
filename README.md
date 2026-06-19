@@ -66,6 +66,7 @@
 | `hub.update-bat` | `string` | `"update.bat"` | 자동 교체 배치 파일명. 업데이트 시 자동 생성됨 |
 | `hub.app.media.name` | `string` | `"family_media.exe"` | media exe 파일명 |
 | `hub.app.media.db` | `string` | `"indexing.db"` | media 인덱싱 DB 파일명 |
+| `hub.app.media.change.remvoe` | `boolean` | `false` | 변환 완료 후 원본 파일 삭제 여부 |
 | `hub.app.bulletin.name` | `string` | `"family_bulletin.exe"` | bulletin exe 파일명 |
 | `hub.bins` | `BinEntry[]` | — | media 가 자동 설치할 외부 도구 목록 (yt-dlp, ffmpeg 등) |
 
