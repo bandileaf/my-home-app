@@ -91,7 +91,9 @@ export function MusicSearchPanel(): JSX.Element {
   }
 
   function copy_hit(fullPath: string): void {
-    get_bridge()?.copy_path?.(fullPath)
+    navigator.clipboard.writeText(fullPath).catch(() => {
+      get_bridge()?.copy_path?.(fullPath)
+    })
   }
 
   const trimmed = query.trim()
@@ -132,7 +134,7 @@ export function MusicSearchPanel(): JSX.Element {
                     }
                   </span>
                   <button title="Open folder" onClick={() => reveal_hit(hit.fullPath)}><FolderOpen size={14} strokeWidth={1.5} /></button>
-                  <button title="Copy path"   onClick={() => copy_hit(hit.fullPath)}><Copy size={14} strokeWidth={1.5} /></button>
+                  <button title="클립보드에 복사" onClick={() => copy_hit(hit.fullPath)}><Copy size={14} strokeWidth={1.5} /></button>
                 </div>
               </div>
             ))}

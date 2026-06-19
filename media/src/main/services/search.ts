@@ -19,6 +19,7 @@ export interface SearchOptions {
   extensions?: string[] // 소문자, 점 없음 (예: ["mp3","flac"]). 비면 전체
   limit?: number
   excludePatterns?: string[] // 현재 settings 의 exclude glob — DB 에 잔류한 파일도 즉시 숨김
+  rootDirs?: string[]       // settings 에 정의된 디렉토리 순서 — 검색 결과 정렬에 사용
 }
 
 function to_hit(entry: FileEntry): SearchHit {
@@ -78,6 +79,19 @@ export function search_files(
     if (hits.length < limit) {
       hits.push(to_hit(entry))
     }
+  }
+
+  // settings 디렉토리 순서대로 정렬
+  if (options.rootDirs && options.rootDirs.length > 1) {
+    const dirs = options.rootDirs.map(d => d.replace(/[\\/]+$/, '').toLowerCase())
+    const dir_rank = (fullPath: string): number => {
+      const p = fullPath.toLowerCase()
+      for (let i = 0; i < dirs.length; i++) {
+        if (p.startsWith(dirs[i])) return i
+      }
+      return dirs.length
+    }
+    hits.sort((a, b) => dir_rank(a.fullPath) - dir_rank(b.fullPath))
   }
 
   return { hits, total, truncated: total > hits.length }

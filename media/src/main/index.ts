@@ -443,7 +443,8 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     // 현재 exclude 패턴을 검색에도 적용 → settings 변경 즉시 반영 (DB 정리 기다릴 필요 없음)
     const result = search_files(state.entries, query, {
       ...options,
-      excludePatterns: state.currentExcludePatterns
+      excludePatterns: state.currentExcludePatterns,
+      rootDirs: state.currentDirs,
     })
     log_event(`search q="${query}" entries=${state.entries.length} total=${result.total}`)
     return result
