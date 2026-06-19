@@ -162,7 +162,8 @@ function write_bat(
   batPath: string,
   baseDir: string,
   tmpDir: string,
-  appNames: string[]
+  appNames: string[],   // all apps to kill + replace (exe file lock)
+  relaunchName: string  // only the triggering app is relaunched
 ): void {
   const lines: string[] = ['@echo off', 'timeout /t 1 /nobreak >nul']
 
@@ -177,10 +178,8 @@ function write_bat(
     lines.push(`if exist "${src}" move /Y "${src}" "${dest}"`)
   }
 
-  for (const name of appNames) {
-    const finalExe = join(baseDir, name)
-    lines.push(`if exist "${finalExe}" start "" "${finalExe}"`)
-  }
+  const finalExe = join(baseDir, relaunchName)
+  lines.push(`if exist "${finalExe}" start "" "${finalExe}"`)
 
   lines.push('(goto) 2>nul & del "%~f0"')
   writeFileSync(batPath, lines.join('\r\n'), 'ascii')
@@ -305,9 +304,14 @@ export async function run_update_check(
       cb.log(`update: hub.tag saved as ${latestTag}`)
     } catch { /* non-fatal */ }
 
+    const triggerName = settings[`hub.app.${config.appKey}.name`] as string | undefined
+    if (!triggerName) {
+      cb.log(`update: hub.app.${config.appKey}.name not set — cannot relaunch`)
+      return
+    }
     const batPath = join(config.baseDir, batName)
-    write_bat(batPath, config.baseDir, tmpDir, appNames)
-    cb.log(`update: relaunch script written — ${batName}`)
+    write_bat(batPath, config.baseDir, tmpDir, appNames, triggerName)
+    cb.log(`update: relaunch script written — ${batName} (relaunch: ${triggerName})`)
 
     // Release lock before the bat kills this process
     try { unlinkSync(lockPath) } catch { /* ignore */ }
