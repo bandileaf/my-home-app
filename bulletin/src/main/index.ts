@@ -125,6 +125,15 @@ function register_ipc(baseDir: string, identity: Identity, state: NoticeState): 
   )
 }
 
+// 중복 실행 방지 — 이미 실행 중이면 기존 창을 앞으로 가져오고 종료
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
+
+app.on('second-instance', () => {
+  if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus() }
+})
+
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
   log_event(`app ready. packaged=${app.isPackaged} appDir=${app_dir()}`)

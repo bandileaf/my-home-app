@@ -759,6 +759,16 @@ function create_window(): BrowserWindow {
 process.on('uncaughtException', (error) => log_event(`uncaughtException: ${error.stack ?? error}`))
 process.on('unhandledRejection', (reason) => log_event(`unhandledRejection: ${String(reason)}`))
 
+// 중복 실행 방지 — 이미 실행 중이면 기존 창을 앞으로 가져오고 종료
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
+
+app.on('second-instance', () => {
+  const [win] = BrowserWindow.getAllWindows()
+  if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+})
+
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
   log_event(`app ready. packaged=${app.isPackaged} appDir=${app_dir()}`)
@@ -802,6 +812,8 @@ app.whenReady().then(() => {
   ipcMain.on('toast:open-log', () => { if (_log_path) void shell.openPath(_log_path) })
 
   const window = create_window()
+  // 메인 창이 닫히면 toast 도 함께 제거 → window-all-closed 발생 → app.quit()
+  window.on('closed', () => { if (!toast.isDestroyed()) toast.destroy() })
   void ensure_bins_once(window.webContents, app_dir(), settingsPath, state)
 
   // toast renderer 가 준비된 후에 업데이트 체크를 시작해야
