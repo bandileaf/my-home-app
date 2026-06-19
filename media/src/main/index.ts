@@ -715,6 +715,8 @@ function create_window(): BrowserWindow {
     }
   })
 
+  window.on('page-title-updated', (e) => e.preventDefault())
+
   const contents = window.webContents
   contents.on('did-finish-load', () => log_event('renderer: did-finish-load'))
   contents.on('did-fail-load', (_e, code, desc, url) =>

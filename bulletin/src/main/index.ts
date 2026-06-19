@@ -81,6 +81,7 @@ function create_window(): BrowserWindow {
     }
   })
 
+  window.on('page-title-updated', (e) => e.preventDefault())
   window.on('close', (event) => {
     if (isQuitting) return
     event.preventDefault()
