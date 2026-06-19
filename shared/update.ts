@@ -107,6 +107,17 @@ function extract_zip(zipPath: string, destDir: string): void {
   ], { windowsHide: true, timeout: 120000 })
 }
 
+function unblock_files(filePaths: string[]): void {
+  const q = (p: string) => p.replace(/'/g, "''")
+  const cmd = filePaths.map(p => `Unblock-File -LiteralPath '${q(p)}'`).join('; ')
+  try {
+    execFileSync('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+      '-Command', cmd,
+    ], { windowsHide: true, timeout: 30000 })
+  } catch { /* non-fatal: SmartScreen may still appear but app still runs */ }
+}
+
 function try_acquire_lock(lockPath: string): boolean {
   try {
     const fd = openSync(lockPath, 'wx')
@@ -248,6 +259,8 @@ export async function run_update_check(
     try {
       extract_zip(zipPath, tmpDir)
       cb.log(`update: extracted to ${tmpDir}`)
+      unblock_files(appNames.map(name => join(tmpDir, name)))
+      cb.log('update: unblocked extracted files')
     } catch (err: unknown) {
       cb.log(`update: extraction failed — ${(err as Error).message}`)
       cb.on_error('압축 해제 실패.')

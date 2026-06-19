@@ -177,7 +177,7 @@ async function run_ytdlp(
   try {
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(ytdlpPath, args, {
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }
       })
 
       active_downloads.set(key, () => {

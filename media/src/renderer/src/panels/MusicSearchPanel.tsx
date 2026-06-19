@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FolderOpen, Copy } from 'lucide-react'
 import { get_bridge, type SearchHit } from '../bridge'
 import { useTabCtx } from '../App'
+import { usePlayer } from '../shell/PlayerBar'
 
 const MAX_TITLE = 20
 function tab_title(q: string): string {
@@ -21,6 +22,7 @@ function format_size(bytes: number): string {
 
 export function MusicSearchPanel(): JSX.Element {
   const { tabId, setTitle } = useTabCtx()
+  const { play } = usePlayer()
   const [query, set_query] = useState('')
   const [hits, set_hits] = useState<SearchHit[]>([])
   const [total, set_total] = useState(0)
@@ -116,7 +118,7 @@ export function MusicSearchPanel(): JSX.Element {
           </div>
           <div className="result-list">
             {hits.map((hit) => (
-              <div className="result-row" key={hit.fullPath}>
+              <div className="result-row" key={hit.fullPath} onClick={() => play(hit)} style={{ cursor: 'pointer' }}>
                 <div className="result-main">
                   <span className="result-name">{hit.fileName}</span>
                   <span className="result-path">{hit.dirPath}</span>
