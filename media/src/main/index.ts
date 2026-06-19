@@ -695,11 +695,15 @@ function create_toast_window(): BrowserWindow {
   return toast
 }
 
+function app_display_name(): string {
+  return app.isPackaged ? basename(process.execPath, '.exe') : app.getName()
+}
+
 function create_window(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1100,
     height: 720,
-    title: 'My Home',
+    title: app_display_name(),
     icon: resolve_icon(),
     show: true,
     autoHideMenuBar: true,

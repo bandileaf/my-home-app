@@ -70,7 +70,7 @@ function create_window(): BrowserWindow {
   const window = new BrowserWindow({
     width: 980,
     height: 700,
-    title: 'Family Bulletin',
+    title: app_display_name(),
     icon: resolve_icon(),
     show: true,
     autoHideMenuBar: true,
