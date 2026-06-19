@@ -169,25 +169,13 @@ function write_bat(
   const log = join(tmpDir, 'update.log')
   const L = (msg: string) => `echo [%DATE% %TIME%] ${msg} >> "${log}"`
 
-  // ping -n N 127.0.0.1 waits N-1 seconds — works in hidden CMD unlike timeout
-  const wait = (sec: number, label: string) => [
-    L(`wait:${label} start (expected ${sec}s)`),
-    `ping -n ${sec + 1} 127.0.0.1 >nul`,
-    L(`wait:${label} end`),
-  ].join('\r\n')
-
-  const lines: string[] = [
+const lines: string[] = [
     '@echo off',
     `echo [%DATE% %TIME%] === update.bat START === > "${log}"`,
-    `echo [%DATE% %TIME%] bat=%~f0 baseDir="${baseDir}" >> "${log}"`,
-    `echo [%DATE% %TIME%] tmpDir="${tmpDir}" >> "${log}"`,
-    `echo [%DATE% %TIME%] apps="${appNames.join(', ')}" >> "${log}"`,
-    `echo [%DATE% %TIME%] cd=%CD% >> "${log}"`,
   ]
 
   // Check was_running FIRST before any wait (apps still alive at this point)
   for (let i = 0; i < appNames.length; i++) {
-    lines.push(L(`step: check running ${appNames[i]}`))
     lines.push(`set WAS_RUNNING_${i}=0`)
     lines.push(`tasklist /FI "IMAGENAME eq ${appNames[i]}" 2>nul | find /I "${appNames[i]}" >nul`)
     lines.push(`if not errorlevel 1 set WAS_RUNNING_${i}=1`)
@@ -195,50 +183,33 @@ function write_bat(
   }
 
   // Wait for app to quit naturally (app calls app.quit() after 1.8s)
-  lines.push(L('step: waiting 3s for apps to exit naturally'))
-  lines.push(wait(3, 'natural-exit'))
+  lines.push(`ping -n 4 127.0.0.1 >nul`)
 
   // Taskkill as insurance in case app didn't exit
   for (const name of appNames) {
-    lines.push(L(`step: taskkill ${name}`))
     lines.push(`taskkill /F /IM ${name} >nul 2>&1`)
     lines.push(L(`taskkill ${name} errorlevel=%ERRORLEVEL%`))
   }
 
-  lines.push(L('step: waiting 1s after taskkill'))
-  lines.push(wait(1, 'post-kill'))
+  lines.push(`ping -n 2 127.0.0.1 >nul`)
 
   // Move new exe — backup old to .bak first, restore on failure
   for (const name of appNames) {
     const src  = join(tmpDir, name)
     const dest = join(baseDir, name)
     const bak  = dest + '.bak'
-    lines.push(L(`step: move ${name}`))
-    lines.push(`if exist "${src}" ${L(`src exists: ${src}`)}`)
-    lines.push(`if not exist "${src}" ${L(`src MISSING: ${src}`)}`)
-    // Backup old exe so it can be restored if the new one fails
     lines.push(`if exist "${dest}" del /F /Q "${bak}" >nul 2>&1`)
     lines.push(`if exist "${dest}" move /Y "${dest}" "${bak}" >nul 2>&1`)
-    lines.push(L(`backup ${name} errorlevel=%ERRORLEVEL%`))
-    // Move new exe into place
     lines.push(`move /Y "${src}" "${dest}" >nul 2>&1`)
-    lines.push(L(`move ${name} errorlevel=%ERRORLEVEL%`))
-    // If move failed, restore from backup; if succeeded, delete backup
     lines.push(`if not exist "${dest}" if exist "${bak}" move /Y "${bak}" "${dest}" >nul 2>&1`)
-    lines.push(`if not exist "${dest}" if exist "${bak}" ${L(`RESTORED ${name} from backup`)}`)
+    lines.push(`if not exist "${dest}" ${L(`FAILED: move ${name}`)}`)
     lines.push(`if exist "${dest}" if exist "${bak}" del /F /Q "${bak}" >nul 2>&1`)
-    lines.push(`if exist "${dest}" ${L(`dest ok: ${dest}`)}`)
-    lines.push(`if not exist "${dest}" ${L(`dest MISSING after move: ${dest}`)}`)
   }
 
   // Relaunch only apps that were running before the update
-  // --post-update flag tells the app to skip single-instance lock check
   for (let i = 0; i < appNames.length; i++) {
     const finalExe = join(baseDir, appNames[i])
-    lines.push(L(`step: relaunch check ${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
-    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" ${L(`starting ${appNames[i]}`)}`)
     lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}" --post-update`)
-    lines.push(`if %WAS_RUNNING_${i}%==0 ${L(`skip relaunch ${appNames[i]} (was not running)`)}`)
   }
 
   // Final result: SUCCESS if all dest files exist, FAILED otherwise
