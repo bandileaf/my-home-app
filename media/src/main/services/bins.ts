@@ -55,7 +55,7 @@ export function installed_bins(baseDir: string, bins: BinEntry[]): Record<string
 export function list_bins(baseDir: string, settingsPath: string): BinStatusEntry[] {
   return read_bin_entries(settingsPath).map((bin) => {
     const dests = bin_dests(bin)
-    const installed = dests.every((d) => existsSync(join(baseDir, d))) && Boolean(bin.version)
+    const installed = dests.every((d) => existsSync(join(baseDir, d)))
     return { name: basename(bin.url), state: installed ? 'installed' : 'pending', percent: installed ? 100 : 0 }
   })
 }
@@ -135,8 +135,8 @@ export async function ensure_bins(
     const exes = bin.exes ? (Array.isArray(bin.exes) ? bin.exes : [bin.exes]) : []
 
     const allPresent = dests.every((d) => existsSync(join(baseDir, d)))
-    if (allPresent && bin.version) {
-      on_log(`${dests[0]}: already installed (${bin.version})`)
+    if (allPresent) {
+      on_log(`${dests[0]}: already installed${bin.version ? ` (${bin.version})` : ''}`)
       on_status(name, 'installed')
       continue
     }
