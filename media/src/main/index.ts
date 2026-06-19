@@ -1,5 +1,5 @@
-import { app, BrowserWindow, clipboard, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync } from 'fs'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, watch, writeFileSync } from 'fs'
 import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
 import { load_settings } from './services/settings'
@@ -645,6 +645,100 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
 
   ipcMain.on('youtube:open-url', (_event, url: string) => {
     shell.openExternal(url)
+  })
+
+  // ── Convert ──────────────────────────────────────────────────────────────
+  const CONVERTIBLE = new Set(['mp3','flac','wav','aac','m4a','ogg','opus','wma','ape','mp4','mkv','avi','mov','wmv','webm','m4v'])
+
+  ipcMain.handle('convert:pick-folder', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return canceled ? null : filePaths[0]
+  })
+
+  ipcMain.handle('convert:scan-folder', (_event, dir: string, targetExt: string): string[] => {
+    const files: string[] = []
+    const target = targetExt.toLowerCase().replace(/^\./, '')
+    const scan = (d: string): void => {
+      let names: string[]
+      try { names = readdirSync(d) } catch { return }
+      for (const name of names) {
+        const full = join(d, name)
+        let isDir = false
+        try { isDir = statSync(full).isDirectory() } catch { continue }
+        if (isDir) { scan(full); continue }
+        const ext = extname(name).slice(1).toLowerCase()
+        if (CONVERTIBLE.has(ext) && ext !== target) files.push(full)
+      }
+    }
+    scan(dir)
+    return files
+  })
+
+  const active_converts = new Map<string, () => void>()
+
+  function find_ffmpeg_exe(binDir: string): string | null {
+    const candidates = [
+      join(binDir, 'ffmpeg.exe'),
+      join(binDir, 'ffmpeg-master-latest-win64-gpl', 'bin', 'ffmpeg.exe'),
+    ]
+    for (const p of candidates) { if (existsSync(p)) return p }
+    return null
+  }
+
+  function ffmpeg_args(src: string, dest: string, fmt: string): string[] {
+    const base = ['-i', src, '-y']
+    if (fmt === 'mp3')  return [...base, '-q:a', '0', dest]
+    if (fmt === 'flac') return [...base, dest]
+    if (fmt === 'mp4')  return [...base, '-c:v', 'copy', '-c:a', 'aac', dest]
+    return [...base, dest]
+  }
+
+  function parse_secs(t: string): number {
+    const p = t.split(':').map(parseFloat)
+    return (p[0] ?? 0) * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0)
+  }
+
+  ipcMain.on('convert:start', (event, srcPath: string, targetFmt: string) => {
+    const ffmpegPath = find_ffmpeg_exe(resolve_ffmpeg_dir(app_dir()))
+    if (!ffmpegPath) {
+      event.sender.send('convert:error', { srcPath, message: 'ffmpeg를 찾을 수 없습니다. 먼저 YouTube 패널에서 도구를 설치해주세요.' })
+      return
+    }
+    const src_ext = extname(srcPath)
+    const destPath = srcPath.slice(0, srcPath.length - src_ext.length) + '.' + targetFmt
+    const { spawn: sp } = require('child_process') as typeof import('child_process')
+    const proc = sp(ffmpegPath, ffmpeg_args(srcPath, destPath, targetFmt), { windowsHide: true })
+    active_converts.set(srcPath, () => proc.kill())
+    let duration = 0
+    let stderr = ''
+    proc.stderr.on('data', (data: Buffer) => {
+      const text = data.toString('utf8')
+      stderr += text
+      const dm = text.match(/Duration:\s*(\d+:\d+:\d+\.\d+)/)
+      if (dm) duration = parse_secs(dm[1])
+      const tm = text.match(/time=(\d+:\d+:\d+\.\d+)/)
+      if (tm && duration > 0) {
+        const pct = Math.min(99, Math.round(parse_secs(tm[1]) / duration * 100))
+        event.sender.send('convert:progress', { srcPath, percent: pct })
+      }
+    })
+    proc.on('close', (code) => {
+      active_converts.delete(srcPath)
+      if (code === 0) {
+        try { unlinkSync(srcPath) } catch { /* ignore */ }
+        event.sender.send('convert:done', { srcPath, destPath })
+      } else {
+        event.sender.send('convert:error', { srcPath, message: stderr.slice(-300) })
+      }
+    })
+    proc.on('error', (err: Error) => {
+      event.sender.send('convert:error', { srcPath, message: err.message })
+    })
+  })
+
+  ipcMain.on('convert:cancel', (_event, srcPath: string) => {
+    active_converts.get(srcPath)?.()
+    active_converts.delete(srcPath)
   })
 }
 

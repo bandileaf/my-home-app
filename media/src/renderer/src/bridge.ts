@@ -106,6 +106,14 @@ export interface AppBridge {
   on_youtube_progress_video?: (callback: (p: YoutubeProgress) => void) => () => void
   on_youtube_done_video?: (callback: (data: { url: string; filePath: string }) => void) => () => void
   on_youtube_error_video?: (callback: (data: { url: string; message: string }) => void) => () => void
+  // Convert
+  convert_pick_folder?: () => Promise<string | null>
+  convert_scan_folder?: (dir: string, targetExt: string) => Promise<string[]>
+  convert_start?: (srcPath: string, targetFmt: string) => void
+  convert_cancel?: (srcPath: string) => void
+  on_convert_progress?: (cb: (d: { srcPath: string; percent: number }) => void) => () => void
+  on_convert_done?: (cb: (d: { srcPath: string; destPath: string }) => void) => () => void
+  on_convert_error?: (cb: (d: { srcPath: string; message: string }) => void) => () => void
 }
 
 export function get_bridge(): AppBridge | undefined {

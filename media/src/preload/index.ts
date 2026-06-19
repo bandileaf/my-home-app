@@ -133,6 +133,31 @@ const api = {
     const listener = (_e: unknown, data: { url: string; message: string }): void => callback(data)
     ipcRenderer.on('youtube:error-video', listener)
     return () => ipcRenderer.removeListener('youtube:error-video', listener)
+  },
+
+  // ── Convert ──────────────────────────────────────────────────────────────
+  convert_pick_folder: (): Promise<string | null> =>
+    ipcRenderer.invoke('convert:pick-folder'),
+  convert_scan_folder: (dir: string, targetExt: string): Promise<string[]> =>
+    ipcRenderer.invoke('convert:scan-folder', dir, targetExt),
+  convert_start: (srcPath: string, targetFmt: string): void =>
+    ipcRenderer.send('convert:start', srcPath, targetFmt),
+  convert_cancel: (srcPath: string): void =>
+    ipcRenderer.send('convert:cancel', srcPath),
+  on_convert_progress: (cb: (d: { srcPath: string; percent: number }) => void): (() => void) => {
+    const l = (_e: unknown, d: { srcPath: string; percent: number }): void => cb(d)
+    ipcRenderer.on('convert:progress', l)
+    return () => ipcRenderer.removeListener('convert:progress', l)
+  },
+  on_convert_done: (cb: (d: { srcPath: string; destPath: string }) => void): (() => void) => {
+    const l = (_e: unknown, d: { srcPath: string; destPath: string }): void => cb(d)
+    ipcRenderer.on('convert:done', l)
+    return () => ipcRenderer.removeListener('convert:done', l)
+  },
+  on_convert_error: (cb: (d: { srcPath: string; message: string }) => void): (() => void) => {
+    const l = (_e: unknown, d: { srcPath: string; message: string }): void => cb(d)
+    ipcRenderer.on('convert:error', l)
+    return () => ipcRenderer.removeListener('convert:error', l)
   }
 }
 
