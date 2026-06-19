@@ -144,7 +144,7 @@ export function YoutubeSearchPanel(): JSX.Element {
 
   // 모든 bin 설치 완료되면 pending 검색 실행
   useEffect(() => {
-    if (binRows.length > 0 && binRows.every(r => r.state === 'installed') && pendingSearch.current) {
+    if (binRows.some(r => r.state === 'installed') && pendingSearch.current) {
       pendingSearch.current = false
       void do_search()
     }
@@ -253,7 +253,7 @@ export function YoutubeSearchPanel(): JSX.Element {
   }
 
   const bridgeAvailable = Boolean(get_bridge()?.youtube_search)
-  const binsReady = binRows.length > 0 && binRows.every(r => r.state === 'installed')
+  const binsReady = binRows.some(r => r.state === 'installed')
   const ready = bridgeAvailable && binsReady
 
   return (

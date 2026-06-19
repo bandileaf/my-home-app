@@ -6,14 +6,15 @@ declare global {
       onStatus:   (cb: (msg: string) => void) => void
       onProgress: (cb: (pct: number) => void) => void
       onError:    (cb: (msg: string) => void) => void
+      get_name:   () => Promise<string>
       openLog:    () => void
       close:      () => void
     }
   }
 }
 
-const ACCENT  = '#CBA6F7'  // purple
-const BG      = 'rgba(28, 18, 42, 0.93)'
+const ACCENT  = '#60A5FA'  // blue
+const BG      = 'rgba(15, 22, 42, 0.93)'
 const FRAMES  = ['◐', '◓', '◑', '◒']
 
 export default function Toast() {
@@ -21,11 +22,13 @@ export default function Toast() {
   const [progress, setProgress] = useState<number | null>(null)
   const [error,    setError]    = useState('')
   const [frameIdx, setFrameIdx] = useState(0)
+  const [appName,  setAppName]  = useState('')
 
   useEffect(() => {
     window.toast.onStatus(setMessage)
     window.toast.onProgress(setProgress)
     window.toast.onError(setError)
+    window.toast.get_name().then(setAppName).catch(() => {})
     const id = setInterval(() => setFrameIdx(i => (i + 1) % 4), 350)
     return () => clearInterval(id)
   }, [])
@@ -56,7 +59,7 @@ export default function Toast() {
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: '#A6ADC8', fontSize: 11, fontWeight: 'bold', marginBottom: 3 }}>
-            Family Media
+            {appName || '...'}
           </div>
           <div style={{ color: error ? '#F38BA8' : '#CDD6F4', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error || message}

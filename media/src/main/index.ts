@@ -791,6 +791,7 @@ app.whenReady().then(() => {
   register_ipc(settingsPath, db, state)
   ipcMain.handle('bins:ensure', (event) => ensure_bins_once(event.sender, app_dir(), settingsPath, state))
   ipcMain.handle('bins:snapshot', (): BinStatusEntry[] => state.binStatus)
+  ipcMain.handle('app:name', (): string => app_display_name())
 
   const toast = create_toast_window()
   ipcMain.on('toast:close',    () => toast.hide())
