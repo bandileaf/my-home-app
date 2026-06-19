@@ -105,7 +105,7 @@ function init_log_path(settingsPath: string): void {
     const logDir = join(app_dir(), 'log')
     mkdirSync(logDir, { recursive: true })
     _log_path = join(logDir, `${_display_name}.log`)
-    const BUILD_NUMBER = 4
+    const BUILD_NUMBER = 5
     appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid} build=${BUILD_NUMBER}\n`)
   } catch {
     // fallback: lazy init in log_event will set it
@@ -261,7 +261,6 @@ async function handle_dir_change(
     if (idx >= 0) {
       state.entries.splice(idx, 1)
       db_delete_entry(db, fullPath)
-      log_event(`dir watch: removed ${fullPath}`)
       update_and_send_summary(sender, db, state)
     }
   } else if (!is_excluded(relativePosix)) {
@@ -278,7 +277,6 @@ async function handle_dir_change(
     if (idx >= 0) state.entries[idx] = entry
     else state.entries.push(entry)
     db_upsert_entry(db, entry)
-    log_event(`dir watch: upserted ${fullPath}`)
     update_and_send_summary(sender, db, state)
   }
 }

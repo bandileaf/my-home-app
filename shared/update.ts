@@ -360,13 +360,10 @@ export async function run_update_check(
     try { unlinkSync(lockPath) } catch { /* ignore */ }
 
     cb.set_status(`새 버전(${latestTag})으로 교체 중입니다. 잠시 후 재시작됩니다...`)
-    const q = (p: string) => p.replace(/'/g, "''")
-    const psCmd = `Start-Process -FilePath '${q(batPath)}' -WindowStyle Hidden`
-    cb.log(`update: spawning powershell — ${psCmd}`)
-    spawn('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
-      '-Command', psCmd,
-    ], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+    cb.log(`update: spawning cmd.exe /C ${batPath}`)
+    const child = spawn('cmd.exe', ['/C', batPath], { stdio: 'ignore', windowsHide: true })
+    cb.log(`update: bat pid=${child.pid ?? 'unknown'}`)
+    child.unref()
 
     await new Promise<void>(r => setTimeout(r, 1800))
     cb.on_quit()
