@@ -168,8 +168,9 @@ function write_bat(
 ): string[] {
   const log = join(tmpDir, 'update.log')
   const L = (msg: string) => `echo [%DATE% %TIME%] ${msg} >> "${log}"`
+  const wait = (sec: number) => `ping -n ${sec + 1} 127.0.0.1 >nul`
 
-const lines: string[] = [
+  const lines: string[] = [
     '@echo off',
     `echo [%DATE% %TIME%] === update.bat START === > "${log}"`,
   ]
@@ -183,7 +184,7 @@ const lines: string[] = [
   }
 
   // Wait for app to quit naturally (app calls app.quit() after 1.8s)
-  lines.push(`ping -n 4 127.0.0.1 >nul`)
+  lines.push(wait(3))
 
   // Taskkill as insurance in case app didn't exit
   for (const name of appNames) {
@@ -191,7 +192,7 @@ const lines: string[] = [
     lines.push(L(`taskkill ${name} errorlevel=%ERRORLEVEL%`))
   }
 
-  lines.push(`ping -n 2 127.0.0.1 >nul`)
+  lines.push(wait(1))
 
   // Move new exe — backup old to .bak first, restore on failure
   for (const name of appNames) {
@@ -207,6 +208,7 @@ const lines: string[] = [
   }
 
   // Relaunch only apps that were running before the update
+  // --post-update flag tells the app to skip single-instance lock check
   for (let i = 0; i < appNames.length; i++) {
     const finalExe = join(baseDir, appNames[i])
     lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}" --post-update`)
