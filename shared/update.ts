@@ -37,7 +37,7 @@ export interface UpdateCallbacks {
   log: (msg: string) => void
 }
 
-const LOCK_TIMEOUT_MS = 5 * 60 * 1000
+const LOCK_TIMEOUT_MS = 2 * 60 * 1000
 
 function fetch_latest_release(repo: string): Promise<GHRelease> {
   return new Promise((resolve, reject) => {
