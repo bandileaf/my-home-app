@@ -1,5 +1,5 @@
 appId: com.nwork.media
-productName: media
+productName: family_media
 artifactName: "family_media.exe"
 directories:
   output: dist

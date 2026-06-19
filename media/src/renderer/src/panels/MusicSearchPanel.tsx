@@ -126,8 +126,10 @@ export function MusicSearchPanel(): JSX.Element {
                 <span className="result-size">{format_size(hit.sizeBytes)}</span>
                 <div className="result-actions">
                   <span className="result-player">
-                    <button title="Play"  onClick={() => play(hit)}><Play  size={14} strokeWidth={1.5} /></button>
-                    <button title="Pause" onClick={pause} disabled={activeFile?.fullPath !== hit.fullPath || !playing}><Pause size={14} strokeWidth={1.5} /></button>
+                    {activeFile?.fullPath === hit.fullPath && playing
+                      ? <button title="Pause" onClick={pause}><Pause size={14} strokeWidth={1.5} /></button>
+                      : <button title="Play"  onClick={() => play(hit)}><Play  size={14} strokeWidth={1.5} /></button>
+                    }
                   </span>
                   <button title="Open folder" onClick={() => reveal_hit(hit.fullPath)}><FolderOpen size={14} strokeWidth={1.5} /></button>
                   <button title="Copy path"   onClick={() => copy_hit(hit.fullPath)}><Copy size={14} strokeWidth={1.5} /></button>

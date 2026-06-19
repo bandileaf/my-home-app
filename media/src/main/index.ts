@@ -105,7 +105,8 @@ function init_log_path(settingsPath: string): void {
     const logDir = join(app_dir(), 'log')
     mkdirSync(logDir, { recursive: true })
     _log_path = join(logDir, `${_display_name}.log`)
-    appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid}\n`)
+    const BUILD_NUMBER = 2
+    appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid} build=${BUILD_NUMBER}\n`)
   } catch {
     // fallback: lazy init in log_event will set it
   }

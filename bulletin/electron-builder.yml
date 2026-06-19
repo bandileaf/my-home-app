@@ -1,5 +1,5 @@
 appId: com.nwork.bulletin
-productName: bulletin
+productName: family_bulletin
 artifactName: "family_bulletin.exe"
 directories:
   output: dist

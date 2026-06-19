@@ -164,32 +164,52 @@ function write_bat(
   tmpDir: string,
   appNames: string[]
 ): void {
-  const lines: string[] = ['@echo off', 'timeout /t 1 /nobreak >nul']
+  const log = join(tmpDir, 'update.log')
+  const L = (msg: string) => `echo [%DATE% %TIME%] ${msg} >> "${log}"`
+
+  const lines: string[] = [
+    '@echo off',
+    `echo [%DATE% %TIME%] update.bat started > "${log}"`,
+    'timeout /t 1 /nobreak >nul',
+  ]
 
   // Remember which apps were running before we kill them
   for (let i = 0; i < appNames.length; i++) {
     const varName = `WAS_RUNNING_${i}`
     lines.push(`set ${varName}=0`)
     lines.push(`tasklist /FI "IMAGENAME eq ${appNames[i]}" 2>nul | find /I "${appNames[i]}" >nul && set ${varName}=1`)
+    lines.push(L(`${appNames[i]} was_running=%${varName}%`))
   }
 
   for (const name of appNames) {
+    lines.push(L(`taskkill ${name}`))
     lines.push(`taskkill /F /IM ${name} >nul 2>&1`)
   }
-  lines.push('timeout /t 1 /nobreak >nul')
+  lines.push('timeout /t 3 /nobreak >nul')
 
   for (const name of appNames) {
     const src  = join(tmpDir, name)
     const dest = join(baseDir, name)
-    lines.push(`if exist "${src}" move /Y "${src}" "${dest}"`)
+    lines.push(L(`move ${name}`))
+    lines.push(`move /Y "${src}" "${dest}" >nul 2>&1`)
+    lines.push(`if errorlevel 1 (`)
+    lines.push(`  ${L(`move ${name} failed, retrying`)}`)
+    lines.push(`  timeout /t 2 /nobreak >nul`)
+    lines.push(`  move /Y "${src}" "${dest}" >nul 2>&1`)
+    lines.push(`  if errorlevel 1 (${L(`move ${name} failed again`)}) else (${L(`move ${name} retry ok`)})`)
+    lines.push(`) else (${L(`move ${name} ok`)})`)
   }
 
   // Relaunch only apps that were running before the update
   for (let i = 0; i < appNames.length; i++) {
     const finalExe = join(baseDir, appNames[i])
-    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}"`)
+    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" (`)
+    lines.push(`  ${L(`start ${appNames[i]}`)}`)
+    lines.push(`  start "" "${finalExe}"`)
+    lines.push(`)`)
   }
 
+  lines.push(L('update.bat done'))
   lines.push('(goto) 2>nul & del "%~f0"')
   writeFileSync(batPath, lines.join('\r\n'), 'ascii')
 }
