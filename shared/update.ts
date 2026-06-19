@@ -224,6 +224,7 @@ export async function run_update_check(
   const ua = repo.split('/')[1] ?? repo
 
   cb.log(`update: checking ${repo} — local=${localTag ?? 'none'}`)
+  cb.log(`update: GET api.github.com/repos/${repo}/releases/latest`)
 
   let release: GHRelease
   try {
@@ -235,7 +236,7 @@ export async function run_update_check(
 
   const latestTag = release.tag_name
   if (!latestTag) { cb.log('update: release has no tag_name'); return }
-  cb.log(`update: latest=${latestTag}`)
+  cb.log(`update: fetched tag=${latestTag} assets=[${release.assets.map(a => a.name).join(', ')}]`)
 
   if (localTag === latestTag) {
     cb.log(`update: already on ${localTag}`)

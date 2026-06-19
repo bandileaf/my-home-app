@@ -126,20 +126,12 @@ function parse_view_count(vc: unknown): number | undefined {
 
 const active_downloads = new Map<string, () => void>()
 
-export function resolve_ytdlp_path(isPackaged: boolean): string {
-  if (isPackaged) {
-    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
-    return portableDir ? join(portableDir, 'bin', 'yt-dlp.exe') : 'bin/yt-dlp.exe'
-  }
-  return join(__dirname, '../../../bin/yt-dlp.exe')
+export function resolve_ytdlp_path(appDir: string): string {
+  return join(appDir, 'bin', 'yt-dlp.exe')
 }
 
-export function resolve_ffmpeg_dir(isPackaged: boolean): string {
-  if (isPackaged) {
-    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
-    return portableDir ? join(portableDir, 'bin') : 'bin'
-  }
-  return join(__dirname, '../../../bin')
+export function resolve_ffmpeg_dir(appDir: string): string {
+  return join(appDir, 'bin')
 }
 
 function build_ytdlp_args(

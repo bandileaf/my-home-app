@@ -77,14 +77,37 @@ function log_event(message: string): void {
     if (!_log_path) {
       const logDir = join(app_dir(), 'log')
       mkdirSync(logDir, { recursive: true })
-      const appName = app.isPackaged
-        ? basename(process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, '.exe')
-        : app.getName()
-      _log_path = join(logDir, `${appName}.log`)
+      _log_path = join(logDir, `${app.getName()}.log`)
     }
     appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
   } catch {
     // ignore
+  }
+}
+
+let _display_name: string | null = null
+
+function resolve_display_name(settingsPath: string): string {
+  if (app.isPackaged && process.env.PORTABLE_EXECUTABLE_FILE) {
+    return basename(process.env.PORTABLE_EXECUTABLE_FILE, '.exe')
+  }
+  try {
+    const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
+    const exeName = raw[`hub.app.${app.getName()}.name`] as string | undefined
+    if (exeName) return basename(exeName, '.exe')
+  } catch { /* ignore */ }
+  return app.getName()
+}
+
+function init_log_path(settingsPath: string): void {
+  _display_name = resolve_display_name(settingsPath)
+  try {
+    const logDir = join(app_dir(), 'log')
+    mkdirSync(logDir, { recursive: true })
+    _log_path = join(logDir, `${_display_name}.log`)
+    appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid}\n`)
+  } catch {
+    // fallback: lazy init in log_event will set it
   }
 }
 
@@ -526,11 +549,12 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     } catch {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
-    const ytdlpPath = resolve_ytdlp_path(app.isPackaged)
-    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged)
-    log_event(`youtube:download dir=${downloadDir} fmt=${audioFormat}`)
+    const ytdlpPath = resolve_ytdlp_path(app_dir())
+    const ffmpegDir = resolve_ffmpeg_dir(app_dir())
+    const ytdlpExists = existsSync(ytdlpPath)
+    log_event(`youtube:download dir=${downloadDir} fmt=${audioFormat} ytdlp=${ytdlpPath} exists=${ytdlpExists}`)
 
-    if (!existsSync(ytdlpPath)) {
+    if (!ytdlpExists) {
       event.sender.send('youtube:error', { url, message: '실행 환경이 구성되지 않았습니다. 잠시 후 다시 시도하세요.' })
       return
     }
@@ -572,10 +596,12 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     } catch {
       downloadDir = resolve_download_dir(app_dir(), '')
     }
-    const ytdlpPath = resolve_ytdlp_path(app.isPackaged)
-    const ffmpegDir = resolve_ffmpeg_dir(app.isPackaged)
+    const ytdlpPath = resolve_ytdlp_path(app_dir())
+    const ffmpegDir = resolve_ffmpeg_dir(app_dir())
+    const ytdlpExists = existsSync(ytdlpPath)
+    log_event(`youtube:download-video ytdlp=${ytdlpPath} exists=${ytdlpExists}`)
 
-    if (!existsSync(ytdlpPath)) {
+    if (!ytdlpExists) {
       event.sender.send('youtube:error-video', { url, message: '실행 환경이 구성되지 않았습니다. 잠시 후 다시 시도하세요.' })
       return
     }
@@ -676,6 +702,7 @@ function resolve_icon(): string {
 }
 
 function create_toast_window(): BrowserWindow {
+  log_event('toast: creating notification window')
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
   const W = 420, H = 130
   const toast = new BrowserWindow({
@@ -698,10 +725,11 @@ function create_toast_window(): BrowserWindow {
 }
 
 function app_display_name(): string {
-  return app.isPackaged ? basename(process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, '.exe') : app.getName()
+  return _display_name ?? app.getName()
 }
 
 function create_window(): BrowserWindow {
+  log_event(`window: creating — title="${app_display_name()}"`)
   const window = new BrowserWindow({
     width: 1100,
     height: 720,
@@ -761,19 +789,29 @@ process.on('unhandledRejection', (reason) => log_event(`unhandledRejection: ${St
 
 // 중복 실행 방지 — 이미 실행 중이면 기존 창을 앞으로 가져오고 종료
 if (!app.requestSingleInstanceLock()) {
+  // 이미 실행 중인 인스턴스가 있음 — 로그에 기록 후 종료
+  try {
+    const logDir = join(app.isPackaged
+      ? (process.env.PORTABLE_EXECUTABLE_DIR ?? dirname(app.getPath('exe')))
+      : process.cwd(), 'log')
+    mkdirSync(logDir, { recursive: true })
+    const logPath = join(logDir, `${basename(process.execPath, '.exe')}.log`)
+    appendFileSync(logPath, `\n[${new Date().toISOString()}] DUPLICATE LAUNCH rejected pid=${process.pid} argv=${JSON.stringify(process.argv)}\n`)
+  } catch { /* ignore */ }
   app.quit()
 }
 
-app.on('second-instance', () => {
+app.on('second-instance', (_event, argv, cwd) => {
+  log_event(`second-instance: argv=${JSON.stringify(argv)} cwd=${cwd}`)
   const [win] = BrowserWindow.getAllWindows()
   if (win) { if (win.isMinimized()) win.restore(); win.focus() }
 })
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
-  log_event(`app ready. packaged=${app.isPackaged} appDir=${app_dir()}`)
-
   const settingsPath = resolve_settings_path()
+  init_log_path(settingsPath)
+  log_event(`app ready. packaged=${app.isPackaged} appDir=${app_dir()} argv=${JSON.stringify(process.argv)}`)
   const dbPath = resolve_db_path(settingsPath)
   log_event(`db path: ${dbPath}`)
 
@@ -804,7 +842,10 @@ app.whenReady().then(() => {
 
   register_ipc(settingsPath, db, state)
   ipcMain.handle('bins:ensure', (event) => ensure_bins_once(event.sender, app_dir(), settingsPath, state))
-  ipcMain.handle('bins:snapshot', (): BinStatusEntry[] => state.binStatus)
+  ipcMain.handle('bins:snapshot', (): BinStatusEntry[] => {
+    log_event(`bins:snapshot → [${state.binStatus.map(b => `${b.name}:${b.state}`).join(', ') || 'empty'}]`)
+    return state.binStatus
+  })
   ipcMain.handle('app:name', (): string => app_display_name())
 
   const toast = create_toast_window()
@@ -813,13 +854,22 @@ app.whenReady().then(() => {
 
   const window = create_window()
   // 메인 창이 닫히면 toast 도 함께 제거 → window-all-closed 발생 → app.quit()
-  window.on('closed', () => { if (!toast.isDestroyed()) toast.destroy() })
+  window.on('closed', () => {
+    log_event('window: closed')
+    if (!toast.isDestroyed()) {
+      log_event('toast: destroying (window closed)')
+      toast.destroy()
+    }
+  })
   void ensure_bins_once(window.webContents, app_dir(), settingsPath, state)
 
-  // toast renderer 가 준비된 후에 업데이트 체크를 시작해야
-  // 첫 번째 toast:status IPC 가 유실되지 않는다.
-  toast.webContents.once('did-finish-load', () => {
-    log_event('toast: ready')
+  // 메인 창과 toast 가 모두 준비된 후에 업데이트 체크 시작
+  // → 메인 창이 먼저 보인 뒤 toast 가 나타난다
+  let toastReady = false
+  let winReady = false
+  const start_update = (): void => {
+    if (!toastReady || !winReady) return
+    log_event('update: starting check (window + toast both ready)')
     void run_update_check(
       { baseDir: app_dir(), settingsPath, appKey: app.getName() },
       {
@@ -830,13 +880,16 @@ app.whenReady().then(() => {
         log:       log_event,
       }
     )
-  })
+  }
+  toast.webContents.once('did-finish-load', () => { toastReady = true; start_update() })
+  window.webContents.once('did-finish-load', () => { winReady = true; start_update() })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().filter(w => w !== toast).length === 0) create_window()
   })
 
   app.on('before-quit', () => {
+    log_event('app: before-quit')
     youtube_cancel_all()
     for (const w of state.dirWatchers.values())  w.close()
     for (const w of state.fileWatchers.values()) w.close()
@@ -846,6 +899,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  log_event('app: window-all-closed')
   if (process.platform !== 'darwin') {
     app.quit()
   }

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, Tray } from 'electron'
-import { appendFileSync, mkdirSync } from 'fs'
+import { appendFileSync, mkdirSync, readFileSync } from 'fs'
 import { basename, dirname, join } from 'path'
+import { parse as parse_jsonc } from 'jsonc-parser'
 import { load_identity, type Identity } from './services/identity'
 import {
   load_notice_state,
@@ -25,13 +26,34 @@ function log_event(message: string): void {
     if (!_log_path) {
       const logDir = join(app_dir(), 'log')
       mkdirSync(logDir, { recursive: true })
-      const appName = app.isPackaged
-        ? basename(process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, '.exe')
-        : app.getName()
-      _log_path = join(logDir, `${appName}.log`)
+      _log_path = join(logDir, `${app.getName()}.log`)
     }
     appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
   } catch { /* ignore */ }
+}
+
+let _display_name: string | null = null
+
+function resolve_display_name(settingsPath: string): string {
+  if (app.isPackaged && process.env.PORTABLE_EXECUTABLE_FILE) {
+    return basename(process.env.PORTABLE_EXECUTABLE_FILE, '.exe')
+  }
+  try {
+    const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
+    const exeName = raw[`hub.app.${app.getName()}.name`] as string | undefined
+    if (exeName) return basename(exeName, '.exe')
+  } catch { /* ignore */ }
+  return app.getName()
+}
+
+function init_log_path(settingsPath: string): void {
+  _display_name = resolve_display_name(settingsPath)
+  try {
+    const logDir = join(app_dir(), 'log')
+    mkdirSync(logDir, { recursive: true })
+    _log_path = join(logDir, `${_display_name}.log`)
+    appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid}\n`)
+  } catch { /* fallback: lazy init in log_event */ }
 }
 
 function resolve_icon(): string {
@@ -45,6 +67,7 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function create_toast_window(): BrowserWindow {
+  log_event('toast: creating notification window')
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
   const W = 420, H = 130
   const toast = new BrowserWindow({
@@ -67,6 +90,7 @@ function create_toast_window(): BrowserWindow {
 }
 
 function create_window(): BrowserWindow {
+  log_event(`window: creating — title="${app_display_name()}"`)
   const window = new BrowserWindow({
     width: 980,
     height: 700,
@@ -83,7 +107,11 @@ function create_window(): BrowserWindow {
 
   window.on('page-title-updated', (e) => e.preventDefault())
   window.on('close', (event) => {
-    if (isQuitting) return
+    if (isQuitting) {
+      log_event('window: close (quitting)')
+      return
+    }
+    log_event('window: close → hiding (tray-resident)')
     event.preventDefault()
     window.hide()
   })
@@ -110,7 +138,7 @@ function create_tray(window: BrowserWindow): Tray {
 }
 
 function app_display_name(): string {
-  return app.isPackaged ? basename(process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, '.exe') : app.getName()
+  return _display_name ?? app.getName()
 }
 
 function register_ipc(baseDir: string, identity: Identity, state: NoticeState): void {
@@ -127,19 +155,28 @@ function register_ipc(baseDir: string, identity: Identity, state: NoticeState): 
 
 // 중복 실행 방지 — 이미 실행 중이면 기존 창을 앞으로 가져오고 종료
 if (!app.requestSingleInstanceLock()) {
+  try {
+    const logDir = join(app.isPackaged
+      ? (process.env.PORTABLE_EXECUTABLE_DIR ?? dirname(app.getPath('exe')))
+      : process.cwd(), 'log')
+    mkdirSync(logDir, { recursive: true })
+    const logPath = join(logDir, `${basename(process.execPath, '.exe')}.log`)
+    appendFileSync(logPath, `\n[${new Date().toISOString()}] DUPLICATE LAUNCH rejected pid=${process.pid} argv=${JSON.stringify(process.argv)}\n`)
+  } catch { /* ignore */ }
   app.quit()
 }
 
-app.on('second-instance', () => {
+app.on('second-instance', (_event, argv, cwd) => {
+  log_event(`second-instance: argv=${JSON.stringify(argv)} cwd=${cwd}`)
   if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus() }
 })
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
-  log_event(`app ready. packaged=${app.isPackaged} appDir=${app_dir()}`)
-
   const baseDir = app_dir()
   const settingsPath = join(baseDir, 'settings.json')
+  init_log_path(settingsPath)
+  log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}`)
   const identity = load_identity(baseDir)
   const state = load_notice_state(baseDir)
 
@@ -152,7 +189,11 @@ app.whenReady().then(() => {
   win = create_window()
   tray = create_tray(win)
 
-  toast.webContents.once('did-finish-load', () => {
+  let toastReady = false
+  let winReady = false
+  const start_update = (): void => {
+    if (!toastReady || !winReady) return
+    log_event('update: starting check (window + toast both ready)')
     void run_update_check(
       { baseDir, settingsPath, appKey: app.getName() },
       {
@@ -163,7 +204,9 @@ app.whenReady().then(() => {
         log:          log_event,
       }
     )
-  })
+  }
+  toast.webContents.once('did-finish-load', () => { toastReady = true; start_update() })
+  win.webContents.once('did-finish-load', () => { winReady = true; start_update() })
 
   app.on('activate', () => {
     if (win) win.show()
@@ -172,10 +215,15 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  log_event('app: before-quit')
   isQuitting = true
-  tray?.destroy()
+  if (tray) {
+    log_event('tray: destroying')
+    tray.destroy()
+  }
 })
 
 app.on('window-all-closed', () => {
+  log_event('app: window-all-closed')
   // tray-resident app: window closing does not quit
 })

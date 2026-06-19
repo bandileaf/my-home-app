@@ -145,6 +145,8 @@ export function YoutubeSearchPanel(): JSX.Element {
 
   // bin 설치 완료 감지 — 한번 ready 가 되면 bins 가 제거돼도 유지
   useEffect(() => {
+    const summary = binRows.map(r => `${r.name}:${r.state}`).join(', ') || 'empty'
+    console.log(`[yt-panel] binRows changed: [${summary}]`)
     if (binRows.some(r => r.state === 'installed')) {
       set_binsReady(true)
       if (pendingSearch.current) {
@@ -156,9 +158,14 @@ export function YoutubeSearchPanel(): JSX.Element {
   }, [binRows])
 
   useEffect(() => {
+    console.log(`[yt-panel] binsReady=${binsReady}`)
+  }, [binsReady])
+
+  useEffect(() => {
     const bridge = get_bridge()
     // 먼저 구독해야 snapshot 조회와 그 사이에 일어난 업데이트를 놓치지 않는다.
     const u0a = bridge?.on_bins_status?.(({ name, state }) => {
+      console.log(`[yt-panel] bins:status ${name}=${state}`)
       set_binRows((prev) => prev.map((r) =>
         r.name === name ? { ...r, state, percent: state === 'installed' ? 100 : r.percent } : r
       ))
@@ -166,7 +173,10 @@ export function YoutubeSearchPanel(): JSX.Element {
     const u0b = bridge?.on_bins_progress?.(({ name, percent }) => {
       set_binRows((prev) => prev.map((r) => (r.name === name ? { ...r, percent } : r)))
     })
-    void bridge?.get_bins_status?.().then((entries) => set_binRows(entries))
+    void bridge?.get_bins_status?.().then((entries) => {
+      console.log(`[yt-panel] bins:snapshot received: [${entries.map(e => `${e.name}:${e.state}`).join(', ') || 'empty'}]`)
+      set_binRows(entries)
+    })
     void bridge?.ensure_bins?.()
     const u1 = bridge?.on_youtube_progress?.((p) => {
       set_downloads((prev) => ({ ...prev, [p.url]: { status: 'downloading', percent: p.percent, speed: p.speed, eta: p.eta } }))
@@ -195,6 +205,7 @@ export function YoutubeSearchPanel(): JSX.Element {
       if (row.state === 'installed' && !binRemovalScheduled.current.has(row.name)) {
         binRemovalScheduled.current.add(row.name)
         setTimeout(() => {
+          console.log(`[yt-panel] removing installed bin from rows: ${row.name}`)
           set_binRows((prev) => prev.filter((r) => r.name !== row.name))
         }, 1200)
       }
