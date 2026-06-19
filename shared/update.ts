@@ -175,10 +175,9 @@ function write_bat(
 
   // Remember which apps were running before we kill them
   for (let i = 0; i < appNames.length; i++) {
-    const varName = `WAS_RUNNING_${i}`
-    lines.push(`set ${varName}=0`)
-    lines.push(`tasklist /FI "IMAGENAME eq ${appNames[i]}" 2>nul | find /I "${appNames[i]}" >nul && set ${varName}=1`)
-    lines.push(L(`${appNames[i]} was_running=%${varName}%`))
+    lines.push(`set WAS_RUNNING_${i}=0`)
+    lines.push(`tasklist /FI "IMAGENAME eq ${appNames[i]}" 2>nul | find /I "${appNames[i]}" >nul && set WAS_RUNNING_${i}=1`)
+    lines.push(L(`${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
   }
 
   for (const name of appNames) {
@@ -187,26 +186,24 @@ function write_bat(
   }
   lines.push('timeout /t 3 /nobreak >nul')
 
+  // Move new exe — retry once if src still exists (move failed)
   for (const name of appNames) {
     const src  = join(tmpDir, name)
     const dest = join(baseDir, name)
     lines.push(L(`move ${name}`))
     lines.push(`move /Y "${src}" "${dest}" >nul 2>&1`)
-    lines.push(`if errorlevel 1 (`)
-    lines.push(`  ${L(`move ${name} failed, retrying`)}`)
-    lines.push(`  timeout /t 2 /nobreak >nul`)
-    lines.push(`  move /Y "${src}" "${dest}" >nul 2>&1`)
-    lines.push(`  if errorlevel 1 (${L(`move ${name} failed again`)}) else (${L(`move ${name} retry ok`)})`)
-    lines.push(`) else (${L(`move ${name} ok`)})`)
+    lines.push(`if exist "${src}" timeout /t 2 /nobreak >nul`)
+    lines.push(`if exist "${src}" move /Y "${src}" "${dest}" >nul 2>&1`)
+    lines.push(`if exist "${src}" ${L(`move ${name} FAILED`)}`)
+    lines.push(`if not exist "${src}" ${L(`move ${name} ok`)}`)
   }
 
   // Relaunch only apps that were running before the update
   for (let i = 0; i < appNames.length; i++) {
     const finalExe = join(baseDir, appNames[i])
-    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" (`)
-    lines.push(`  ${L(`start ${appNames[i]}`)}`)
-    lines.push(`  start "" "${finalExe}"`)
-    lines.push(`)`)
+    lines.push(L(`relaunch check ${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
+    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" ${L(`starting ${appNames[i]}`)}`)
+    lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}"`)
   }
 
   lines.push(L('update.bat done'))
@@ -342,9 +339,11 @@ export async function run_update_check(
     try { unlinkSync(lockPath) } catch { /* ignore */ }
 
     cb.set_status(`${latestTag} 교체 중... 잠시 후 재시작됩니다.`)
-    spawn('cmd.exe', ['/C', batPath], {
-      detached: true, stdio: 'ignore', windowsHide: true,
-    }).unref()
+    const q = (p: string) => p.replace(/'/g, "''")
+    spawn('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+      '-Command', `Start-Process cmd.exe -ArgumentList '/C "${q(batPath)}"' -WindowStyle Hidden`,
+    ], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
 
     await new Promise<void>(r => setTimeout(r, 1800))
     cb.on_quit()
