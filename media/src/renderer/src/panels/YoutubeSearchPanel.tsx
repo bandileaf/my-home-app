@@ -129,7 +129,6 @@ export function YoutubeSearchPanel(): JSX.Element {
   const [searchError, set_searchError] = useState('')
   const [downloads, set_downloads] = useState<Record<string, DownloadState>>({})
   const [videoDownloads, set_video_downloads] = useState<Record<string, DownloadState>>({})
-  const [ytdlpReady, set_ytdlpReady] = useState(false)
   const [binRows, set_binRows] = useState<BinRow[]>([])
   const pendingSearch = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -143,14 +142,14 @@ export function YoutubeSearchPanel(): JSX.Element {
     }).catch(() => {})
   }, [tabId])
 
-  // ytdlpReady 되면 pending 검색 실행
+  // 모든 bin 설치 완료되면 pending 검색 실행
   useEffect(() => {
-    if (ytdlpReady && pendingSearch.current) {
+    if (binRows.length > 0 && binRows.every(r => r.state === 'installed') && pendingSearch.current) {
       pendingSearch.current = false
       void do_search()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ytdlpReady])
+  }, [binRows])
 
   useEffect(() => {
     const bridge = get_bridge()
@@ -164,7 +163,7 @@ export function YoutubeSearchPanel(): JSX.Element {
       set_binRows((prev) => prev.map((r) => (r.name === name ? { ...r, percent } : r)))
     })
     void bridge?.get_bins_status?.().then((entries) => set_binRows(entries))
-    void bridge?.ensure_bins?.().then((bins) => { set_ytdlpReady('yt-dlp.exe' in bins) })
+    void bridge?.ensure_bins?.()
     const u1 = bridge?.on_youtube_progress?.((p) => {
       set_downloads((prev) => ({ ...prev, [p.url]: { status: 'downloading', percent: p.percent, speed: p.speed, eta: p.eta } }))
     })
@@ -254,7 +253,8 @@ export function YoutubeSearchPanel(): JSX.Element {
   }
 
   const bridgeAvailable = Boolean(get_bridge()?.youtube_search)
-  const ready = bridgeAvailable && ytdlpReady
+  const binsReady = binRows.length > 0 && binRows.every(r => r.state === 'installed')
+  const ready = bridgeAvailable && binsReady
 
   return (
     <div className="search-panel">
@@ -282,10 +282,10 @@ export function YoutubeSearchPanel(): JSX.Element {
       {!bridgeAvailable && (
         <div className="empty-hint">YouTube search runs in the app (Electron).</div>
       )}
-      {bridgeAvailable && !ytdlpReady && (
+      {bridgeAvailable && !binsReady && (
         binRows.length > 0
           ? <BinsStatusBox rows={binRows} />
-          : <div className="empty-hint">yt-dlp 준비 중...</div>
+          : <div className="empty-hint">실행 환경이 구성되지 않았습니다.</div>
       )}
       {searchError && (
         <div className="yt-error">{searchError}</div>
@@ -341,10 +341,10 @@ export function YoutubeSearchPanel(): JSX.Element {
                 {/* 다운로드 버튼 */}
                 <div className="yt-dl-row">
                   {dl.status === 'idle' && (
-                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download(item.url, 'mp3')} title="Download Audio"><AudioLines size={14} strokeWidth={1.5} /></button>
+                    <button className="yt-dl-btn" disabled={!binsReady} onClick={() => do_download(item.url, 'mp3')} title="Download Audio"><AudioLines size={14} strokeWidth={1.5} /></button>
                   )}
                   {vdl.status === 'idle' && (
-                    <button className="yt-dl-btn" disabled={!ytdlpReady} onClick={() => do_download_video(item.url)} title="Download Video"><FileVideo2 size={14} strokeWidth={1.5} /></button>
+                    <button className="yt-dl-btn" disabled={!binsReady} onClick={() => do_download_video(item.url)} title="Download Video"><FileVideo2 size={14} strokeWidth={1.5} /></button>
                   )}
                 </div>
 
