@@ -26,7 +26,7 @@ function log_event(message: string): void {
       const logDir = join(app_dir(), 'log')
       mkdirSync(logDir, { recursive: true })
       const appName = app.isPackaged
-        ? basename(process.execPath, '.exe')
+        ? basename(process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, '.exe')
         : app.getName()
       _log_path = join(logDir, `${appName}.log`)
     }
@@ -109,7 +109,7 @@ function create_tray(window: BrowserWindow): Tray {
 }
 
 function app_display_name(): string {
-  return app.isPackaged ? basename(process.execPath, '.exe') : app.getName()
+  return app.isPackaged ? basename(process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, '.exe') : app.getName()
 }
 
 function register_ipc(baseDir: string, identity: Identity, state: NoticeState): void {
