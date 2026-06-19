@@ -3,7 +3,7 @@ import { FolderOpen, X } from 'lucide-react'
 import { get_bridge } from '../bridge'
 import { useTabCtx } from '../App'
 
-const FORMATS = ['mp3', 'flac', 'mp4'] as const
+const FORMATS = ['mp3', 'mp4', 'flac'] as const
 type Fmt = typeof FORMATS[number]
 
 type ItemState =
