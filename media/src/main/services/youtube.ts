@@ -144,6 +144,7 @@ function build_ytdlp_args(
     '--no-playlist',
     '--format', format,
     '--newline',
+    '--encoding', 'utf-8',
     '-o', join(outputDir, '%(title)s.%(ext)s'),
     '--print', 'after_move:filepath',
   ]

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AudioLines, CheckCircle2, Clock, Download, FileVideo2, PackageOpen, XCircle } from 'lucide-react'
+import { AudioLines, CheckCircle2, Clock, Download, FileVideo2, FolderOpen, PackageOpen, XCircle } from 'lucide-react'
 import { get_bridge, type BinState, type YoutubeResult } from '../bridge'
 import { useTabCtx } from '../App'
 
@@ -57,7 +57,7 @@ function DoneRow({ label, filePath, onOpen }: {
       <span className="yt-done-path" title={filePath} onClick={onOpen}>
         {filePath.split(/[\\/]/).pop()}
       </span>
-      <button className="yt-folder-btn" onClick={onOpen}>Open folder</button>
+      <button className="yt-folder-btn" title="Open folder" onClick={onOpen}><FolderOpen size={14} strokeWidth={1.5} /></button>
     </div>
   )
 }
