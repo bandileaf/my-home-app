@@ -3,11 +3,11 @@ import { ActivityBar } from './shell/ActivityBar'
 import { MenuBar } from './shell/MenuBar'
 import { TabBar } from './shell/TabBar'
 import { StatusBar, type IndexStatus } from './shell/StatusBar'
-import { PlayerBar, PlayerContext } from './shell/PlayerBar'
+import { PlayerProvider } from './shell/PlayerBar'
 import { icon_registry, default_icon_visibility } from './shell/iconRegistry'
 import { File } from 'lucide-react'
 import { EditorPanel } from './panels/EditorPanel'
-import { get_bridge, type SearchHit } from './bridge'
+import { get_bridge } from './bridge'
 import { useNotify } from './notifications'
 import { doc_types, resolve_doc_type } from './docs'
 
@@ -37,7 +37,6 @@ function base_name(path: string): string {
 export function App(): JSX.Element {
   const [tabs, set_tabs] = useState<OpenTab[]>([])
   const [activeId, set_activeId] = useState<string | null>(null)
-  const [playerFile, set_playerFile] = useState<SearchHit | null>(null)
   const [settingsPath, set_settingsPath] = useState('')
   const notify = useNotify()
   const visibility = default_icon_visibility
@@ -518,7 +517,7 @@ export function App(): JSX.Element {
   }
 
   return (
-    <PlayerContext.Provider value={{ file: playerFile, play: set_playerFile }}>
+    <PlayerProvider>
     <div className="app">
       <MenuBar
         on_close={close_app}
@@ -557,9 +556,8 @@ export function App(): JSX.Element {
           </div>
         </div>
       </div>
-      <PlayerBar file={playerFile} />
       <StatusBar status={indexStatus} />
     </div>
-    </PlayerContext.Provider>
+    </PlayerProvider>
   )
 }

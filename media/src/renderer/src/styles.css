@@ -943,53 +943,9 @@ body {
 }
 
 /* ── Player Bar ─────────────────────────────────────────────── */
-.player-bar {
+.result-player {
   display: flex;
   align-items: center;
-  height: 36px;
-  flex-shrink: 0;
-  padding: 0 10px;
-  gap: 16px;
-  background: var(--activity-bg);
-  border-top: 1px solid var(--border);
-}
-
-.player-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.player-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--activity-fg);
-  cursor: pointer;
-}
-
-.player-btn:hover {
-  background: rgba(0, 0, 0, 0.07);
-  color: var(--text);
-}
-
-.player-seek {
-  flex: 1;
-  min-width: 0;
-  height: 3px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.player-file-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
+  gap: 1px;
+  margin-right: 6px;
 }

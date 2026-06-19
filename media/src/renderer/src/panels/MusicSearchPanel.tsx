@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, Copy } from 'lucide-react'
+import { FolderOpen, Copy, Play, Pause } from 'lucide-react'
 import { get_bridge, type SearchHit } from '../bridge'
 import { useTabCtx } from '../App'
 import { usePlayer } from '../shell/PlayerBar'
@@ -22,7 +22,7 @@ function format_size(bytes: number): string {
 
 export function MusicSearchPanel(): JSX.Element {
   const { tabId, setTitle } = useTabCtx()
-  const { play } = usePlayer()
+  const { file: activeFile, playing, play, pause } = usePlayer()
   const [query, set_query] = useState('')
   const [hits, set_hits] = useState<SearchHit[]>([])
   const [total, set_total] = useState(0)
@@ -118,15 +118,19 @@ export function MusicSearchPanel(): JSX.Element {
           </div>
           <div className="result-list">
             {hits.map((hit) => (
-              <div className="result-row" key={hit.fullPath} onClick={() => play(hit)} style={{ cursor: 'pointer' }}>
+              <div className="result-row" key={hit.fullPath}>
                 <div className="result-main">
                   <span className="result-name">{hit.fileName}</span>
                   <span className="result-path">{hit.dirPath}</span>
                 </div>
                 <span className="result-size">{format_size(hit.sizeBytes)}</span>
                 <div className="result-actions">
+                  <span className="result-player">
+                    <button title="Play"  onClick={() => play(hit)}><Play  size={14} strokeWidth={1.5} /></button>
+                    <button title="Pause" onClick={pause} disabled={activeFile?.fullPath !== hit.fullPath || !playing}><Pause size={14} strokeWidth={1.5} /></button>
+                  </span>
                   <button title="Open folder" onClick={() => reveal_hit(hit.fullPath)}><FolderOpen size={14} strokeWidth={1.5} /></button>
-                  <button title="Copy path" onClick={() => copy_hit(hit.fullPath)}><Copy size={14} strokeWidth={1.5} /></button>
+                  <button title="Copy path"   onClick={() => copy_hit(hit.fullPath)}><Copy size={14} strokeWidth={1.5} /></button>
                 </div>
               </div>
             ))}
