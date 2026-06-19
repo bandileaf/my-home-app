@@ -163,52 +163,71 @@ function write_bat(
   baseDir: string,
   tmpDir: string,
   appNames: string[]
-): void {
+): string[] {
   const log = join(tmpDir, 'update.log')
   const L = (msg: string) => `echo [%DATE% %TIME%] ${msg} >> "${log}"`
 
   const lines: string[] = [
     '@echo off',
-    `echo [%DATE% %TIME%] update.bat started > "${log}"`,
-    'timeout /t 1 /nobreak >nul',
+    `echo [%DATE% %TIME%] === update.bat START === > "${log}"`,
+    `echo [%DATE% %TIME%] bat=%~f0 baseDir="${baseDir}" >> "${log}"`,
+    `echo [%DATE% %TIME%] tmpDir="${tmpDir}" >> "${log}"`,
+    `echo [%DATE% %TIME%] apps="${appNames.join(', ')}" >> "${log}"`,
+    `echo [%DATE% %TIME%] cd=%CD% >> "${log}"`,
   ]
+
+  lines.push(L('step: waiting 1s for app to exit'))
+  lines.push('timeout /t 1 /nobreak >nul')
 
   // Remember which apps were running before we kill them
   for (let i = 0; i < appNames.length; i++) {
+    lines.push(L(`step: check running ${appNames[i]}`))
     lines.push(`set WAS_RUNNING_${i}=0`)
-    lines.push(`tasklist /FI "IMAGENAME eq ${appNames[i]}" 2>nul | find /I "${appNames[i]}" >nul && set WAS_RUNNING_${i}=1`)
+    lines.push(`tasklist /FI "IMAGENAME eq ${appNames[i]}" 2>nul | find /I "${appNames[i]}" >nul`)
+    lines.push(`if not errorlevel 1 set WAS_RUNNING_${i}=1`)
     lines.push(L(`${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
   }
 
   for (const name of appNames) {
-    lines.push(L(`taskkill ${name}`))
+    lines.push(L(`step: taskkill ${name}`))
     lines.push(`taskkill /F /IM ${name} >nul 2>&1`)
+    lines.push(L(`taskkill ${name} errorlevel=%ERRORLEVEL%`))
   }
+
+  lines.push(L('step: waiting 3s for processes to exit'))
   lines.push('timeout /t 3 /nobreak >nul')
 
   // Move new exe — retry once if src still exists (move failed)
   for (const name of appNames) {
     const src  = join(tmpDir, name)
     const dest = join(baseDir, name)
-    lines.push(L(`move ${name}`))
+    lines.push(L(`step: move ${name}`))
+    lines.push(`if exist "${src}" ${L(`src exists: ${src}`)}`)
+    lines.push(`if not exist "${src}" ${L(`src MISSING: ${src}`)}`)
     lines.push(`move /Y "${src}" "${dest}" >nul 2>&1`)
+    lines.push(L(`move ${name} errorlevel=%ERRORLEVEL%`))
+    lines.push(`if exist "${src}" ${L(`move ${name} STILL PRESENT — retry`)}`)
     lines.push(`if exist "${src}" timeout /t 2 /nobreak >nul`)
     lines.push(`if exist "${src}" move /Y "${src}" "${dest}" >nul 2>&1`)
-    lines.push(`if exist "${src}" ${L(`move ${name} FAILED`)}`)
+    lines.push(`if exist "${src}" ${L(`move ${name} FAILED after retry`)}`)
     lines.push(`if not exist "${src}" ${L(`move ${name} ok`)}`)
+    lines.push(`if exist "${dest}" ${L(`dest exists: ${dest}`)}`)
+    lines.push(`if not exist "${dest}" ${L(`dest MISSING after move: ${dest}`)}`)
   }
 
   // Relaunch only apps that were running before the update
   for (let i = 0; i < appNames.length; i++) {
     const finalExe = join(baseDir, appNames[i])
-    lines.push(L(`relaunch check ${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
+    lines.push(L(`step: relaunch check ${appNames[i]} was_running=%WAS_RUNNING_${i}%`))
     lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" ${L(`starting ${appNames[i]}`)}`)
     lines.push(`if %WAS_RUNNING_${i}%==1 if exist "${finalExe}" start "" "${finalExe}"`)
+    lines.push(`if %WAS_RUNNING_${i}%==0 ${L(`skip relaunch ${appNames[i]} (was not running)`)}`)
   }
 
-  lines.push(L('update.bat done'))
+  lines.push(L('=== update.bat DONE ==='))
   lines.push('(goto) 2>nul & del "%~f0"')
   writeFileSync(batPath, lines.join('\r\n'), 'ascii')
+  return lines
 }
 
 export async function run_update_check(
@@ -261,6 +280,7 @@ export async function run_update_check(
   }
 
   cb.log(`update: ${localTag ?? 'none'} → ${latestTag}`)
+  cb.set_status(`새로운 버전이 발견되었습니다 (${localTag ?? '?'} → ${latestTag})`)
 
   const tmpDir   = join(config.baseDir, 'tmp')
   mkdirSync(tmpDir, { recursive: true })
@@ -276,7 +296,7 @@ export async function run_update_check(
       )
       return
     }
-    cb.set_status('다른 앱이 업데이트 중입니다. 완료될 때까지 기다리고 있습니다...')
+    cb.set_status('다른 앱이 업데이트를 진행 중입니다. 완료될 때까지 대기합니다...')
     cb.log('update: another process holds lock, waiting...')
     await new Promise(r => setTimeout(r, 3000))
   }
@@ -300,7 +320,7 @@ export async function run_update_check(
       return
     }
 
-    cb.set_status(`${zipName} 다운로드 중...`)
+    cb.set_status('업데이트 파일을 다운로드하고 있습니다...')
     const zipPath = join(tmpDir, zipName)
 
     try {
@@ -308,11 +328,11 @@ export async function run_update_check(
       cb.log(`update: download complete — ${zipName}`)
     } catch (err: unknown) {
       cb.log(`update: download failed — ${(err as Error).message}`)
-      cb.on_error('다운로드 실패.')
+      cb.on_error('다운로드에 실패했습니다. 인터넷 연결을 확인해 주세요.')
       return
     }
 
-    cb.set_status('압축 해제 중...')
+    cb.set_status('다운로드 완료. 압축을 해제하고 있습니다...')
     try {
       extract_zip(zipPath, tmpDir)
       cb.log(`update: extracted to ${tmpDir}`)
@@ -320,7 +340,7 @@ export async function run_update_check(
       cb.log(`update: unblocked ${appNames.join(', ')}`)
     } catch (err: unknown) {
       cb.log(`update: extraction failed — ${(err as Error).message}`)
-      cb.on_error('압축 해제 실패.')
+      cb.on_error('압축 해제에 실패했습니다.')
       return
     }
 
@@ -332,17 +352,20 @@ export async function run_update_check(
     } catch { /* non-fatal */ }
 
     const batPath = join(config.baseDir, batName)
-    write_bat(batPath, config.baseDir, tmpDir, appNames)
-    cb.log(`update: relaunch script written — ${batName}`)
+    const batLines = write_bat(batPath, config.baseDir, tmpDir, appNames)
+    cb.log(`update: bat written to ${batPath} (${batLines.length} lines)`)
+    batLines.forEach((line, i) => cb.log(`  bat[${String(i).padStart(2, '0')}]: ${line}`))
 
     // Release lock before the bat kills this process
     try { unlinkSync(lockPath) } catch { /* ignore */ }
 
-    cb.set_status(`${latestTag} 교체 중... 잠시 후 재시작됩니다.`)
+    cb.set_status(`새 버전(${latestTag})으로 교체 중입니다. 잠시 후 재시작됩니다...`)
     const q = (p: string) => p.replace(/'/g, "''")
+    const psCmd = `Start-Process -FilePath '${q(batPath)}' -WindowStyle Hidden`
+    cb.log(`update: spawning powershell — ${psCmd}`)
     spawn('powershell.exe', [
       '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
-      '-Command', `Start-Process cmd.exe -ArgumentList '/C "${q(batPath)}"' -WindowStyle Hidden`,
+      '-Command', psCmd,
     ], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
 
     await new Promise<void>(r => setTimeout(r, 1800))
