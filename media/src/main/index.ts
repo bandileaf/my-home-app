@@ -637,6 +637,7 @@ function ensure_bins_once(
 ): Promise<Record<string, string>> {
   if (!state.binsPromise) {
     state.binStatus = list_bins(baseDir, settingsPath)
+    log_event(`bins: initial status — ${state.binStatus.map(b => `${b.name}:${b.state}`).join(', ') || 'none (settings unreadable?)'}`)
     state.binsPromise = ensure_bins(
       baseDir,
       settingsPath,

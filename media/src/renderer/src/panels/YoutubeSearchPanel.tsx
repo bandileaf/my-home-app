@@ -130,6 +130,7 @@ export function YoutubeSearchPanel(): JSX.Element {
   const [downloads, set_downloads] = useState<Record<string, DownloadState>>({})
   const [videoDownloads, set_video_downloads] = useState<Record<string, DownloadState>>({})
   const [binRows, set_binRows] = useState<BinRow[]>([])
+  const [binsReady, set_binsReady] = useState(false)
   const pendingSearch = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const binRemovalScheduled = useRef<Set<string>>(new Set())
@@ -142,11 +143,14 @@ export function YoutubeSearchPanel(): JSX.Element {
     }).catch(() => {})
   }, [tabId])
 
-  // 모든 bin 설치 완료되면 pending 검색 실행
+  // bin 설치 완료 감지 — 한번 ready 가 되면 bins 가 제거돼도 유지
   useEffect(() => {
-    if (binRows.some(r => r.state === 'installed') && pendingSearch.current) {
-      pendingSearch.current = false
-      void do_search()
+    if (binRows.some(r => r.state === 'installed')) {
+      set_binsReady(true)
+      if (pendingSearch.current) {
+        pendingSearch.current = false
+        void do_search()
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [binRows])
@@ -253,7 +257,6 @@ export function YoutubeSearchPanel(): JSX.Element {
   }
 
   const bridgeAvailable = Boolean(get_bridge()?.youtube_search)
-  const binsReady = binRows.some(r => r.state === 'installed')
   const ready = bridgeAvailable && binsReady
 
   return (
