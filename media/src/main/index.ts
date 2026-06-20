@@ -690,7 +690,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
 
   function ffmpeg_args(src: string, dest: string, fmt: string): string[] {
     const base = ['-i', src, '-y']
-    if (fmt === 'mp3')  return [...base, '-c:a', 'libmp3lame', '-q:a', '0', '-write_xing', '0', dest]
+    if (fmt === 'mp3')  return [...base, '-c:a', 'libmp3lame', '-q:a', '0', dest]
     if (fmt === 'flac') return [...base, dest]
     if (fmt === 'mp4')  return [...base, '-c:v', 'copy', '-c:a', 'aac', dest]
     return [...base, dest]
