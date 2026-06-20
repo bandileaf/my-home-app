@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowRightLeft, FolderOpen, X } from 'lucide-react'
+
 import { get_bridge } from '../bridge'
 import { useTabCtx } from '../App'
 
@@ -20,62 +21,66 @@ interface ConvertItem {
   state: ItemState
 }
 
-function ConvertRow({ item, disabled, onRemove, onFmt, onConvert }: {
+function ConvertRow({ item, disabled, onRemove, onFmt, onConvert, onReveal }: {
   item: ConvertItem
   disabled: boolean
   onRemove: () => void
   onFmt: (f: Fmt) => void
   onConvert: () => void
+  onReveal: () => void
 }): JSX.Element {
   const { state } = item
   return (
     <div className={`cv-row${disabled ? ' cv-row-disabled' : ''}`}>
-      <span className="cv-name" title={item.srcPath}>{item.fileName}</span>
-
-      {state.status === 'converting' && (
-        <div className="cv-progress">
-          <div className="yt-progress-bar">
-            <div className="yt-progress-fill" style={{ width: `${state.percent}%` }} />
-          </div>
-          <span className="cv-pct">{state.percent}%</span>
+      <span className="cv-name">{item.fileName}</span>
+      <div className="cv-bottom">
+        <span className="cv-path" title={item.srcPath}>{item.srcPath}</span>
+        <div className="cv-actions">
+          {state.status === 'converting' && (
+            <div className="cv-progress">
+              <div className="yt-progress-bar">
+                <div className="yt-progress-fill" style={{ width: `${state.percent}%` }} />
+              </div>
+              <span className="cv-pct">{state.percent}%</span>
+            </div>
+          )}
+          {state.status === 'done' && <span className="cv-done">완료</span>}
+          {state.status === 'error' && <span className="cv-error" title={state.message}>오류</span>}
+          {state.status === 'idle' && (
+            <div className="cv-fmt-group">
+              {FORMATS.map(f => (
+                <button
+                  key={f}
+                  className={`cv-fmt-btn${item.targetFmt === f ? ' active' : ''}`}
+                  onClick={() => onFmt(f)}
+                  disabled={disabled || item.srcExt === f}
+                  title={item.srcExt === f ? '이미 같은 형식입니다' : undefined}
+                >{f}</button>
+              ))}
+              <button
+                className="cv-convert-btn"
+                title="변환"
+                onClick={onConvert}
+                disabled={disabled}
+              >
+                <ArrowRightLeft size={12} strokeWidth={1.5} />
+              </button>
+              <button
+                className="cv-convert-btn"
+                title="폴더 열기"
+                onClick={onReveal}
+              >
+                <FolderOpen size={12} strokeWidth={1.5} />
+              </button>
+            </div>
+          )}
+          {!disabled && state.status !== 'done' && (
+            <button className="cv-remove-btn" title="목록에서 제거" onClick={onRemove}>
+              <X size={12} strokeWidth={1.5} />
+            </button>
+          )}
         </div>
-      )}
-
-      {state.status === 'done' && (
-        <span className="cv-done">완료</span>
-      )}
-
-      {state.status === 'error' && (
-        <span className="cv-error" title={state.message}>오류</span>
-      )}
-
-      {state.status === 'idle' && (
-        <div className="cv-fmt-group">
-          {FORMATS.map(f => (
-            <button
-              key={f}
-              className={`cv-fmt-btn${item.targetFmt === f ? ' active' : ''}`}
-              onClick={() => onFmt(f)}
-              disabled={disabled || item.srcExt === f}
-              title={item.srcExt === f ? '이미 같은 형식입니다' : undefined}
-            >.{f}</button>
-          ))}
-          <button
-            className="cv-convert-btn"
-            title="변환"
-            onClick={onConvert}
-            disabled={disabled}
-          >
-            <ArrowRightLeft size={12} strokeWidth={1.5} />
-          </button>
-        </div>
-      )}
-
-      {!disabled && state.status !== 'done' && (
-        <button className="cv-remove-btn" title="목록에서 제거" onClick={onRemove}>
-          <X size={12} strokeWidth={1.5} />
-        </button>
-      )}
+      </div>
     </div>
   )
 }
@@ -89,6 +94,37 @@ export function ConvertPanel(): JSX.Element {
   const bridge = get_bridge()
 
   useEffect(() => { setTitle('변환') }, [])
+
+  useEffect(() => {
+    const key = 'convert.state'
+    if (bridge?.app_state_get) {
+      bridge.app_state_get(key).then(raw => {
+        if (!raw) return
+        try {
+          const s = JSON.parse(raw) as { folder?: string; targetFmt?: Fmt }
+          if (s.folder) set_folder(s.folder)
+          if (s.targetFmt) set_target_fmt(s.targetFmt)
+        } catch { /* ignore */ }
+      }).catch(() => {})
+    } else {
+      try {
+        const s = JSON.parse(localStorage.getItem(key) ?? '{}') as { folder?: string; targetFmt?: Fmt }
+        if (s.folder) set_folder(s.folder)
+        if (s.targetFmt) set_target_fmt(s.targetFmt)
+      } catch { /* ignore */ }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!folder && !targetFmt) return
+    const key = 'convert.state'
+    const payload = JSON.stringify({ folder, targetFmt })
+    if (bridge?.app_state_set) {
+      bridge.app_state_set(key, payload)
+    } else {
+      localStorage.setItem(key, payload)
+    }
+  }, [folder, targetFmt])
 
   useEffect(() => {
     const off1 = bridge?.on_convert_progress?.((d) => {
@@ -181,7 +217,7 @@ export function ConvertPanel(): JSX.Element {
               className={`cv-fmt-btn${targetFmt === f ? ' active' : ''}`}
               onClick={() => { if (!busy) set_target_fmt(f) }}
               disabled={busy}
-            >.{f}</button>
+            >{f}</button>
           ))}
         </div>
         {hasItems && (
@@ -205,6 +241,7 @@ export function ConvertPanel(): JSX.Element {
             onRemove={() => remove_item(item.srcPath)}
             onFmt={(f) => set_item_fmt(item.srcPath, f)}
             onConvert={() => start_one(item)}
+            onReveal={() => bridge?.reveal_file?.(item.srcPath)}
           />
         ))}
       </div>

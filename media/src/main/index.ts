@@ -578,7 +578,8 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
           event.sender.send('youtube:error', { url, message })
           event.sender.send('notify', { message: `Download failed: ${message}`, type: 'error' })
         }
-      }
+      },
+      (msg: string) => log_event(msg)
     ).catch((err: unknown) => log_error('youtube:download unhandled', err))
   })
 
@@ -624,7 +625,8 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
           event.sender.send('youtube:error-video', { url, message })
           event.sender.send('notify', { message: `Video download failed: ${message}`, type: 'error' })
         }
-      }
+      },
+      (msg: string) => log_event(msg)
     ).catch((err: unknown) => log_error('youtube:download-video unhandled', err))
   })
 
@@ -687,7 +689,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
 
   function ffmpeg_args(src: string, dest: string, fmt: string): string[] {
     const base = ['-i', src, '-y']
-    if (fmt === 'mp3')  return [...base, '-q:a', '0', dest]
+    if (fmt === 'mp3')  return [...base, '-c:a', 'libmp3lame', '-q:a', '0', '-write_xing', '0', dest]
     if (fmt === 'flac') return [...base, dest]
     if (fmt === 'mp4')  return [...base, '-c:v', 'copy', '-c:a', 'aac', dest]
     return [...base, dest]
@@ -707,7 +709,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     const src_ext = extname(srcPath)
     const destPath = srcPath.slice(0, srcPath.length - src_ext.length) + '.' + targetFmt
     const { spawn: sp } = require('child_process') as typeof import('child_process')
-    const proc = sp(ffmpegPath, ffmpeg_args(srcPath, destPath, targetFmt), { windowsHide: true })
+    const proc = sp(ffmpegPath, ffmpeg_args(srcPath, destPath, targetFmt), { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
     active_converts.set(srcPath, () => proc.kill())
     let duration = 0
     let stderr = ''
@@ -727,7 +729,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       if (code === 0) {
         try {
           const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
-          if (raw['hub.app.media.change.remvoe'] === true) unlinkSync(srcPath)
+          if (raw['hub.app.media.change.remove'] === true) unlinkSync(srcPath)
         } catch { /* ignore */ }
         event.sender.send('convert:done', { srcPath, destPath })
       } else {

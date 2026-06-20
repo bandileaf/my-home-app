@@ -10,6 +10,7 @@ export interface IconEntry {
   id: string
   label: string
   Icon: LucideIcon
+  SecondaryIcon?: LucideIcon
   panel?: ComponentType
   align?: 'top' | 'bottom' // 기본 top. bottom 은 바 맨 아래(VS Code 의 설정 아이콘처럼)
 }

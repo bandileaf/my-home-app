@@ -19,6 +19,7 @@ export function ActivityBar({
 
   function render_icon(icon: IconEntry): JSX.Element {
     const Icon = icon.Icon
+    const Secondary = icon.SecondaryIcon
     return (
       <button
         key={icon.id}
@@ -26,7 +27,8 @@ export function ActivityBar({
         title={icon.label}
         onClick={() => on_select(icon.id)}
       >
-        <Icon strokeWidth={1.5} />
+        <Icon size={20} strokeWidth={1.5} />
+        {Secondary && <Secondary size={14} strokeWidth={1.5} />}
       </button>
     )
   }
