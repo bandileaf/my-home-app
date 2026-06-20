@@ -88,7 +88,8 @@ function ConvertRow({ item, disabled, onRemove, onFmt, onConvert, onReveal }: {
 export function ConvertPanel(): JSX.Element {
   const { setTitle } = useTabCtx()
   const [folder, set_folder] = useState('')
-  const [targetFmt, set_target_fmt] = useState<Fmt | null>(null)
+  const [targetFmt, set_target_fmt] = useState<Fmt>('mp3')
+  const [deleteOriginal, set_delete_original] = useState(false)
   const [items, set_items] = useState<ConvertItem[]>([])
   const [busy, set_busy] = useState(false)
   const bridge = get_bridge()
@@ -104,30 +105,32 @@ export function ConvertPanel(): JSX.Element {
       bridge.app_state_get(key).then(raw => {
         if (!raw) return
         try {
-          const s = JSON.parse(raw) as { folder?: string; targetFmt?: Fmt }
+          const s = JSON.parse(raw) as { folder?: string; targetFmt?: Fmt; deleteOriginal?: boolean }
           if (s.folder) set_folder(s.folder)
           if (s.targetFmt) set_target_fmt(s.targetFmt)
+          if (s.deleteOriginal !== undefined) set_delete_original(s.deleteOriginal)
         } catch { /* ignore */ }
       }).catch(() => {})
     } else {
       try {
-        const s = JSON.parse(localStorage.getItem(key) ?? '{}') as { folder?: string; targetFmt?: Fmt }
+        const s = JSON.parse(localStorage.getItem(key) ?? '{}') as { folder?: string; targetFmt?: Fmt; deleteOriginal?: boolean }
         if (s.folder) set_folder(s.folder)
         if (s.targetFmt) set_target_fmt(s.targetFmt)
+        if (s.deleteOriginal !== undefined) set_delete_original(s.deleteOriginal)
       } catch { /* ignore */ }
     }
   }, [])
 
   useEffect(() => {
-    if (!folder && !targetFmt) return
+    if (!folder) return
     const key = 'convert.state'
-    const payload = JSON.stringify({ folder, targetFmt })
+    const payload = JSON.stringify({ folder, targetFmt, deleteOriginal })
     if (bridge?.app_state_set) {
       bridge.app_state_set(key, payload)
     } else {
       localStorage.setItem(key, payload)
     }
-  }, [folder, targetFmt])
+  }, [folder, targetFmt, deleteOriginal])
 
   useEffect(() => {
     const off1 = bridge?.on_convert_progress?.((d) => {
@@ -162,7 +165,7 @@ export function ConvertPanel(): JSX.Element {
   }
 
   useEffect(() => {
-    if (!folder || !targetFmt) { set_items([]); return }
+    if (!folder) { set_items([]); return }
     bridge?.convert_scan_folder?.(folder, targetFmt).then((files) => {
       set_items(files.map(f => {
         const ext = (f.split('.').pop() ?? '').toLowerCase() as Fmt
@@ -170,7 +173,7 @@ export function ConvertPanel(): JSX.Element {
           srcPath: f,
           fileName: f.split(/[\\/]/).pop() ?? f,
           srcExt: ext,
-          targetFmt: targetFmt!,
+          targetFmt,
           state: { status: 'idle' },
         }
       }))
@@ -189,7 +192,7 @@ export function ConvertPanel(): JSX.Element {
     set_items(prev => prev.map(i =>
       i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
     ))
-    bridge?.convert_start?.(item.srcPath, item.targetFmt)
+    bridge?.convert_start?.(item.srcPath, item.targetFmt, deleteOriginal)
   }
 
   function bulk_convert(): void {
@@ -198,7 +201,7 @@ export function ConvertPanel(): JSX.Element {
       set_items(prev => prev.map(i =>
         i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
       ))
-      bridge?.convert_start?.(item.srcPath, item.targetFmt)
+      bridge?.convert_start?.(item.srcPath, item.targetFmt, deleteOriginal)
     }
   }
 
@@ -213,27 +216,37 @@ export function ConvertPanel(): JSX.Element {
         <span className="cv-folder-path" title={folder}>
           {folder || '폴더를 선택하세요'}
         </span>
-        <div className="cv-fmt-tabs">
-          {FORMATS.map(f => (
-            <button
-              key={f}
-              className={`cv-fmt-btn${targetFmt === f ? ' active' : ''}`}
-              onClick={() => { if (!busy) set_target_fmt(f) }}
+        {folder && (
+          <div className="cv-toolbar-right">
+            <select
+              className="cv-fmt-select"
+              value={targetFmt}
+              onChange={e => { if (!busy) set_target_fmt(e.target.value as Fmt) }}
               disabled={busy}
-            >{f}</button>
-          ))}
-        </div>
-        {hasItems && (
-          <button className="cv-bulk-btn" onClick={bulk_convert} disabled={busy}>
-            일괄 변환
-          </button>
+            >
+              {FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            {hasItems && (
+              <button className="cv-bulk-btn" onClick={bulk_convert} disabled={busy}>
+                일괄 변환
+              </button>
+            )}
+            <label className="cv-delete-label">
+              <input
+                type="checkbox"
+                checked={deleteOriginal}
+                onChange={e => set_delete_original(e.target.checked)}
+                disabled={busy}
+              />
+              원본 삭제
+            </label>
+          </div>
         )}
       </div>
 
       <div className="cv-list">
         {!folder && <div className="empty-hint">폴더를 선택하세요.</div>}
-        {folder && !targetFmt && <div className="empty-hint">변환할 형식을 선택하세요.</div>}
-        {folder && targetFmt && !hasItems && (
+        {folder && !hasItems && (
           <div className="empty-hint">변환할 파일이 없습니다.</div>
         )}
         {items.map(item => (

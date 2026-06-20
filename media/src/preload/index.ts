@@ -137,8 +137,8 @@ const api = {
     ipcRenderer.invoke('convert:pick-folder'),
   convert_scan_folder: (dir: string, targetExt: string): Promise<string[]> =>
     ipcRenderer.invoke('convert:scan-folder', dir, targetExt),
-  convert_start: (srcPath: string, targetFmt: string): void =>
-    ipcRenderer.send('convert:start', srcPath, targetFmt),
+  convert_start: (srcPath: string, targetFmt: string, deleteOriginal?: boolean): void =>
+    ipcRenderer.send('convert:start', srcPath, targetFmt, deleteOriginal ?? false),
   convert_cancel: (srcPath: string): void =>
     ipcRenderer.send('convert:cancel', srcPath),
   on_convert_progress: (cb: (d: { srcPath: string; percent: number }) => void): (() => void) => {

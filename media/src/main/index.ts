@@ -701,7 +701,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     return (p[0] ?? 0) * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0)
   }
 
-  ipcMain.on('convert:start', (event, srcPath: string, targetFmt: string) => {
+  ipcMain.on('convert:start', (event, srcPath: string, targetFmt: string, deleteOriginal: boolean) => {
     const ffmpegPath = find_ffmpeg_exe(resolve_ffmpeg_dir(app_dir()))
     if (!ffmpegPath) {
       event.sender.send('convert:error', { srcPath, message: 'ffmpeg를 찾을 수 없습니다. 먼저 YouTube 패널에서 도구를 설치해주세요.' })
@@ -728,10 +728,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     proc.on('close', (code) => {
       active_converts.delete(srcPath)
       if (code === 0) {
-        try {
-          const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
-          if (raw['hub.app.media.change.remove'] === true) unlinkSync(srcPath)
-        } catch { /* ignore */ }
+        if (deleteOriginal) try { unlinkSync(srcPath) } catch { /* ignore */ }
         event.sender.send('convert:done', { srcPath, destPath })
       } else {
         event.sender.send('convert:error', { srcPath, message: stderr.slice(-300) })

@@ -994,11 +994,38 @@ body {
   text-overflow: ellipsis;
 }
 
-.cv-fmt-tabs {
+.cv-toolbar-right {
   display: flex;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
+
+.cv-fmt-select {
+  padding: 3px 6px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cv-fmt-select:disabled { opacity: 0.4; cursor: default; }
+
+.cv-delete-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--hint);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.cv-delete-label input[type="checkbox"] { cursor: pointer; }
+.cv-delete-label:has(input:disabled) { opacity: 0.4; cursor: default; }
 
 .cv-fmt-btn {
   padding: 3px 5px;

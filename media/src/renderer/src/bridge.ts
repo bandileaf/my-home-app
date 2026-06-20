@@ -108,7 +108,7 @@ export interface AppBridge {
   // Convert
   convert_pick_folder?: () => Promise<string | null>
   convert_scan_folder?: (dir: string, targetExt: string) => Promise<string[]>
-  convert_start?: (srcPath: string, targetFmt: string) => void
+  convert_start?: (srcPath: string, targetFmt: string, deleteOriginal?: boolean) => void
   convert_cancel?: (srcPath: string) => void
   on_convert_progress?: (cb: (d: { srcPath: string; percent: number }) => void) => () => void
   on_convert_done?: (cb: (d: { srcPath: string; destPath: string }) => void) => () => void
