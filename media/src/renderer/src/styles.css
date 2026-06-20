@@ -1124,6 +1124,12 @@ body {
   text-align: right;
 }
 
+.cv-warn-icon {
+  color: #f59e0b;
+  flex-shrink: 0;
+  cursor: help;
+}
+
 .cv-done {
   font-size: 12px;
   color: #4caf50;

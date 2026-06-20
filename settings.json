@@ -17,6 +17,11 @@
       "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
       "exes": ["ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe", "ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe"],
       "version": ""
+    },
+    {
+      "url": "https://sourceforge.net/projects/mp3val/files/mp3val/mp3val%200.1.8/mp3val-0.1.8-bin-win32.zip/download",
+      "exes": ["mp3val.exe"],
+      "version": ""
     }
   ]
 

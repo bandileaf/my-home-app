@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
-import { execFileSync } from 'child_process'
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, watch, writeFileSync } from 'fs'
+import { execFile, execFileSync } from 'child_process'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, watch, writeFileSync } from 'fs'
 import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
 import { load_settings } from './services/settings'
@@ -658,9 +658,17 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     return canceled ? null : filePaths[0]
   })
 
-  ipcMain.handle('convert:scan-folder', (_event, dir: string, targetExt: string): string[] => {
-    const files: string[] = []
+  type ScanResult = { path: string; needsFix?: boolean; fixMessage?: string }
+
+  function find_mp3val_exe(binDir: string): string | null {
+    const p = join(binDir, 'mp3val.exe')
+    return existsSync(p) ? p : null
+  }
+
+  ipcMain.handle('convert:scan-folder', async (_event, dir: string, targetExt: string): Promise<ScanResult[]> => {
     const target = targetExt.toLowerCase().replace(/^\./, '')
+    const toConvert: string[] = []
+    const mp3Files: string[] = []
     const scan = (d: string): void => {
       let names: string[]
       try { names = readdirSync(d) } catch { return }
@@ -670,11 +678,27 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
         try { isDir = statSync(full).isDirectory() } catch { continue }
         if (isDir) { scan(full); continue }
         const ext = extname(name).slice(1).toLowerCase()
-        if (CONVERTIBLE.has(ext) && ext !== target) files.push(full)
+        if (CONVERTIBLE.has(ext) && ext !== target) toConvert.push(full)
+        else if (target === 'mp3' && ext === 'mp3') mp3Files.push(full)
       }
     }
     scan(dir)
-    return files
+    const results: ScanResult[] = toConvert.map(p => ({ path: p }))
+    if (target === 'mp3' && mp3Files.length > 0) {
+      const mp3valPath = find_mp3val_exe(join(app_dir(), 'bin'))
+      if (mp3valPath) {
+        for (const p of mp3Files) {
+          const warnings = await new Promise<string>((resolve) => {
+            execFile(mp3valPath, [p], (_err, stdout) => {
+              const lines = stdout.split('\n').filter(l => /^WARNING:/i.test(l.trim()))
+              resolve(lines.map(l => l.trim()).join(' | '))
+            })
+          })
+          if (warnings) results.push({ path: p, needsFix: true, fixMessage: warnings })
+        }
+      }
+    }
+    return results
   })
 
   const active_converts = new Map<string, () => void>()
@@ -701,7 +725,27 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     return (p[0] ?? 0) * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0)
   }
 
-  ipcMain.on('convert:start', (event, srcPath: string, targetFmt: string, deleteOriginal: boolean) => {
+  ipcMain.on('convert:start', (event, srcPath: string, targetFmt: string, deleteOriginal: boolean, needsFix: boolean) => {
+    if (needsFix) {
+      const mp3valPath = find_mp3val_exe(join(app_dir(), 'bin'))
+      if (!mp3valPath) {
+        event.sender.send('convert:error', { srcPath, message: 'mp3val을 찾을 수 없습니다. 먼저 도구를 설치해주세요.' })
+        return
+      }
+      const src_ext = extname(srcPath)
+      const destPath = deleteOriginal
+        ? srcPath
+        : srcPath.slice(0, srcPath.length - src_ext.length) + '-수정완료' + src_ext
+      try {
+        if (!deleteOriginal) copyFileSync(srcPath, destPath)
+        execFileSync(mp3valPath, ['-f', '-nb', destPath], { windowsHide: true })
+        event.sender.send('convert:progress', { srcPath, percent: 100 })
+        event.sender.send('convert:done', { srcPath, destPath })
+      } catch (err: unknown) {
+        event.sender.send('convert:error', { srcPath, message: (err as Error).message })
+      }
+      return
+    }
     const ffmpegPath = find_ffmpeg_exe(resolve_ffmpeg_dir(app_dir()))
     if (!ffmpegPath) {
       event.sender.send('convert:error', { srcPath, message: 'ffmpeg를 찾을 수 없습니다. 먼저 YouTube 패널에서 도구를 설치해주세요.' })

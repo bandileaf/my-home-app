@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRightLeft, FolderOpen, X } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, FolderOpen, Wrench, X } from 'lucide-react'
 
 import { get_bridge } from '../bridge'
 import { useTabCtx } from '../App'
@@ -17,6 +17,8 @@ interface ConvertItem {
   srcPath: string
   fileName: string
   srcExt: string
+  needsFix?: boolean
+  fixMessage?: string
   state: ItemState
 }
 
@@ -46,13 +48,20 @@ function ConvertRow({ item, disabled, onRemove, onConvert, onReveal }: {
           {state.status === 'error' && <span className="cv-error" title={state.message}>오류</span>}
           {state.status === 'idle' && (
             <div className="cv-fmt-group">
+              {item.needsFix && (
+                <span className="cv-warn-icon" title={item.fixMessage}>
+                  <AlertTriangle size={13} strokeWidth={1.5} />
+                </span>
+              )}
               <button
                 className="cv-convert-btn"
-                title="변환"
+                title={item.needsFix ? 'MP3 헤더 수정' : '변환'}
                 onClick={onConvert}
                 disabled={disabled}
               >
-                <ArrowRightLeft size={12} strokeWidth={1.5} />
+                {item.needsFix
+                  ? <Wrench size={12} strokeWidth={1.5} />
+                  : <ArrowRightLeft size={12} strokeWidth={1.5} />}
               </button>
               <button
                 className="cv-convert-btn"
@@ -129,7 +138,7 @@ export function ConvertPanel(): JSX.Element {
     })
     const off2 = bridge?.on_convert_done?.((d) => {
       set_items(prev => {
-        const next: ConvertItem[] = prev.map(i =>
+        const next = prev.map(i =>
           i.srcPath === d.srcPath ? { ...i, state: { status: 'done' } as ItemState } : i
         )
         if (next.every(i => i.state.status === 'done' || i.state.status === 'error')) set_busy(false)
@@ -138,7 +147,7 @@ export function ConvertPanel(): JSX.Element {
     })
     const off3 = bridge?.on_convert_error?.((d) => {
       set_items(prev => {
-        const next: ConvertItem[] = prev.map(i =>
+        const next = prev.map(i =>
           i.srcPath === d.srcPath ? { ...i, state: { status: 'error', message: d.message } as ItemState } : i
         )
         if (next.every(i => i.state.status === 'done' || i.state.status === 'error')) set_busy(false)
@@ -155,13 +164,16 @@ export function ConvertPanel(): JSX.Element {
 
   function scan(): void {
     if (!folder) { set_items([]); return }
-    bridge?.convert_scan_folder?.(folder, targetFmt).then((files) => {
-      set_items(prev => files.map(f => {
-        const existing = prev.find(i => i.srcPath === f)
-        return existing ?? {
-          srcPath: f,
-          fileName: f.split(/[\\/]/).pop() ?? f,
-          srcExt: (f.split('.').pop() ?? '').toLowerCase(),
+    bridge?.convert_scan_folder?.(folder, targetFmt).then((results) => {
+      set_items(prev => results.map(r => {
+        const existing = prev.find(i => i.srcPath === r.path)
+        if (existing && existing.needsFix === r.needsFix) return existing
+        return {
+          srcPath: r.path,
+          fileName: r.path.split(/[\\/]/).pop() ?? r.path,
+          srcExt: (r.path.split('.').pop() ?? '').toLowerCase(),
+          needsFix: r.needsFix,
+          fixMessage: r.fixMessage,
           state: { status: 'idle' },
         }
       }))
@@ -187,16 +199,17 @@ export function ConvertPanel(): JSX.Element {
     set_items(prev => prev.map(i =>
       i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
     ))
-    bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal)
+    bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal, item.needsFix)
   }
 
-  function bulk_convert(): void {
+  function bulk_apply(): void {
     set_busy(true)
     for (const item of items) {
+      if (item.state.status !== 'idle') continue
       set_items(prev => prev.map(i =>
         i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
       ))
-      bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal)
+      bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal, item.needsFix)
     }
   }
 
@@ -222,8 +235,8 @@ export function ConvertPanel(): JSX.Element {
               {FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             {hasItems && (
-              <button className="cv-bulk-btn" onClick={bulk_convert} disabled={busy}>
-                일괄 변환
+              <button className="cv-bulk-btn" onClick={bulk_apply} disabled={busy}>
+                일괄 적용
               </button>
             )}
             <label className="cv-delete-label">

@@ -135,10 +135,10 @@ const api = {
   // ── Convert ──────────────────────────────────────────────────────────────
   convert_pick_folder: (): Promise<string | null> =>
     ipcRenderer.invoke('convert:pick-folder'),
-  convert_scan_folder: (dir: string, targetExt: string): Promise<string[]> =>
+  convert_scan_folder: (dir: string, targetExt: string): Promise<{ path: string; needsFix?: boolean; fixMessage?: string }[]> =>
     ipcRenderer.invoke('convert:scan-folder', dir, targetExt),
-  convert_start: (srcPath: string, targetFmt: string, deleteOriginal?: boolean): void =>
-    ipcRenderer.send('convert:start', srcPath, targetFmt, deleteOriginal ?? false),
+  convert_start: (srcPath: string, targetFmt: string, deleteOriginal?: boolean, needsFix?: boolean): void =>
+    ipcRenderer.send('convert:start', srcPath, targetFmt, deleteOriginal ?? false, needsFix ?? false),
   convert_cancel: (srcPath: string): void =>
     ipcRenderer.send('convert:cancel', srcPath),
   convert_watch: (dir: string): void => ipcRenderer.send('convert:watch', dir),

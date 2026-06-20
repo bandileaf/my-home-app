@@ -107,8 +107,8 @@ export interface AppBridge {
   on_youtube_error_video?: (callback: (data: { url: string; message: string }) => void) => () => void
   // Convert
   convert_pick_folder?: () => Promise<string | null>
-  convert_scan_folder?: (dir: string, targetExt: string) => Promise<string[]>
-  convert_start?: (srcPath: string, targetFmt: string, deleteOriginal?: boolean) => void
+  convert_scan_folder?: (dir: string, targetExt: string) => Promise<{ path: string; needsFix?: boolean; fixMessage?: string }[]>
+  convert_start?: (srcPath: string, targetFmt: string, deleteOriginal?: boolean, needsFix?: boolean) => void
   convert_cancel?: (srcPath: string) => void
   convert_watch?: (dir: string) => void
   convert_unwatch?: () => void
