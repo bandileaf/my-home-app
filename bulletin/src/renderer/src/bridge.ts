@@ -14,22 +14,57 @@ export interface Ack {
   confirmedAt: number
 }
 
+export interface Reply {
+  id: string
+  authorDeviceId: string
+  authorHostname: string
+  text: string
+  createdAt: number
+}
+
+export interface Vote {
+  deviceId: string
+  hostname: string
+  vote: 'yes' | 'no'
+  votedAt: number
+}
+
+export type NoticeKind = 'sticker' | 'reply_request' | 'vote'
+
 export interface Notice {
   id: string
   authorDeviceId: string
   authorHostname: string
-  kind: 'sticker'
+  kind: NoticeKind
   text: string
   createdAt: number
   acks: Ack[]
+  replies: Reply[]
+  votes: Vote[]
+}
+
+export interface UserProfile {
+  deviceId: string
+  hostname: string
+  alias: string | null
+  avatar: string | null
 }
 
 export interface AppBridge {
+  window_close?: () => void
+  window_minimize?: () => void
   app_name?: () => Promise<string>
   get_identity?: () => Promise<Identity>
   list_notices?: () => Promise<Notice[]>
-  create_notice?: (text: string) => Promise<Notice>
+  create_notice?: (text: string, kind: NoticeKind) => Promise<Notice>
   confirm_notice?: (noticeId: string) => Promise<Notice | null>
+  create_reply?: (noticeId: string, text: string) => Promise<void>
+  update_notice?: (noticeId: string, text: string) => Promise<void>
+  cast_vote?: (noticeId: string, vote: 'yes' | 'no') => Promise<void>
+  list_users?: () => Promise<UserProfile[]>
+  get_alias?: () => Promise<string | null>
+  get_avatar?: () => Promise<string | null>
+  save_profile?: (alias: string | null, avatar: string | null) => Promise<void>
 }
 
 export function get_bridge(): AppBridge | undefined {

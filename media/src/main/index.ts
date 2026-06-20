@@ -455,12 +455,19 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     shell.showItemInFolder(fullPath)
   })
 
-  ipcMain.on('file:copyFile', (_event, fullPath: string) => {
-    const q = fullPath.replace(/'/g, "''")
-    execFileSync('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
-      '-Command', `Set-Clipboard -Path '${q}'`,
-    ], { windowsHide: true })
+  ipcMain.on('file:copyFile', (event, fullPath: string) => {
+    try {
+      const q = fullPath.replace(/'/g, "''")
+      execFileSync('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+        '-Command', `Set-Clipboard -LiteralPath '${q}'`,
+      ], { windowsHide: true })
+      log_event(`file:copyFile ok [${fullPath}]`)
+    } catch (err: unknown) {
+      const msg = (err as Error).message
+      log_event(`file:copyFile 오류 [${fullPath}]: ${msg}`)
+      notify_renderer(event.sender, `파일 복사 실패: ${msg}`, 'error')
+    }
   })
 
   ipcMain.handle('settings:path', (): string => settingsPath)

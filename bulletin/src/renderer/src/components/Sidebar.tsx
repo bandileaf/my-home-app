@@ -1,5 +1,7 @@
-import { Calendar, MessageCircle, StickyNote } from 'lucide-react'
+import { useState } from 'react'
+import { StickyNote, MessageCircle, Calendar } from 'lucide-react'
 import type { Identity } from '../bridge'
+import { ProfilePanel } from './ProfilePanel'
 
 export type Section = 'notices' | 'messenger' | 'calendar'
 
@@ -7,39 +9,49 @@ interface SidebarProps {
   active: Section
   identity: Identity | null
   appName: string
+  alias: string | null
+  avatar: string | null
+  on_profile_save: (alias: string | null, avatar: string | null) => void
 }
 
-const ICON_PROPS = { size: 16, strokeWidth: 1.5 }
+const TAB_ICON_SIZE = 30
 
-export function Sidebar({ active, identity, appName }: SidebarProps): JSX.Element {
+export function Sidebar({ active, identity, alias, avatar, on_profile_save }: SidebarProps): JSX.Element {
+  const [open, set_open] = useState(false)
+
+  const name = alias?.trim() || identity?.hostname || '?'
+  const initials = name.slice(0, 2).toUpperCase()
+
   return (
-    <div className="sidebar">
-      <div className="brand">🏠 {appName || '...'}</div>
-      <hr />
-      <div className={`nav-item ${active === 'notices' ? 'active' : ''}`}>
-        <span className="ic"><StickyNote {...ICON_PROPS} /></span>
-        알림장
+    <>
+      <div className="tabs">
+        <div className={`tab tab-notices ${active === 'notices' ? 'active' : ''}`}>
+          <StickyNote size={TAB_ICON_SIZE} strokeWidth={1.5} />
+        </div>
+        <div className="tab tab-messenger disabled">
+          <MessageCircle size={TAB_ICON_SIZE} strokeWidth={1.5} />
+        </div>
+        <div className="tab tab-calendar disabled">
+          <Calendar size={TAB_ICON_SIZE} strokeWidth={1.5} />
+        </div>
+        <div className="tab-spacer" />
+        <div className="tab tab-me" onClick={() => set_open(true)} style={{ cursor: 'pointer' }}>
+          {avatar
+            ? <img src={avatar} className="tab-avatar" style={{ objectFit: 'cover' }} alt="me" />
+            : <span className="tab-avatar">{initials}</span>
+          }
+        </div>
       </div>
-      <div className="nav-item disabled">
-        <span className="ic"><MessageCircle {...ICON_PROPS} /></span>
-        메신저
-        <span className="badge">곧 추가</span>
-      </div>
-      <div className="nav-item disabled">
-        <span className="ic"><Calendar {...ICON_PROPS} /></span>
-        캘린더
-        <span className="badge">곧 추가</span>
-      </div>
-      <div className="spacer" />
-      <div className="me">
-        <span className="avatar">{initials_of(identity?.hostname)}</span>
-        <span>{identity ? `${identity.hostname} (나)` : '...'}</span>
-      </div>
-    </div>
-  )
-}
 
-function initials_of(hostname: string | undefined): string {
-  if (!hostname) return '?'
-  return hostname.slice(0, 2).toUpperCase()
+      {open && (
+        <ProfilePanel
+          alias={alias}
+          avatar={avatar}
+          hostname={identity?.hostname ?? '?'}
+          on_close={() => set_open(false)}
+          on_save={on_profile_save}
+        />
+      )}
+    </>
+  )
 }

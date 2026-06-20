@@ -8,6 +8,7 @@ FamilyHub: a home hub for sharing all the software a family needs. `media` is th
 
 - **Never push git tags yourself.** When a tag is needed, ask the user first whether to push it.
 - **When editing settings.json, always update README.md too.** This applies to adding, changing, or removing any field.
+- **Always write a plan and get approval before editing any code.** The order is strictly: plan → approval → code edit → build. Never skip steps.
 
 ## Repository Structure
 

@@ -1,50 +1,94 @@
-import type { Identity, Notice } from '../bridge'
-import { Composer } from './Composer'
+import { useState } from 'react'
+import { X, Plus } from 'lucide-react'
+import type { Identity, Notice, NoticeKind, UserProfile } from '../bridge'
 import { NoticeCard } from './NoticeCard'
 
 interface NoticePageProps {
   identity: Identity | null
   notices: Notice[]
-  on_post: (text: string) => void
+  on_post: (text: string, kind: NoticeKind) => void
   on_confirm: (noticeId: string) => void
+  on_reply: (noticeId: string, text: string) => void
+  on_edit: (noticeId: string, text: string) => void
+  on_vote: (noticeId: string, vote: 'yes' | 'no') => void
+  get_profile: (deviceId: string) => UserProfile | null
 }
 
-// 실제 peer 등록 체계가 생기기 전까지, 지금까지 관찰된 작성자/확인자 deviceId 수를
-// "전체 인원" 의 근사값으로 쓴다.
-function compute_total_members(notices: Notice[], myDeviceId: string | undefined): number {
-  const ids = new Set<string>()
-  if (myDeviceId) ids.add(myDeviceId)
-  for (const notice of notices) {
-    ids.add(notice.authorDeviceId)
-    for (const ack of notice.acks) ids.add(ack.deviceId)
+const KIND_OPTIONS: { key: NoticeKind; label: string }[] = [
+  { key: 'sticker',        label: '일반'      },
+  { key: 'reply_request',  label: '답글 요청' },
+  { key: 'vote',           label: 'Yes / No'  },
+]
+
+export function NoticePage({ identity, notices, on_post, on_confirm, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
+  const [composing, set_composing] = useState(false)
+  const [compose_text, set_compose_text] = useState('')
+  const [kind, set_kind] = useState<NoticeKind>('sticker')
+
+  function handle_post(): void {
+    if (!compose_text.trim()) return
+    on_post(compose_text, kind)
+    set_compose_text('')
+    set_kind('sticker')
+    set_composing(false)
   }
-  return Math.max(ids.size, 1)
-}
-
-export function NoticePage({ identity, notices, on_post, on_confirm }: NoticePageProps): JSX.Element {
-  const totalMembers = compute_total_members(notices, identity?.deviceId)
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <h2>알림장</h2>
-        <div className="me-chip">
-          <span className="avatar">{identity ? identity.hostname.slice(0, 2).toUpperCase() : '?'}</span>
-          <span>{identity?.hostname ?? '...'}</span>
+    <div className="page" style={{ position: 'relative' }}>
+      {composing ? (
+        <div className="compose-view">
+          <div className="compose-topbar">
+            <div className="kind-selector">
+              {KIND_OPTIONS.map((o) => (
+                <button
+                  key={o.key}
+                  className={`kind-btn ${kind === o.key ? 'active' : ''}`}
+                  onClick={() => set_kind(o.key)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <button className="compose-close-btn" onClick={() => set_composing(false)}>
+              <X size={20} />
+            </button>
+          </div>
+          <div className="compose-area">
+            <textarea
+              className="compose-textarea"
+              placeholder="가족에게 알릴 내용을 입력하세요..."
+              value={compose_text}
+              onChange={(e) => set_compose_text(e.target.value)}
+              autoFocus
+            />
+            <button className="compose-post-btn" onClick={handle_post}>게시</button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="page-head">
+            <h2>알림장</h2>
+          </div>
 
-      <Composer on_submit={on_post} />
+          {notices.map((notice) => (
+            <NoticeCard
+              key={notice.id}
+              notice={notice}
+              myIdentity={identity}
+              my_profile={identity ? get_profile(identity.deviceId) : null}
+              get_profile={get_profile}
+              on_confirm={on_confirm}
+              on_reply={on_reply}
+              on_edit={on_edit}
+              on_vote={on_vote}
+            />
+          ))}
 
-      {notices.map((notice) => (
-        <NoticeCard
-          key={notice.id}
-          notice={notice}
-          myIdentity={identity}
-          totalMembers={totalMembers}
-          on_confirm={on_confirm}
-        />
-      ))}
+          <button className="fab-compose" onClick={() => set_composing(true)}>
+            <Plus size={28} strokeWidth={2.5} />
+          </button>
+        </>
+      )}
     </div>
   )
 }

@@ -67,6 +67,8 @@
 | `hub.app.media.name` | `string` | `"family_media.exe"` | media exe 파일명 |
 | `hub.app.media.db` | `string` | `"indexing.db"` | media 인덱싱 DB 파일명 |
 | `hub.app.bulletin.name` | `string` | `"family_bulletin.exe"` | bulletin exe 파일명 |
+| `hub.supabase.url` | `string` | — | Supabase 프로젝트 URL (`https://xxxx.supabase.co`) |
+| `hub.supabase.key` | `string` | — | Supabase anon/publishable key |
 | `hub.bins` | `BinEntry[]` | — | media 가 자동 설치할 외부 도구 목록 (yt-dlp, ffmpeg, mp3val 등) |
 
 **BinEntry 구조**

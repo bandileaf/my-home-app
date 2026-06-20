@@ -1,15 +1,23 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, Tray } from 'electron'
-import { appendFileSync, mkdirSync, readFileSync } from 'fs'
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { basename, dirname, join } from 'path'
 import { parse as parse_jsonc } from 'jsonc-parser'
 import { load_identity, type Identity } from './services/identity'
 import {
-  load_notice_state,
+  init_supabase,
   list_notices,
   create_notice,
   confirm_notice,
-  type Notice,
-  type NoticeState
+  create_reply,
+  update_notice,
+  cast_vote,
+  list_users,
+  upsert_user,
+  update_app_info,
+  get_user_avatar,
+  save_user_avatar,
+  set_user_offline,
+  type AppInfo,
 } from './services/store'
 import { run_update_check } from '@shared/update'
 
@@ -21,6 +29,8 @@ function app_dir(): string {
 }
 
 let _log_path: string | null = null
+let _log_fresh = true
+
 function log_event(message: string): void {
   try {
     if (!_log_path) {
@@ -28,7 +38,13 @@ function log_event(message: string): void {
       mkdirSync(logDir, { recursive: true })
       _log_path = join(logDir, `${app.getName()}.log`)
     }
-    appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
+    const line = `[${new Date().toISOString()}] ${message}\n`
+    if (_log_fresh) {
+      writeFileSync(_log_path, line)
+      _log_fresh = false
+    } else {
+      appendFileSync(_log_path, line)
+    }
   } catch { /* ignore */ }
 }
 
@@ -65,7 +81,6 @@ function resolve_icon(): string {
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
-let isQuitting = false
 
 function create_toast_window(): BrowserWindow {
   log_event('toast: creating notification window')
@@ -90,11 +105,12 @@ function create_toast_window(): BrowserWindow {
   return toast
 }
 
-function create_window(): BrowserWindow {
+function create_window(appInfo: AppInfo = {}): BrowserWindow {
   log_event(`window: creating — title="${app_display_name()}"`)
   const window = new BrowserWindow({
-    width: 980,
-    height: 700,
+    width:  appInfo.width  ?? 1280,
+    height: appInfo.height ?? 800,
+    frame: false,
     title: app_display_name(),
     icon: resolve_icon(),
     show: true,
@@ -107,14 +123,9 @@ function create_window(): BrowserWindow {
   })
 
   window.on('page-title-updated', (e) => e.preventDefault())
-  window.on('close', (event) => {
-    if (isQuitting) {
-      log_event('window: close (quitting)')
-      return
-    }
-    log_event('window: close → hiding (tray-resident)')
-    event.preventDefault()
-    window.hide()
+  window.on('close', () => {
+    log_event('window: close')
+    app.quit()
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -131,7 +142,7 @@ function create_tray(window: BrowserWindow): Tray {
     Menu.buildFromTemplate([
       { label: '열기', click: () => window.show() },
       { type: 'separator' },
-      { label: '종료', click: () => { isQuitting = true; app.quit() } }
+      { label: '종료', click: () => app.quit() }
     ])
   )
   t.on('click', () => window.show())
@@ -142,16 +153,58 @@ function app_display_name(): string {
   return _display_name ?? app.getName()
 }
 
-function register_ipc(baseDir: string, identity: Identity, state: NoticeState): void {
+function log_error(label: string, e: unknown): void {
+  log_event(`[ERROR] ${label}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`)
+}
+
+function register_ipc(identity: Identity): void {
+  ipcMain.on('window:close',    () => win?.close())
+  ipcMain.on('window:minimize', () => win?.minimize())
   ipcMain.handle('app:name',     (): string => app_display_name())
   ipcMain.handle('identity:get', (): Identity => identity)
-  ipcMain.handle('notice:list',  (): Notice[] => list_notices(state))
-  ipcMain.handle('notice:create', (_event, text: string): Notice =>
-    create_notice(baseDir, state, identity.deviceId, identity.hostname, text)
-  )
-  ipcMain.handle('notice:confirm', (_event, noticeId: string): Notice | null =>
-    confirm_notice(baseDir, state, noticeId, identity.deviceId, identity.hostname)
-  )
+  ipcMain.handle('user:alias',  (): string | null => _appInfo.alias ?? null)
+  ipcMain.handle('user:avatar', async (): Promise<string | null> => {
+    try { return await get_user_avatar(_identity!.deviceId) }
+    catch (e) { log_error('user:avatar', e); return null }
+  })
+  ipcMain.handle('user:save_profile', async (_e, alias: string | null, avatar: string | null) => {
+    _appInfo = { ..._appInfo, alias: alias ?? undefined }
+    try {
+      await Promise.all([
+        update_app_info(_identity!.deviceId, _appInfo),
+        save_user_avatar(_identity!.deviceId, avatar),
+      ])
+      log_event(`profile saved alias=${alias ?? 'null'} avatar=${avatar ? `${Math.round(avatar.length / 1024)}KB` : 'null'}`)
+    } catch (e) { log_error('user:save_profile', e) }
+  })
+  ipcMain.handle('notice:list', async () => {
+    try { return await list_notices() }
+    catch (e) { log_error('notice:list', e); throw e }
+  })
+  ipcMain.handle('notice:create', async (_event, text: string, kind: string) => {
+    try { return await create_notice(identity.deviceId, identity.hostname, text, (kind as 'sticker' | 'reply_request' | 'vote') ?? 'sticker') }
+    catch (e) { log_error('notice:create', e); throw e }
+  })
+  ipcMain.handle('notice:confirm', async (_event, noticeId: string) => {
+    try { return await confirm_notice(noticeId, identity.deviceId, identity.hostname) }
+    catch (e) { log_error('notice:confirm', e); throw e }
+  })
+  ipcMain.handle('notice:reply', async (_event, noticeId: string, text: string) => {
+    try { await create_reply(noticeId, identity.deviceId, identity.hostname, text) }
+    catch (e) { log_error('notice:reply', e); throw e }
+  })
+  ipcMain.handle('notice:update', async (_event, noticeId: string, text: string) => {
+    try { await update_notice(noticeId, text) }
+    catch (e) { log_error('notice:update', e); throw e }
+  })
+  ipcMain.handle('notice:vote', async (_event, noticeId: string, vote: 'yes' | 'no') => {
+    try { await cast_vote(noticeId, identity.deviceId, identity.hostname, vote) }
+    catch (e) { log_error('notice:vote', e); throw e }
+  })
+  ipcMain.handle('user:list', async () => {
+    try { return await list_users() }
+    catch (e) { log_error('user:list', e); return [] }
+  })
 }
 
 // --post-update: launched by update.bat — skip lock check (old process is dead, OS mutex may not have released yet)
@@ -175,7 +228,11 @@ app.on('second-instance', (_event, argv, cwd) => {
   if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus() }
 })
 
-app.whenReady().then(() => {
+let _identity: ReturnType<typeof load_identity> | null = null
+let _appInfo: AppInfo = {}
+let _offline_done = false
+
+app.whenReady().then(async () => {
   if (!got_lock) return
   Menu.setApplicationMenu(null)
   const baseDir = app_dir()
@@ -183,15 +240,35 @@ app.whenReady().then(() => {
   init_log_path(settingsPath)
   log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}`)
   const identity = load_identity(baseDir)
-  const state = load_notice_state(baseDir)
+  _identity = identity
 
-  register_ipc(baseDir, identity, state)
+  log_event(`supabase init: reading ${settingsPath}`)
+  try {
+    const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
+    const url = raw['hub.supabase.url'] as string | undefined
+    const key = raw['hub.supabase.key'] as string | undefined
+    log_event(`supabase init: url=${url ?? '(없음)'} key=${key ? key.slice(0, 8) + '…' : '(없음)'}`)
+    if (!url || !key) throw new Error('hub.supabase.url 또는 hub.supabase.key 가 settings.json 에 없음')
+    init_supabase(url, key)
+    log_event('supabase init: 성공')
+  } catch (e) {
+    log_event(`supabase init failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  try {
+    _appInfo = await upsert_user(identity.hostname, identity.macAddresses, identity.ip, identity.deviceId)
+    log_event(`user upsert 완료. app_info=${JSON.stringify(_appInfo)}`)
+  } catch (e) {
+    log_event(`user upsert failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  register_ipc(identity)
 
   const toast = create_toast_window()
   ipcMain.on('toast:close',    () => toast.hide())
   ipcMain.on('toast:open-log', () => { if (_log_path) void shell.openPath(_log_path) })
 
-  win = create_window()
+  win = create_window(_appInfo)
   tray = create_tray(win)
 
   let toastReady = false
@@ -205,7 +282,7 @@ app.whenReady().then(() => {
         set_status:   (msg) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
         set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
         on_error:     (msg) => { toast.webContents.send('toast:error', msg); toast.show() },
-        on_quit:      () => { isQuitting = true; app.quit() },
+        on_quit:      () => app.quit(),
         log:          log_event,
       }
     )
@@ -219,13 +296,24 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   log_event('app: before-quit')
-  isQuitting = true
   if (tray) {
     log_event('tray: destroying')
     tray.destroy()
   }
+  if (_offline_done || !_identity) return
+  event.preventDefault()
+  const bounds = win?.getBounds()
+  const appInfo: AppInfo = bounds ? { width: bounds.width, height: bounds.height } : {}
+  void Promise.all([
+    update_app_info(_identity.deviceId, appInfo),
+    set_user_offline(_identity.macAddresses, _identity.deviceId),
+  ]).finally(() => {
+    log_event(`user: set offline, app_info saved ${JSON.stringify(appInfo)}`)
+    _offline_done = true
+    app.quit()
+  })
 })
 
 app.on('window-all-closed', () => {

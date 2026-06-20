@@ -13,18 +13,13 @@ taskkill /F /IM family_media.exe /T >nul 2>&1
 taskkill /F /IM family_bulletin.exe /T >nul 2>&1
 ping -n 6 127.0.0.1 >nul
 
-if not exist "%DST%\family_media.exe" (
-  scp -r %SSH_USER%@%SSH_HOST%:%ROOT%/media/dist/win-unpacked/. "%DST%"
-  if errorlevel 1 ( echo [ERROR] scp media failed & pause & exit /b 1 )
-) else (
-  scp -r %SSH_USER%@%SSH_HOST%:%ROOT%/media/dist/win-unpacked/resources/. "%DST%\resources"
-  if errorlevel 1 ( echo [ERROR] scp media resources failed & pause & exit /b 1 )
-)
+scp %SSH_USER%@%SSH_HOST%:%ROOT%/media/dist/family_media.exe "%DST%\family_media.exe"
+if errorlevel 1 ( echo [ERROR] scp media failed & pause & exit /b 1 )
 
-scp %SSH_USER%@%SSH_HOST%:%ROOT%/bulletin/dist/family_bulletin.exe "%DST%\family_bulletin.exe"
+scp -r %SSH_USER%@%SSH_HOST%:%ROOT%/bulletin/dist/win-unpacked/. "%DST%"
 if errorlevel 1 ( echo [ERROR] scp bulletin failed & pause & exit /b 1 )
 
 echo [2/2] Launching...
-start "" "%DST%\family_media.exe"
+start "" "%DST%\family_bulletin.exe"
 
 endlocal

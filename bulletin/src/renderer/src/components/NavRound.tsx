@@ -10,7 +10,7 @@ export function NavRound({ direction }: NavRoundProps): JSX.Element {
   const Icon = direction === 'left' ? ChevronLeft : ChevronRight
   return (
     <button className="nav-round" disabled title="곧 추가될 다른 섹션으로 이동">
-      <Icon size={17} strokeWidth={1.5} />
+      <Icon size={34} strokeWidth={1.5} />
     </button>
   )
 }

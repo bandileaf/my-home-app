@@ -34,8 +34,21 @@ function write_stored_device_id(path: string, deviceId: string): void {
   writeFileSync(path, JSON.stringify({ deviceId }, null, 2), 'utf-8')
 }
 
-// hostname 의 모든 비-internal MAC 주소와 IPv4 주소를 모은다.
-// (여러 NIC가 있거나 나중에 바뀌어도 deviceId 는 아래에서 별도로 고정한다.)
+const VIRTUAL_MAC_PREFIXES = [
+  '00:0c:29', '00:50:56', '00:05:69',  // VMware
+  '08:00:27',                            // VirtualBox
+  '52:54:00',                            // QEMU/KVM
+  '00:15:5d',                            // Hyper-V
+  '02:42:',                              // Docker
+]
+
+function is_virtual_mac(mac: string): boolean {
+  const lower = mac.toLowerCase()
+  const firstByte = parseInt(lower.split(':')[0], 16)
+  if ((firstByte & 0x02) !== 0) return true  // locally administered = 가상
+  return VIRTUAL_MAC_PREFIXES.some(p => lower.startsWith(p))
+}
+
 function collect_network_info(): { macAddresses: string[]; ip: string | null } {
   const interfaces = networkInterfaces()
   const macAddresses = new Set<string>()
@@ -43,7 +56,9 @@ function collect_network_info(): { macAddresses: string[]; ip: string | null } {
   for (const entries of Object.values(interfaces)) {
     for (const entry of entries ?? []) {
       if (entry.internal) continue
-      if (entry.mac && entry.mac !== '00:00:00:00:00:00') macAddresses.add(entry.mac)
+      if (!entry.mac || entry.mac === '00:00:00:00:00:00') continue
+      if (is_virtual_mac(entry.mac)) continue
+      macAddresses.add(entry.mac)
       if (!ip && entry.family === 'IPv4') ip = entry.address
     }
   }
