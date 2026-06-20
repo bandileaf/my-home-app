@@ -27,14 +27,16 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
 
   function handle_mouse_down(e: React.MouseEvent): void {
     drag_start.current = e.clientY
-  }
-
-  function handle_mouse_up(e: React.MouseEvent): void {
-    if (drag_start.current === null) return
-    const delta = e.clientY - drag_start.current
-    drag_start.current = null
-    if (delta > 60 && !composing) set_composing(true)
-    if (delta < -60 && composing) { set_composing(false); set_compose_text(''); set_kind('sticker') }
+    const is_composing = composing
+    function on_up(ev: MouseEvent): void {
+      document.removeEventListener('mouseup', on_up)
+      if (drag_start.current === null) return
+      const delta = ev.clientY - drag_start.current
+      drag_start.current = null
+      if (delta > 60 && !is_composing) set_composing(true)
+      if (delta < -60 && is_composing) { set_composing(false); set_compose_text(''); set_kind('sticker') }
+    }
+    document.addEventListener('mouseup', on_up)
   }
 
   function handle_post(): void {
@@ -50,8 +52,6 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
       className="page"
       style={{ position: 'relative', userSelect: 'none' }}
       onMouseDown={handle_mouse_down}
-      onMouseUp={handle_mouse_up}
-      onMouseLeave={() => { drag_start.current = null }}
     >
       {composing ? (
         <div className="compose-view">
