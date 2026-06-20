@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Identity, Notice, NoticeKind, UserProfile } from '../bridge'
 import { NoticeCard } from './NoticeCard'
@@ -23,18 +23,18 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
   const [composing, set_composing] = useState(false)
   const [compose_text, set_compose_text] = useState('')
   const [kind, set_kind] = useState<NoticeKind>('sticker')
-  const [drag_start, set_drag_start] = useState<number | null>(null)
+  const drag_start = useRef<number | null>(null)
 
   function handle_mouse_down(e: React.MouseEvent): void {
-    set_drag_start(e.clientY)
+    drag_start.current = e.clientY
   }
 
   function handle_mouse_up(e: React.MouseEvent): void {
-    if (drag_start === null) return
-    const delta = e.clientY - drag_start
+    if (drag_start.current === null) return
+    const delta = e.clientY - drag_start.current
+    drag_start.current = null
     if (delta > 60 && !composing) set_composing(true)
     if (delta < -60 && composing) { set_composing(false); set_compose_text(''); set_kind('sticker') }
-    set_drag_start(null)
   }
 
   function handle_post(): void {
@@ -51,7 +51,7 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
       style={{ position: 'relative', userSelect: 'none' }}
       onMouseDown={handle_mouse_down}
       onMouseUp={handle_mouse_up}
-      onMouseLeave={() => set_drag_start(null)}
+      onMouseLeave={() => { drag_start.current = null }}
     >
       {composing ? (
         <div className="compose-view">
