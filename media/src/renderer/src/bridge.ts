@@ -110,9 +110,12 @@ export interface AppBridge {
   convert_scan_folder?: (dir: string, targetExt: string) => Promise<string[]>
   convert_start?: (srcPath: string, targetFmt: string, deleteOriginal?: boolean) => void
   convert_cancel?: (srcPath: string) => void
+  convert_watch?: (dir: string) => void
+  convert_unwatch?: () => void
   on_convert_progress?: (cb: (d: { srcPath: string; percent: number }) => void) => () => void
   on_convert_done?: (cb: (d: { srcPath: string; destPath: string }) => void) => () => void
   on_convert_error?: (cb: (d: { srcPath: string; message: string }) => void) => () => void
+  on_convert_folder_changed?: (cb: () => void) => () => void
 }
 
 export function get_bridge(): AppBridge | undefined {

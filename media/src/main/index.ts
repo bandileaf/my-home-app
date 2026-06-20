@@ -743,6 +743,24 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     active_converts.get(srcPath)?.()
     active_converts.delete(srcPath)
   })
+
+  let convert_watcher: ReturnType<typeof watch> | null = null
+
+  ipcMain.on('convert:watch', (event, dir: string) => {
+    convert_watcher?.close()
+    convert_watcher = null
+    if (!dir || !existsSync(dir)) return
+    try {
+      convert_watcher = watch(dir, () => {
+        event.sender.send('convert:folder-changed')
+      })
+    } catch { /* fs.watch not supported */ }
+  })
+
+  ipcMain.on('convert:unwatch', () => {
+    convert_watcher?.close()
+    convert_watcher = null
+  })
 }
 
 // state.binStatus 에 있는 항목 하나를 갱신한다 (렌더러가 늦게 마운트돼도 'bins:snapshot' 으로 항상 최신 상태 조회 가능).

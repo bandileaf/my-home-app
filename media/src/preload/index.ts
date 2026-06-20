@@ -141,6 +141,13 @@ const api = {
     ipcRenderer.send('convert:start', srcPath, targetFmt, deleteOriginal ?? false),
   convert_cancel: (srcPath: string): void =>
     ipcRenderer.send('convert:cancel', srcPath),
+  convert_watch: (dir: string): void => ipcRenderer.send('convert:watch', dir),
+  convert_unwatch: (): void => ipcRenderer.send('convert:unwatch'),
+  on_convert_folder_changed: (cb: () => void): (() => void) => {
+    const l = (): void => cb()
+    ipcRenderer.on('convert:folder-changed', l)
+    return () => ipcRenderer.removeListener('convert:folder-changed', l)
+  },
   on_convert_progress: (cb: (d: { srcPath: string; percent: number }) => void): (() => void) => {
     const l = (_e: unknown, d: { srcPath: string; percent: number }): void => cb(d)
     ipcRenderer.on('convert:progress', l)

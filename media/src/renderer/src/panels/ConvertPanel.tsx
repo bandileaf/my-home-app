@@ -153,16 +153,30 @@ export function ConvertPanel(): JSX.Element {
     if (path) { set_folder(path); set_items([]) }
   }
 
-  useEffect(() => {
+  function scan(): void {
     if (!folder) { set_items([]); return }
     bridge?.convert_scan_folder?.(folder, targetFmt).then((files) => {
-      set_items(files.map(f => ({
-        srcPath: f,
-        fileName: f.split(/[\\/]/).pop() ?? f,
-        srcExt: (f.split('.').pop() ?? '').toLowerCase(),
-        state: { status: 'idle' },
-      })))
+      set_items(prev => files.map(f => {
+        const existing = prev.find(i => i.srcPath === f)
+        return existing ?? {
+          srcPath: f,
+          fileName: f.split(/[\\/]/).pop() ?? f,
+          srcExt: (f.split('.').pop() ?? '').toLowerCase(),
+          state: { status: 'idle' },
+        }
+      }))
     }).catch(() => {})
+  }
+
+  useEffect(() => {
+    scan()
+    bridge?.convert_watch?.(folder)
+    return () => { bridge?.convert_unwatch?.() }
+  }, [folder, targetFmt])
+
+  useEffect(() => {
+    const off = bridge?.on_convert_folder_changed?.(() => { scan() })
+    return () => { off?.() }
   }, [folder, targetFmt])
 
   function remove_item(srcPath: string): void {
