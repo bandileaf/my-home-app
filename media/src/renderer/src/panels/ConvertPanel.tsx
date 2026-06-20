@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowRightLeft, FolderOpen, Wrench, X } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, FolderOpen, ListChecks, RefreshCw, Wrench, X } from 'lucide-react'
 
 import { get_bridge } from '../bridge'
 import { useTabCtx } from '../App'
@@ -10,7 +10,7 @@ type Fmt = typeof FORMATS[number]
 type ItemState =
   | { status: 'idle' }
   | { status: 'converting'; percent: number }
-  | { status: 'done' }
+  | { status: 'done'; destPath: string }
   | { status: 'error'; message: string }
 
 interface ConvertItem {
@@ -44,7 +44,14 @@ function ConvertRow({ item, disabled, onRemove, onConvert, onReveal }: {
               <span className="cv-pct">{state.percent}%</span>
             </div>
           )}
-          {state.status === 'done' && <span className="cv-done">완료</span>}
+          {state.status === 'done' && (
+            <div className="cv-fmt-group">
+              <span className="cv-done">완료</span>
+              <button className="cv-convert-btn" title="폴더 열기" onClick={onReveal}>
+                <FolderOpen size={12} strokeWidth={1.5} />
+              </button>
+            </div>
+          )}
           {state.status === 'error' && <span className="cv-error" title={state.message}>오류</span>}
           {state.status === 'idle' && (
             <div className="cv-fmt-group">
@@ -90,6 +97,7 @@ export function ConvertPanel(): JSX.Element {
   const [deleteOriginal, set_delete_original] = useState(false)
   const [items, set_items] = useState<ConvertItem[]>([])
   const [busy, set_busy] = useState(false)
+  const [scanProgress, set_scan_progress] = useState<{ current: number; total: number } | null>(null)
   const bridge = get_bridge()
 
   useEffect(() => {
@@ -139,7 +147,7 @@ export function ConvertPanel(): JSX.Element {
     const off2 = bridge?.on_convert_done?.((d) => {
       set_items(prev => {
         const next = prev.map(i =>
-          i.srcPath === d.srcPath ? { ...i, state: { status: 'done' } as ItemState } : i
+          i.srcPath === d.srcPath ? { ...i, state: { status: 'done', destPath: d.destPath } as ItemState } : i
         )
         if (next.every(i => i.state.status === 'done' || i.state.status === 'error')) set_busy(false)
         return next
@@ -164,32 +172,37 @@ export function ConvertPanel(): JSX.Element {
 
   function scan(): void {
     if (!folder) { set_items([]); return }
-    bridge?.convert_scan_folder?.(folder, targetFmt).then((results) => {
-      set_items(prev => results.map(r => {
-        const existing = prev.find(i => i.srcPath === r.path)
-        if (existing && existing.needsFix === r.needsFix) return existing
-        return {
+    set_items([])
+    set_scan_progress(null)
+    bridge?.convert_scan_folder?.(folder, targetFmt).catch(() => {})
+  }
+
+  useEffect(() => { scan() }, [folder, targetFmt])
+
+  useEffect(() => {
+    const off = bridge?.on_convert_scan_item?.((r) => {
+      set_items(prev => {
+        if (prev.some(i => i.srcPath === r.path)) return prev
+        return [...prev, {
           srcPath: r.path,
           fileName: r.path.split(/[\\/]/).pop() ?? r.path,
           srcExt: (r.path.split('.').pop() ?? '').toLowerCase(),
           needsFix: r.needsFix,
           fixMessage: r.fixMessage,
           state: { status: 'idle' },
-        }
-      }))
-    }).catch(() => {})
-  }
-
-  useEffect(() => {
-    scan()
-    bridge?.convert_watch?.(folder)
-    return () => { bridge?.convert_unwatch?.() }
-  }, [folder, targetFmt])
-
-  useEffect(() => {
-    const off = bridge?.on_convert_folder_changed?.(() => { scan() })
+        }]
+      })
+    })
     return () => { off?.() }
-  }, [folder, targetFmt])
+  }, [])
+
+  useEffect(() => {
+    const off = bridge?.on_convert_scan_progress?.((d) => {
+      if (d.current >= d.total) set_scan_progress(null)
+      else set_scan_progress(d)
+    })
+    return () => { off?.() }
+  }, [])
 
   function remove_item(srcPath: string): void {
     set_items(prev => prev.filter(i => i.srcPath !== srcPath))
@@ -199,7 +212,7 @@ export function ConvertPanel(): JSX.Element {
     set_items(prev => prev.map(i =>
       i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
     ))
-    bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal, item.needsFix)
+    bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal, item.needsFix, item.fixMessage)
   }
 
   function bulk_apply(): void {
@@ -209,7 +222,7 @@ export function ConvertPanel(): JSX.Element {
       set_items(prev => prev.map(i =>
         i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
       ))
-      bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal, item.needsFix)
+      bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal, item.needsFix, item.fixMessage)
     }
   }
 
@@ -234,11 +247,20 @@ export function ConvertPanel(): JSX.Element {
             >
               {FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
+            {scanProgress && (
+              <span className="cv-scan-progress">
+                {Math.round(scanProgress.current / scanProgress.total * 100)}% / 100%
+              </span>
+            )}
             {hasItems && (
               <button className="cv-bulk-btn" onClick={bulk_apply} disabled={busy}>
+                <ListChecks size={13} strokeWidth={1.5} />
                 일괄 적용
               </button>
             )}
+            <button className="cv-icon-btn" title="새로고침" onClick={scan} disabled={busy}>
+              <RefreshCw size={13} strokeWidth={1.5} />
+            </button>
             <label className="cv-delete-label">
               <input
                 type="checkbox"
@@ -264,7 +286,7 @@ export function ConvertPanel(): JSX.Element {
             disabled={busy}
             onRemove={() => remove_item(item.srcPath)}
             onConvert={() => start_one(item)}
-            onReveal={() => bridge?.reveal_file?.(item.srcPath)}
+            onReveal={() => bridge?.reveal_file?.(item.state.status === 'done' ? item.state.destPath : item.srcPath)}
           />
         ))}
       </div>

@@ -137,16 +137,19 @@ const api = {
     ipcRenderer.invoke('convert:pick-folder'),
   convert_scan_folder: (dir: string, targetExt: string): Promise<{ path: string; needsFix?: boolean; fixMessage?: string }[]> =>
     ipcRenderer.invoke('convert:scan-folder', dir, targetExt),
-  convert_start: (srcPath: string, targetFmt: string, deleteOriginal?: boolean, needsFix?: boolean): void =>
-    ipcRenderer.send('convert:start', srcPath, targetFmt, deleteOriginal ?? false, needsFix ?? false),
+  convert_start: (srcPath: string, targetFmt: string, deleteOriginal?: boolean, needsFix?: boolean, fixMessage?: string): void =>
+    ipcRenderer.send('convert:start', srcPath, targetFmt, deleteOriginal ?? false, needsFix ?? false, fixMessage),
   convert_cancel: (srcPath: string): void =>
     ipcRenderer.send('convert:cancel', srcPath),
-  convert_watch: (dir: string): void => ipcRenderer.send('convert:watch', dir),
-  convert_unwatch: (): void => ipcRenderer.send('convert:unwatch'),
-  on_convert_folder_changed: (cb: () => void): (() => void) => {
-    const l = (): void => cb()
-    ipcRenderer.on('convert:folder-changed', l)
-    return () => ipcRenderer.removeListener('convert:folder-changed', l)
+  on_convert_scan_item: (cb: (item: { path: string; needsFix?: boolean; fixMessage?: string }) => void): (() => void) => {
+    const l = (_e: unknown, item: { path: string; needsFix?: boolean; fixMessage?: string }): void => cb(item)
+    ipcRenderer.on('convert:scan-item', l)
+    return () => ipcRenderer.removeListener('convert:scan-item', l)
+  },
+  on_convert_scan_progress: (cb: (d: { current: number; total: number }) => void): (() => void) => {
+    const l = (_e: unknown, d: { current: number; total: number }): void => cb(d)
+    ipcRenderer.on('convert:scan-progress', l)
+    return () => ipcRenderer.removeListener('convert:scan-progress', l)
   },
   on_convert_progress: (cb: (d: { srcPath: string; percent: number }) => void): (() => void) => {
     const l = (_e: unknown, d: { srcPath: string; percent: number }): void => cb(d)

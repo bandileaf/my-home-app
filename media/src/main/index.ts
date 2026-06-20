@@ -665,6 +665,21 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     return existsSync(p) ? p : null
   }
 
+  function run_mp3val_check(mp3valPath: string, filePath: string): Promise<string> {
+    return new Promise((resolve) => {
+      try {
+        execFile(mp3valPath, [filePath], (err, stdout) => {
+          if (err && !stdout) { resolve(''); return }
+          const lines = (stdout ?? '').split('\n')
+            .filter(l => /^WARNING:/i.test(l.trim()))
+            .filter(l => !/no supported tags/i.test(l))
+            .map(l => l.replace(/^WARNING:\s*"[^"]*":\s*/i, '').trim())
+          resolve(lines.join(' | '))
+        })
+      } catch { resolve('') }
+    })
+  }
+
   ipcMain.handle('convert:scan-folder', async (event, dir: string, targetExt: string): Promise<ScanResult[]> => {
     const target = targetExt.toLowerCase().replace(/^\./, '')
     const toConvert: string[] = []
@@ -683,53 +698,27 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       }
     }
     scan(dir)
-    log_event(`convert:scan-folder dir=${dir} target=${target} toConvert=${toConvert.length} mp3Files=${mp3Files.length}`)
-    const results: ScanResult[] = toConvert.map(p => ({ path: p }))
+    for (const p of toConvert) {
+      event.sender.send('convert:scan-item', { path: p })
+    }
     if (target === 'mp3' && mp3Files.length > 0) {
       const mp3valPath = find_mp3val_exe(join(app_dir(), 'bin'))
       if (!mp3valPath) {
-        log_event('convert:scan-folder mp3val not found — skipping header check')
+        log_event('convert:scan-folder mp3val not found')
       } else {
-        log_event(`convert:scan-folder checking ${mp3Files.length} mp3 files with mp3val`)
-        let mp3valBroken = false
-        for (const p of mp3Files) {
-          if (mp3valBroken) break
-          const warnings = await new Promise<string>((resolve) => {
-            try {
-              execFile(mp3valPath, [p], (err, stdout) => {
-                if (err && !stdout) {
-                  log_event(`convert:scan-folder mp3val spawn error: ${err.message}`)
-                  if (!mp3valBroken) {
-                    mp3valBroken = true
-                    event.sender.send('notify', { message: `mp3val 실행 실패: ${err.message}`, type: 'error' })
-                  }
-                  resolve('')
-                  return
-                }
-                const lines = (stdout ?? '').split('\n')
-                  .filter(l => /^WARNING:/i.test(l.trim()))
-                  .map(l => l.replace(/^WARNING:\s*"[^"]*":\s*/i, '').trim())
-                resolve(lines.join(' | '))
-              })
-            } catch (e) {
-              log_event(`convert:scan-folder mp3val exception: ${e}`)
-              if (!mp3valBroken) {
-                mp3valBroken = true
-                event.sender.send('notify', { message: `mp3val 실행 실패: ${e}`, type: 'error' })
-              }
-              resolve('')
-            }
-          })
+        const total = mp3Files.length
+        for (let i = 0; i < total; i++) {
+          const p = mp3Files[i]
+          event.sender.send('convert:scan-progress', { current: i, total })
+          const warnings = await run_mp3val_check(mp3valPath, p)
           if (warnings) {
-            log_event(`convert:scan-folder needsFix: ${p} — ${warnings}`)
-            results.push({ path: p, needsFix: true, fixMessage: warnings })
+            event.sender.send('convert:scan-item', { path: p, needsFix: true, fixMessage: warnings })
           }
         }
-        if (!mp3valBroken)
-          log_event(`convert:scan-folder done — ${results.filter(r => r.needsFix).length} needsFix found`)
+        event.sender.send('convert:scan-progress', { current: total, total })
       }
     }
-    return results
+    return []
   })
 
   const active_converts = new Map<string, () => void>()
@@ -756,24 +745,49 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     return (p[0] ?? 0) * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0)
   }
 
-  ipcMain.on('convert:start', (event, srcPath: string, targetFmt: string, deleteOriginal: boolean, needsFix: boolean) => {
+  ipcMain.on('convert:start', (event, srcPath: string, targetFmt: string, deleteOriginal: boolean, needsFix: boolean, fixMessage?: string) => {
     if (needsFix) {
-      const mp3valPath = find_mp3val_exe(join(app_dir(), 'bin'))
-      if (!mp3valPath) {
-        event.sender.send('convert:error', { srcPath, message: 'mp3val을 찾을 수 없습니다. 먼저 도구를 설치해주세요.' })
-        return
-      }
       const src_ext = extname(srcPath)
       const destPath = deleteOriginal
         ? srcPath
         : srcPath.slice(0, srcPath.length - src_ext.length) + '-수정완료' + src_ext
-      try {
-        if (!deleteOriginal) copyFileSync(srcPath, destPath)
-        execFileSync(mp3valPath, ['-f', '-nb', destPath], { windowsHide: true })
-        event.sender.send('convert:progress', { srcPath, percent: 100 })
-        event.sender.send('convert:done', { srcPath, destPath })
-      } catch (err: unknown) {
-        event.sender.send('convert:error', { srcPath, message: (err as Error).message })
+      const isVbr = /VBR/i.test(fixMessage ?? '')
+      if (isVbr) {
+        // VBR 헤더 없음 → ffmpeg -c:a copy 로 Xing 헤더 재작성
+        const ffmpegPath = find_ffmpeg_exe(resolve_ffmpeg_dir(app_dir()))
+        if (!ffmpegPath) {
+          event.sender.send('convert:error', { srcPath, message: 'ffmpeg를 찾을 수 없습니다.' })
+          return
+        }
+        try {
+          if (!deleteOriginal) copyFileSync(srcPath, destPath)
+          execFileSync(ffmpegPath, ['-i', deleteOriginal ? srcPath : destPath, '-c:a', 'copy', '-y', destPath + '.tmp'], { windowsHide: true })
+          unlinkSync(deleteOriginal ? srcPath : destPath)
+          const { renameSync } = require('fs') as typeof import('fs')
+          renameSync(destPath + '.tmp', destPath)
+          event.sender.send('convert:progress', { srcPath, percent: 100 })
+          event.sender.send('convert:done', { srcPath, destPath })
+        } catch (err: unknown) {
+          event.sender.send('convert:error', { srcPath, message: (err as Error).message })
+        }
+      } else {
+        // 스트림 오류 등 → mp3val -f -nb 로 수정 후 재검사
+        const mp3valPath = find_mp3val_exe(join(app_dir(), 'bin'))
+        if (!mp3valPath) {
+          event.sender.send('convert:error', { srcPath, message: 'mp3val을 찾을 수 없습니다.' })
+          return
+        }
+        try {
+          if (!deleteOriginal) copyFileSync(srcPath, destPath)
+          execFileSync(mp3valPath, ['-f', '-nb', destPath], { windowsHide: true })
+          run_mp3val_check(mp3valPath, destPath).then(remaining => {
+            if (remaining) log_event(`convert:start mp3val 재검사 후 경고 잔존 [${destPath}]: ${remaining}`)
+          })
+          event.sender.send('convert:progress', { srcPath, percent: 100 })
+          event.sender.send('convert:done', { srcPath, destPath })
+        } catch (err: unknown) {
+          event.sender.send('convert:error', { srcPath, message: (err as Error).message })
+        }
       }
       return
     }
@@ -819,23 +833,6 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     active_converts.delete(srcPath)
   })
 
-  let convert_watcher: ReturnType<typeof watch> | null = null
-
-  ipcMain.on('convert:watch', (event, dir: string) => {
-    convert_watcher?.close()
-    convert_watcher = null
-    if (!dir || !existsSync(dir)) return
-    try {
-      convert_watcher = watch(dir, () => {
-        event.sender.send('convert:folder-changed')
-      })
-    } catch { /* fs.watch not supported */ }
-  })
-
-  ipcMain.on('convert:unwatch', () => {
-    convert_watcher?.close()
-    convert_watcher = null
-  })
 }
 
 // state.binStatus 에 있는 항목 하나를 갱신한다 (렌더러가 늦게 마운트돼도 'bins:snapshot' 으로 항상 최신 상태 조회 가능).

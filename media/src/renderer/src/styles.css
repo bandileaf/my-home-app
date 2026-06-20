@@ -984,6 +984,28 @@ body {
 .cv-folder-btn:hover:not(:disabled) { background: var(--hover-bg); }
 .cv-folder-btn:disabled { opacity: 0.4; cursor: default; }
 
+.cv-scan-progress {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cv-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 5px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cv-icon-btn:hover:not(:disabled) { background: var(--hover-bg); }
+.cv-icon-btn:disabled { opacity: 0.4; cursor: default; }
+
 .cv-folder-path {
   flex: 1;
   min-width: 0;
@@ -1042,7 +1064,10 @@ body {
 .cv-fmt-btn:disabled { opacity: 0.4; cursor: default; }
 
 .cv-bulk-btn {
-  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
   border: none;
   border-radius: 4px;
   background: var(--accent);

@@ -108,14 +108,13 @@ export interface AppBridge {
   // Convert
   convert_pick_folder?: () => Promise<string | null>
   convert_scan_folder?: (dir: string, targetExt: string) => Promise<{ path: string; needsFix?: boolean; fixMessage?: string }[]>
-  convert_start?: (srcPath: string, targetFmt: string, deleteOriginal?: boolean, needsFix?: boolean) => void
+  convert_start?: (srcPath: string, targetFmt: string, deleteOriginal?: boolean, needsFix?: boolean, fixMessage?: string) => void
   convert_cancel?: (srcPath: string) => void
-  convert_watch?: (dir: string) => void
-  convert_unwatch?: () => void
   on_convert_progress?: (cb: (d: { srcPath: string; percent: number }) => void) => () => void
   on_convert_done?: (cb: (d: { srcPath: string; destPath: string }) => void) => () => void
   on_convert_error?: (cb: (d: { srcPath: string; message: string }) => void) => () => void
-  on_convert_folder_changed?: (cb: () => void) => () => void
+  on_convert_scan_item?: (cb: (item: { path: string; needsFix?: boolean; fixMessage?: string }) => void) => () => void
+  on_convert_scan_progress?: (cb: (d: { current: number; total: number }) => void) => () => void
 }
 
 export function get_bridge(): AppBridge | undefined {
