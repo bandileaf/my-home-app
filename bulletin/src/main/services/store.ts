@@ -2,12 +2,6 @@ import { randomUUID } from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import ws from 'ws'
 
-export interface Ack {
-  deviceId: string
-  hostname: string
-  confirmedAt: number
-}
-
 export interface Reply {
   id: string
   authorDeviceId: string
@@ -30,7 +24,6 @@ export interface Notice {
   kind: 'sticker' | 'reply_request' | 'vote'
   text: string
   createdAt: number
-  acks: Ack[]
   replies: Reply[]
   votes: Vote[]
 }
@@ -55,11 +48,6 @@ function db(): SupabaseClient {
 }
 
 function row_to_notice(row: Record<string, unknown>): Notice {
-  const acks = (row.acks as Record<string, unknown>[] ?? []).map((a) => ({
-    deviceId: a.device_id as string,
-    hostname: a.hostname as string,
-    confirmedAt: a.confirmed_at as number
-  }))
   const replies = (row.replies as Record<string, unknown>[] ?? []).map((r) => ({
     id: r.id as string,
     authorDeviceId: r.author_device_id as string,
@@ -80,7 +68,6 @@ function row_to_notice(row: Record<string, unknown>): Notice {
     kind: (row.kind as Notice['kind']) ?? 'sticker',
     text: row.text as string,
     createdAt: row.created_at as number,
-    acks,
     replies,
     votes
   }
@@ -89,7 +76,7 @@ function row_to_notice(row: Record<string, unknown>): Notice {
 export async function list_notices(): Promise<Notice[]> {
   const { data, error } = await db()
     .from('notices')
-    .select('*, acks(*), replies')
+    .select('*')
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map(row_to_notice)
@@ -126,7 +113,6 @@ export async function create_notice(
     kind,
     text,
     createdAt: Date.now(),
-    acks: [],
     replies: [],
     votes: []
   }
@@ -142,19 +128,6 @@ export async function create_notice(
   return notice
 }
 
-export async function confirm_notice(
-  noticeId: string,
-  deviceId: string,
-  hostname: string
-): Promise<Notice | null> {
-  const { error } = await db().from('acks').upsert(
-    { notice_id: noticeId, device_id: deviceId, hostname, confirmed_at: Date.now() },
-    { onConflict: 'notice_id,device_id' }
-  )
-  if (error) throw error
-  const notices = await list_notices()
-  return notices.find((n) => n.id === noticeId) ?? null
-}
 
 type UserRow = { id: string; app_info: unknown; mac_addresses: string[] | null; device_id: string | null }
 

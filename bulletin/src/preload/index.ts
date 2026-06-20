@@ -9,8 +9,6 @@ const api = {
   get_identity: (): Promise<Identity> => ipcRenderer.invoke('identity:get'),
   list_notices: (): Promise<Notice[]> => ipcRenderer.invoke('notice:list'),
   create_notice: (text: string, kind: string): Promise<Notice> => ipcRenderer.invoke('notice:create', text, kind),
-  confirm_notice: (noticeId: string): Promise<Notice | null> =>
-    ipcRenderer.invoke('notice:confirm', noticeId),
   create_reply: (noticeId: string, text: string): Promise<void> =>
     ipcRenderer.invoke('notice:reply', noticeId, text),
   update_notice: (noticeId: string, text: string): Promise<void> =>

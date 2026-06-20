@@ -8,12 +8,6 @@ export interface Identity {
   ip: string | null
 }
 
-export interface Ack {
-  deviceId: string
-  hostname: string
-  confirmedAt: number
-}
-
 export interface Reply {
   id: string
   authorDeviceId: string
@@ -38,7 +32,6 @@ export interface Notice {
   kind: NoticeKind
   text: string
   createdAt: number
-  acks: Ack[]
   replies: Reply[]
   votes: Vote[]
 }
@@ -57,7 +50,6 @@ export interface AppBridge {
   get_identity?: () => Promise<Identity>
   list_notices?: () => Promise<Notice[]>
   create_notice?: (text: string, kind: NoticeKind) => Promise<Notice>
-  confirm_notice?: (noticeId: string) => Promise<Notice | null>
   create_reply?: (noticeId: string, text: string) => Promise<void>
   update_notice?: (noticeId: string, text: string) => Promise<void>
   cast_vote?: (noticeId: string, vote: 'yes' | 'no') => Promise<void>

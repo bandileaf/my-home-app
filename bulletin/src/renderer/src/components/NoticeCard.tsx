@@ -8,7 +8,6 @@ interface NoticeCardProps {
   myIdentity: Identity | null
   my_profile: UserProfile | null
   get_profile: (deviceId: string) => UserProfile | null
-  on_confirm: (noticeId: string) => void
   on_reply: (noticeId: string, text: string) => void
   on_edit: (noticeId: string, text: string) => void
   on_vote: (noticeId: string, vote: 'yes' | 'no') => void
@@ -28,9 +27,8 @@ function Avatar({ profile, size = 40 }: { profile: UserProfile | null; size?: nu
   return <span className="card-avatar-circle" style={{ ...style, fontSize: size * 0.38 }}>{initials_of(profile)}</span>
 }
 
-export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_confirm, on_reply, on_edit, on_vote }: NoticeCardProps): JSX.Element {
+export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_reply, on_edit, on_vote }: NoticeCardProps): JSX.Element {
   const is_mine = myIdentity?.deviceId === notice.authorDeviceId
-  const already_confirmed = Boolean(myIdentity) && notice.acks.some((a) => a.deviceId === myIdentity!.deviceId)
   const my_vote = notice.votes.find((v) => v.deviceId === myIdentity?.deviceId)?.vote ?? null
   const yes_count = notice.votes.filter((v) => v.vote === 'yes').length
   const no_count  = notice.votes.filter((v) => v.vote === 'no').length
@@ -135,18 +133,6 @@ export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_con
           )}
 
           <div className="card-foot">
-            <div className="ack-bubbles">
-              {notice.acks.slice(0, 3).map((a, i) => (
-                <span key={a.deviceId} className="ack-bubble" style={{ marginLeft: i > 0 ? -10 : 0 }}>
-                  {initials_of(get_profile(a.deviceId))}
-                </span>
-              ))}
-              {notice.acks.length > 3 && <span className="ack-bubble ack-bubble-more">+{notice.acks.length - 3}</span>}
-              {notice.acks.length > 0 && <span className="ack-label">{notice.acks.length}명 확인</span>}
-              {!already_confirmed && (
-                <button className="confirm-silent-btn" onClick={() => on_confirm(notice.id)} title="확인" />
-              )}
-            </div>
             <button className="reply-btn" onClick={() => set_replying((v) => !v)}>답글</button>
           </div>
         </div>

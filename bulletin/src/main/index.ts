@@ -7,7 +7,6 @@ import {
   init_supabase,
   list_notices,
   create_notice,
-  confirm_notice,
   create_reply,
   update_notice,
   cast_vote,
@@ -184,10 +183,6 @@ function register_ipc(identity: Identity): void {
   ipcMain.handle('notice:create', async (_event, text: string, kind: string) => {
     try { return await create_notice(identity.deviceId, identity.hostname, text, (kind as 'sticker' | 'reply_request' | 'vote') ?? 'sticker') }
     catch (e) { log_error('notice:create', e); throw e }
-  })
-  ipcMain.handle('notice:confirm', async (_event, noticeId: string) => {
-    try { return await confirm_notice(noticeId, identity.deviceId, identity.hostname) }
-    catch (e) { log_error('notice:confirm', e); throw e }
   })
   ipcMain.handle('notice:reply', async (_event, noticeId: string, text: string) => {
     try { await create_reply(noticeId, identity.deviceId, identity.hostname, text) }

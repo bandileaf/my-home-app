@@ -5,7 +5,6 @@ interface UseNoticesResult {
   notices: Notice[]
   error: string | null
   post_notice: (text: string, kind: NoticeKind) => Promise<void>
-  confirm_notice: (noticeId: string) => Promise<void>
   reply_notice: (noticeId: string, text: string) => Promise<void>
   edit_notice: (noticeId: string, text: string) => Promise<void>
   vote_notice: (noticeId: string, vote: 'yes' | 'no') => Promise<void>
@@ -31,18 +30,6 @@ export function useNotices(): UseNoticesResult {
       if (!trimmed) return
       try {
         await get_bridge()?.create_notice?.(trimmed, kind)
-        reload()
-      } catch (e: unknown) {
-        set_error(String(e))
-      }
-    },
-    [reload]
-  )
-
-  const confirm_notice = useCallback(
-    async (noticeId: string): Promise<void> => {
-      try {
-        await get_bridge()?.confirm_notice?.(noticeId)
         reload()
       } catch (e: unknown) {
         set_error(String(e))
@@ -79,5 +66,5 @@ export function useNotices(): UseNoticesResult {
     [reload]
   )
 
-  return { notices, error, post_notice, confirm_notice, reply_notice, edit_notice, vote_notice }
+  return { notices, error, post_notice, reply_notice, edit_notice, vote_notice }
 }

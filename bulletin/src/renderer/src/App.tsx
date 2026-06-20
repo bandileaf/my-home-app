@@ -21,7 +21,7 @@ function to_witty_message(error: string): string {
 
 export function App(): JSX.Element {
   const identity = useIdentity()
-  const { notices, error, post_notice, confirm_notice, reply_notice, edit_notice, vote_notice } = useNotices()
+  const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
   const get_profile = useUsers()
   const [appName, set_appName] = useState('')
   const [alias,  set_alias]  = useState<string | null>(null)
@@ -61,7 +61,6 @@ export function App(): JSX.Element {
               identity={identity}
               notices={notices}
               on_post={post_notice}
-              on_confirm={confirm_notice}
               on_reply={reply_notice}
               on_edit={edit_notice}
               on_vote={vote_notice}

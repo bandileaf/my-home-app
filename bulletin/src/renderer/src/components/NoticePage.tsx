@@ -7,7 +7,6 @@ interface NoticePageProps {
   identity: Identity | null
   notices: Notice[]
   on_post: (text: string, kind: NoticeKind) => void
-  on_confirm: (noticeId: string) => void
   on_reply: (noticeId: string, text: string) => void
   on_edit: (noticeId: string, text: string) => void
   on_vote: (noticeId: string, vote: 'yes' | 'no') => void
@@ -20,7 +19,7 @@ const KIND_OPTIONS: { key: NoticeKind; label: string }[] = [
   { key: 'vote',           label: 'Yes / No'  },
 ]
 
-export function NoticePage({ identity, notices, on_post, on_confirm, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
+export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
   const [composing, set_composing] = useState(false)
   const [compose_text, set_compose_text] = useState('')
   const [kind, set_kind] = useState<NoticeKind>('sticker')
@@ -77,7 +76,6 @@ export function NoticePage({ identity, notices, on_post, on_confirm, on_reply, o
               myIdentity={identity}
               my_profile={identity ? get_profile(identity.deviceId) : null}
               get_profile={get_profile}
-              on_confirm={on_confirm}
               on_reply={on_reply}
               on_edit={on_edit}
               on_vote={on_vote}
