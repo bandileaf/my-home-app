@@ -683,19 +683,29 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       }
     }
     scan(dir)
+    log_event(`convert:scan-folder dir=${dir} target=${target} toConvert=${toConvert.length} mp3Files=${mp3Files.length}`)
     const results: ScanResult[] = toConvert.map(p => ({ path: p }))
     if (target === 'mp3' && mp3Files.length > 0) {
       const mp3valPath = find_mp3val_exe(join(app_dir(), 'bin'))
-      if (mp3valPath) {
+      if (!mp3valPath) {
+        log_event('convert:scan-folder mp3val not found — skipping header check')
+      } else {
+        log_event(`convert:scan-folder checking ${mp3Files.length} mp3 files with mp3val`)
         for (const p of mp3Files) {
           const warnings = await new Promise<string>((resolve) => {
             execFile(mp3valPath, [p], (_err, stdout) => {
-              const lines = stdout.split('\n').filter(l => /^WARNING:/i.test(l.trim()))
-              resolve(lines.map(l => l.trim()).join(' | '))
+              const lines = stdout.split('\n')
+                .filter(l => /^WARNING:/i.test(l.trim()))
+                .map(l => l.replace(/^WARNING:\s*"[^"]*":\s*/i, '').trim())
+              resolve(lines.join(' | '))
             })
           })
-          if (warnings) results.push({ path: p, needsFix: true, fixMessage: warnings })
+          if (warnings) {
+            log_event(`convert:scan-folder needsFix: ${p} — ${warnings}`)
+            results.push({ path: p, needsFix: true, fixMessage: warnings })
+          }
         }
+        log_event(`convert:scan-folder done — ${results.filter(r => r.needsFix).length} needsFix found`)
       }
     }
     return results
