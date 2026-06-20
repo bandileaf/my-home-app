@@ -7,8 +7,6 @@
   "hub.app.media.name": "family_media.exe",
   "hub.app.media.db": "indexing.db",
   "hub.app.bulletin.name": "family_bulletin.exe",
-  "hub.supabase.url": "https://eaehwvfbbqgnnyxztymc.supabase.co",
-  "hub.supabase.key": "sb_publishable_igSljNKq0QSkjKKCYjBXOw_tR-7Tnax",
   "hub.bins": [
     {
       "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
