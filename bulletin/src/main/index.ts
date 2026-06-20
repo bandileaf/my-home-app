@@ -13,6 +13,7 @@ import {
   list_users,
   upsert_user,
   update_app_info,
+  save_user_alias,
   get_user_avatar,
   save_user_avatar,
   set_user_offline,
@@ -169,16 +170,16 @@ function register_ipc(identity: Identity): void {
   ipcMain.on('window:minimize', () => win?.minimize())
   ipcMain.handle('app:name',     (): string => app_display_name())
   ipcMain.handle('identity:get', (): Identity => identity)
-  ipcMain.handle('user:alias',  (): string | null => _appInfo.alias ?? null)
+  ipcMain.handle('user:alias',  (): string | null => _alias)
   ipcMain.handle('user:avatar', async (): Promise<string | null> => {
     try { return await get_user_avatar(_identity!.deviceId) }
     catch (e) { log_error('user:avatar', e); return null }
   })
   ipcMain.handle('user:save_profile', async (_e, alias: string | null, avatar: string | null) => {
-    _appInfo = { ..._appInfo, alias: alias ?? undefined }
+    _alias = alias
     try {
       await Promise.all([
-        update_app_info(_identity!.deviceId, _appInfo),
+        save_user_alias(_identity!.deviceId, alias),
         save_user_avatar(_identity!.deviceId, avatar),
       ])
       log_event(`profile saved alias=${alias ?? 'null'} avatar=${avatar ? `${Math.round(avatar.length / 1024)}KB` : 'null'}`)
@@ -189,11 +190,11 @@ function register_ipc(identity: Identity): void {
     catch (e) { log_error('notice:list', e); throw e }
   })
   ipcMain.handle('notice:create', async (_event, text: string, kind: string) => {
-    try { return await create_notice(identity.deviceId, identity.hostname, text, (kind as 'sticker' | 'reply_request' | 'vote') ?? 'sticker') }
+    try { return await create_notice(identity.deviceId, text, (kind as 'sticker' | 'reply_request' | 'vote') ?? 'sticker') }
     catch (e) { log_error('notice:create', e); throw e }
   })
   ipcMain.handle('notice:reply', async (_event, noticeId: string, text: string) => {
-    try { await create_reply(noticeId, identity.deviceId, identity.hostname, text) }
+    try { await create_reply(noticeId, identity.deviceId, text) }
     catch (e) { log_error('notice:reply', e); throw e }
   })
   ipcMain.handle('notice:update', async (_event, noticeId: string, text: string) => {
@@ -201,7 +202,7 @@ function register_ipc(identity: Identity): void {
     catch (e) { log_error('notice:update', e); throw e }
   })
   ipcMain.handle('notice:vote', async (_event, noticeId: string, vote: 'yes' | 'no') => {
-    try { await cast_vote(noticeId, identity.deviceId, identity.hostname, vote) }
+    try { await cast_vote(noticeId, identity.deviceId, vote) }
     catch (e) { log_error('notice:vote', e); throw e }
   })
   ipcMain.handle('user:list', async () => {
@@ -233,6 +234,7 @@ app.on('second-instance', (_event, argv, cwd) => {
 
 let _identity: ReturnType<typeof load_identity> | null = null
 let _appInfo: AppInfo = {}
+let _alias: string | null = null
 let _offline_done = false
 
 app.whenReady().then(async () => {
@@ -259,8 +261,10 @@ app.whenReady().then(async () => {
   }
 
   try {
-    _appInfo = await upsert_user(identity.hostname, identity.macAddresses, identity.ip, identity.deviceId)
-    log_event(`user upsert 완료. app_info=${JSON.stringify(_appInfo)}`)
+    const result = await upsert_user(identity.hostname, identity.macAddresses, identity.ip, identity.deviceId)
+    _appInfo = result.appInfo
+    _alias = result.alias
+    log_event(`user upsert 완료. app_info=${JSON.stringify(_appInfo)} alias=${_alias ?? 'null'}`)
   } catch (e) {
     log_event(`user upsert failed: ${e instanceof Error ? e.message : String(e)}`)
   }

@@ -28,8 +28,8 @@ function Avatar({ profile, size = 40 }: { profile: UserProfile | null; size?: nu
 }
 
 export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_reply, on_edit, on_vote }: NoticeCardProps): JSX.Element {
-  const is_mine = myIdentity?.deviceId === notice.authorDeviceId
-  const my_vote = notice.votes.find((v) => v.deviceId === myIdentity?.deviceId)?.vote ?? null
+  const is_mine = myIdentity?.deviceId === notice.userId
+  const my_vote = notice.votes.find((v) => v.userId === myIdentity?.deviceId)?.vote ?? null
   const yes_count = notice.votes.filter((v) => v.vote === 'yes').length
   const no_count  = notice.votes.filter((v) => v.vote === 'no').length
 
@@ -38,7 +38,7 @@ export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_rep
   const [replying,   set_replying]   = useState(false)
   const [reply_text, set_reply_text] = useState('')
 
-  const author_profile = get_profile(notice.authorDeviceId)
+  const author_profile = get_profile(notice.userId)
 
   function handle_edit_save(): void {
     if (!edit_text.trim()) return
@@ -105,7 +105,7 @@ export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_rep
           {notice.replies.length > 0 && (
             <div className="replies-list">
               {notice.replies.map((r) => {
-                const rp = get_profile(r.authorDeviceId)
+                const rp = get_profile(r.userId)
                 return (
                   <div key={r.id} className="reply-item">
                     <Avatar profile={rp} size={26} />

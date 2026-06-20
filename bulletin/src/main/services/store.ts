@@ -4,23 +4,20 @@ import ws from 'ws'
 
 export interface Reply {
   id: string
-  authorDeviceId: string
-  authorHostname: string
+  userId: string
   text: string
   createdAt: number
 }
 
 export interface Vote {
-  deviceId: string
-  hostname: string
+  userId: string
   vote: 'yes' | 'no'
   votedAt: number
 }
 
 export interface Notice {
   id: string
-  authorDeviceId: string
-  authorHostname: string
+  userId: string
   kind: 'sticker' | 'reply_request' | 'vote'
   text: string
   createdAt: number
@@ -32,7 +29,6 @@ export interface AppInfo {
   width?: number
   height?: number
   theme?: string
-  alias?: string
 }
 
 let _client: SupabaseClient | null = null
@@ -50,26 +46,23 @@ function db(): SupabaseClient {
 function row_to_notice(row: Record<string, unknown>): Notice {
   const replies = (row.replies as Record<string, unknown>[] ?? []).map((r) => ({
     id: r.id as string,
-    authorDeviceId: r.author_device_id as string,
-    authorHostname: r.author_hostname as string,
+    userId: r.user_id as string,
     text: r.text as string,
-    createdAt: r.created_at as number
+    createdAt: r.created_at as number,
   }))
   const votes = (row.votes as Record<string, unknown>[] ?? []).map((v) => ({
-    deviceId: v.device_id as string,
-    hostname: v.hostname as string,
+    userId: v.user_id as string,
     vote: v.vote as 'yes' | 'no',
-    votedAt: v.voted_at as number
+    votedAt: v.voted_at as number,
   }))
   return {
     id: row.id as string,
-    authorDeviceId: row.author_device_id as string,
-    authorHostname: row.author_hostname as string,
+    userId: row.user_id as string,
     kind: (row.kind as Notice['kind']) ?? 'sticker',
     text: row.text as string,
     createdAt: row.created_at as number,
     replies,
-    votes
+    votes,
   }
 }
 
@@ -82,10 +75,34 @@ export async function list_notices(): Promise<Notice[]> {
   return (data ?? []).map(row_to_notice)
 }
 
+export async function create_notice(
+  userId: string,
+  text: string,
+  kind: Notice['kind'] = 'sticker'
+): Promise<Notice> {
+  const notice: Notice = {
+    id: randomUUID(),
+    userId,
+    kind,
+    text,
+    createdAt: Date.now(),
+    replies: [],
+    votes: [],
+  }
+  const { error } = await db().from('notices').insert({
+    id: notice.id,
+    user_id: notice.userId,
+    kind: notice.kind,
+    text: notice.text,
+    created_at: notice.createdAt,
+  })
+  if (error) throw error
+  return notice
+}
+
 export async function create_reply(
   noticeId: string,
-  authorDeviceId: string,
-  authorHostname: string,
+  userId: string,
   text: string
 ): Promise<void> {
   const { data, error: fetchErr } = await db()
@@ -95,53 +112,43 @@ export async function create_reply(
     .single()
   if (fetchErr) throw fetchErr
   const replies = (data.replies as Record<string, unknown>[] ?? [])
-  replies.push({ id: randomUUID(), author_device_id: authorDeviceId, author_hostname: authorHostname, text, created_at: Date.now() })
+  replies.push({ id: randomUUID(), user_id: userId, text, created_at: Date.now() })
   const { error } = await db().from('notices').update({ replies }).eq('id', noticeId)
   if (error) throw error
 }
 
-export async function create_notice(
-  authorDeviceId: string,
-  authorHostname: string,
-  text: string,
-  kind: Notice['kind'] = 'sticker'
-): Promise<Notice> {
-  const notice: Notice = {
-    id: randomUUID(),
-    authorDeviceId,
-    authorHostname,
-    kind,
-    text,
-    createdAt: Date.now(),
-    replies: [],
-    votes: []
-  }
-  const { error } = await db().from('notices').insert({
-    id: notice.id,
-    author_device_id: notice.authorDeviceId,
-    author_hostname: notice.authorHostname,
-    kind: notice.kind,
-    text: notice.text,
-    created_at: notice.createdAt
-  })
+export async function update_notice(noticeId: string, text: string): Promise<void> {
+  const { error } = await db().from('notices').update({ text }).eq('id', noticeId)
   if (error) throw error
-  return notice
 }
 
+export async function cast_vote(
+  noticeId: string,
+  userId: string,
+  vote: 'yes' | 'no'
+): Promise<void> {
+  const { data, error: fetchErr } = await db().from('notices').select('votes').eq('id', noticeId).single()
+  if (fetchErr) throw fetchErr
+  const votes = ((data.votes as Record<string, unknown>[] ?? [])
+    .filter((v) => v.user_id !== userId)) as Record<string, unknown>[]
+  votes.push({ user_id: userId, vote, voted_at: Date.now() })
+  const { error } = await db().from('notices').update({ votes }).eq('id', noticeId)
+  if (error) throw error
+}
 
-type UserRow = { id: string; app_info: unknown; mac_addresses: string[] | null; device_id: string | null }
+type UserRow = { id: string; app_info: unknown; alias: string | null; mac_addresses: string[] | null; device_id: string | null }
 
 export async function upsert_user(
   hostname: string,
   macAddresses: string[],
   ip: string | null,
   deviceId: string
-): Promise<AppInfo> {
+): Promise<{ appInfo: AppInfo; alias: string | null }> {
   let existing: UserRow | null = null
 
   const { data: byDevice, error: deviceErr } = await db()
     .from('users')
-    .select('id, app_info, mac_addresses, device_id')
+    .select('id, app_info, alias, mac_addresses, device_id')
     .eq('device_id', deviceId)
     .maybeSingle()
   if (deviceErr) throw deviceErr
@@ -150,7 +157,7 @@ export async function upsert_user(
   } else if (macAddresses.length > 0) {
     const { data: byMac, error: macErr } = await db()
       .from('users')
-      .select('id, app_info, mac_addresses, device_id')
+      .select('id, app_info, alias, mac_addresses, device_id')
       .overlaps('mac_addresses', macAddresses)
       .maybeSingle()
     if (macErr) throw macErr
@@ -171,7 +178,7 @@ export async function upsert_user(
     if (!existing.device_id || existing.device_id !== deviceId) update.device_id = deviceId
     const { error } = await db().from('users').update(update).eq('id', existing.id as string)
     if (error) throw error
-    return (existing.app_info as AppInfo) ?? {}
+    return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias }
   } else {
     const { error } = await db().from('users').insert({
       hostname,
@@ -181,15 +188,19 @@ export async function upsert_user(
       is_online: true,
       app_info: {},
       last_seen: now,
-      created_at: now
+      created_at: now,
     })
     if (error) throw error
-    return {}
+    return { appInfo: {}, alias: null }
   }
 }
 
 export async function update_app_info(deviceId: string, appInfo: AppInfo): Promise<void> {
   await db().from('users').update({ app_info: appInfo }).eq('device_id', deviceId)
+}
+
+export async function save_user_alias(deviceId: string, alias: string | null): Promise<void> {
+  await db().from('users').update({ alias }).eq('device_id', deviceId)
 }
 
 export async function get_user_avatar(deviceId: string): Promise<string | null> {
@@ -209,34 +220,14 @@ export interface UserProfile {
 }
 
 export async function list_users(): Promise<UserProfile[]> {
-  const { data, error } = await db().from('users').select('device_id, hostname, app_info, avatar')
+  const { data, error } = await db().from('users').select('device_id, hostname, alias, avatar')
   if (error) throw error
   return (data ?? []).map((row) => ({
     deviceId: row.device_id as string,
     hostname: row.hostname as string,
-    alias: (row.app_info as { alias?: string } | null)?.alias ?? null,
+    alias: row.alias as string | null,
     avatar: row.avatar as string | null,
   }))
-}
-
-export async function update_notice(noticeId: string, text: string): Promise<void> {
-  const { error } = await db().from('notices').update({ text }).eq('id', noticeId)
-  if (error) throw error
-}
-
-export async function cast_vote(
-  noticeId: string,
-  deviceId: string,
-  hostname: string,
-  vote: 'yes' | 'no'
-): Promise<void> {
-  const { data, error: fetchErr } = await db().from('notices').select('votes').eq('id', noticeId).single()
-  if (fetchErr) throw fetchErr
-  const votes = ((data.votes as Record<string, unknown>[] ?? [])
-    .filter((v) => v.device_id !== deviceId)) as Record<string, unknown>[]
-  votes.push({ device_id: deviceId, hostname, vote, voted_at: Date.now() })
-  const { error } = await db().from('notices').update({ votes }).eq('id', noticeId)
-  if (error) throw error
 }
 
 export async function set_user_offline(macAddresses: string[], deviceId: string): Promise<void> {

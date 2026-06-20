@@ -10,15 +10,13 @@ export interface Identity {
 
 export interface Reply {
   id: string
-  authorDeviceId: string
-  authorHostname: string
+  userId: string
   text: string
   createdAt: number
 }
 
 export interface Vote {
-  deviceId: string
-  hostname: string
+  userId: string
   vote: 'yes' | 'no'
   votedAt: number
 }
@@ -27,8 +25,7 @@ export type NoticeKind = 'sticker' | 'reply_request' | 'vote'
 
 export interface Notice {
   id: string
-  authorDeviceId: string
-  authorHostname: string
+  userId: string
   kind: NoticeKind
   text: string
   createdAt: number
