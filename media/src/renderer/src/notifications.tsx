@@ -43,12 +43,7 @@ export function NotificationProvider({ children }: { children: ReactNode }): JSX
   }, [])
 
   function copy_message(text: string): void {
-    const bridge = get_bridge()
-    if (bridge?.write_clipboard) {
-      bridge.write_clipboard(text)
-    } else if (navigator.clipboard) {
-      void navigator.clipboard.writeText(text)
-    }
+    void navigator.clipboard.writeText(text)
   }
 
   const notify = useCallback(

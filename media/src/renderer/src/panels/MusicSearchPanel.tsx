@@ -91,9 +91,7 @@ export function MusicSearchPanel(): JSX.Element {
   }
 
   function copy_hit(fullPath: string): void {
-    navigator.clipboard.writeText(fullPath).catch(() => {
-      get_bridge()?.copy_path?.(fullPath)
-    })
+    get_bridge()?.copy_file?.(fullPath)
   }
 
   const trimmed = query.trim()

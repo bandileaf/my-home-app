@@ -22,12 +22,9 @@ const api = {
   search_files: (query: string, options: SearchOptions = {}): Promise<SearchResult> =>
     ipcRenderer.invoke('search:query', query, options),
 
-  // 파일 위치 열기 / 경로 복사.
+  // 파일 위치 열기 / 파일 복사.
   reveal_file: (fullPath: string): void => ipcRenderer.send('file:reveal', fullPath),
-  copy_path: (fullPath: string): void => ipcRenderer.send('file:copyPath', fullPath),
-
-  // 임의 텍스트 클립보드 복사
-  write_clipboard: (text: string): void => ipcRenderer.send('clipboard:write', text),
+  copy_file: (fullPath: string): void => ipcRenderer.send('file:copyFile', fullPath),
 
   // 파일 외부 수정 감지 (watch 정책이 있는 doc 용)
   watch_file: (path: string): void => ipcRenderer.send('watch:add', path),

@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
+import { execFileSync } from 'child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, watch, writeFileSync } from 'fs'
 import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
@@ -454,12 +455,12 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     shell.showItemInFolder(fullPath)
   })
 
-  ipcMain.on('file:copyPath', (_event, fullPath: string) => {
-    clipboard.writeText(fullPath)
-  })
-
-  ipcMain.on('clipboard:write', (_event, text: string) => {
-    clipboard.writeText(text)
+  ipcMain.on('file:copyFile', (_event, fullPath: string) => {
+    const q = fullPath.replace(/'/g, "''")
+    execFileSync('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+      '-Command', `Set-Clipboard -Path '${q}'`,
+    ], { windowsHide: true })
   })
 
   ipcMain.handle('settings:path', (): string => settingsPath)

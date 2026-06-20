@@ -66,8 +66,7 @@ export interface AppBridge {
   on_index_progress?: (callback: (progress: IndexProgress) => void) => () => void
   search_files?: (query: string, options?: SearchOptions) => Promise<SearchResult>
   reveal_file?: (fullPath: string) => void
-  copy_path?: (fullPath: string) => void
-  write_clipboard?: (text: string) => void
+  copy_file?: (fullPath: string) => void
   watch_file?: (path: string) => void
   unwatch_file?: (path: string) => void
   on_file_changed?: (callback: (path: string) => void) => () => void

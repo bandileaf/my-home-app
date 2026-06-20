@@ -50,9 +50,6 @@ function ProgressBar({ label, percent, speed, eta, onCancel }: {
 function DoneRow({ label, filePath, onOpen }: {
   label: string; filePath: string; onOpen: () => void
 }): JSX.Element {
-  function copy_path(): void {
-    navigator.clipboard.writeText(filePath).catch(() => {})
-  }
   return (
     <div className="yt-done">
       <span className="yt-done-icon">✓</span>
@@ -61,7 +58,7 @@ function DoneRow({ label, filePath, onOpen }: {
         {filePath.split(/[\\/]/).pop()}
       </span>
       <button className="yt-folder-btn" title="Open folder" onClick={onOpen}><FolderOpen size={14} strokeWidth={1.5} /></button>
-      <button className="yt-folder-btn" title="클립보드에 복사" onClick={copy_path}><Copy size={14} strokeWidth={1.5} /></button>
+      <button className="yt-folder-btn" title="파일 복사" onClick={() => get_bridge()?.copy_file?.(filePath)}><Copy size={14} strokeWidth={1.5} /></button>
     </div>
   )
 }
