@@ -153,7 +153,15 @@ function app_display_name(): string {
 }
 
 function log_error(label: string, e: unknown): void {
-  log_event(`[ERROR] ${label}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`)
+  let msg: string
+  if (e instanceof Error) {
+    msg = e.stack ?? e.message
+  } else if (e && typeof e === 'object') {
+    msg = JSON.stringify(e)
+  } else {
+    msg = String(e)
+  }
+  log_event(`[ERROR] ${label}: ${msg}`)
 }
 
 function register_ipc(identity: Identity): void {
