@@ -665,7 +665,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
     return existsSync(p) ? p : null
   }
 
-  ipcMain.handle('convert:scan-folder', async (_event, dir: string, targetExt: string): Promise<ScanResult[]> => {
+  ipcMain.handle('convert:scan-folder', async (event, dir: string, targetExt: string): Promise<ScanResult[]> => {
     const target = targetExt.toLowerCase().replace(/^\./, '')
     const toConvert: string[] = []
     const mp3Files: string[] = []
@@ -691,21 +691,42 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
         log_event('convert:scan-folder mp3val not found — skipping header check')
       } else {
         log_event(`convert:scan-folder checking ${mp3Files.length} mp3 files with mp3val`)
+        let mp3valBroken = false
         for (const p of mp3Files) {
+          if (mp3valBroken) break
           const warnings = await new Promise<string>((resolve) => {
-            execFile(mp3valPath, [p], (_err, stdout) => {
-              const lines = stdout.split('\n')
-                .filter(l => /^WARNING:/i.test(l.trim()))
-                .map(l => l.replace(/^WARNING:\s*"[^"]*":\s*/i, '').trim())
-              resolve(lines.join(' | '))
-            })
+            try {
+              execFile(mp3valPath, [p], (err, stdout) => {
+                if (err && !stdout) {
+                  log_event(`convert:scan-folder mp3val spawn error: ${err.message}`)
+                  if (!mp3valBroken) {
+                    mp3valBroken = true
+                    event.sender.send('notify', { message: `mp3val 실행 실패: ${err.message}`, type: 'error' })
+                  }
+                  resolve('')
+                  return
+                }
+                const lines = (stdout ?? '').split('\n')
+                  .filter(l => /^WARNING:/i.test(l.trim()))
+                  .map(l => l.replace(/^WARNING:\s*"[^"]*":\s*/i, '').trim())
+                resolve(lines.join(' | '))
+              })
+            } catch (e) {
+              log_event(`convert:scan-folder mp3val exception: ${e}`)
+              if (!mp3valBroken) {
+                mp3valBroken = true
+                event.sender.send('notify', { message: `mp3val 실행 실패: ${e}`, type: 'error' })
+              }
+              resolve('')
+            }
           })
           if (warnings) {
             log_event(`convert:scan-folder needsFix: ${p} — ${warnings}`)
             results.push({ path: p, needsFix: true, fixMessage: warnings })
           }
         }
-        log_event(`convert:scan-folder done — ${results.filter(r => r.needsFix).length} needsFix found`)
+        if (!mp3valBroken)
+          log_event(`convert:scan-folder done — ${results.filter(r => r.needsFix).length} needsFix found`)
       }
     }
     return results
