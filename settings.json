@@ -19,7 +19,7 @@
       "version": ""
     },
     {
-      "url": "https://github.com/cfgnunes/wxmp3val/releases/download/4.2/wxmp3val-4.2-win32-portable.zip",
+      "url": "http://downloads.sourceforge.net/mp3val/mp3val-0.1.8-bin-win32.zip",
       "exes": ["mp3val.exe"],
       "version": ""
     }
