@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowRightLeft, FolderOpen, ListChecks, RefreshCw, Wrench, X } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, FolderOpen, ListChecks, RefreshCw, Trash2, Wrench, X } from 'lucide-react'
 
 import { get_bridge } from '../bridge'
 import { useTabCtx } from '../App'
@@ -19,17 +19,41 @@ interface ConvertItem {
   srcExt: string
   needsFix?: boolean
   fixMessage?: string
+  isBak?: boolean
   state: ItemState
 }
 
-function ConvertRow({ item, disabled, onRemove, onConvert, onReveal }: {
+function ConvertRow({ item, disabled, onRemove, onConvert, onReveal, onDelete }: {
   item: ConvertItem
   disabled: boolean
   onRemove: () => void
   onConvert: () => void
   onReveal: () => void
+  onDelete: () => void
 }): JSX.Element {
   const { state } = item
+
+  if (item.isBak) {
+    return (
+      <div className="cv-row">
+        <span className="cv-name">{item.fileName}</span>
+        <div className="cv-bottom">
+          <span className="cv-path" title={item.srcPath}>{item.srcPath}</span>
+          <div className="cv-actions">
+            <div className="cv-fmt-group">
+              <button className="cv-convert-btn" title="폴더 열기" onClick={onReveal}>
+                <FolderOpen size={12} strokeWidth={1.5} />
+              </button>
+              <button className="cv-convert-btn" title="파일 삭제" onClick={onDelete}>
+                <Trash2 size={12} strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`cv-row${disabled ? ' cv-row-disabled' : ''}`}>
       <span className="cv-name">{item.fileName}</span>
@@ -172,6 +196,10 @@ export function ConvertPanel(): JSX.Element {
 
   function scan(): void {
     if (!folder) { set_items([]); return }
+    items.forEach(item => {
+      if (item.state.status === 'converting') bridge?.convert_cancel?.(item.srcPath)
+    })
+    set_busy(false)
     set_items([])
     set_scan_progress(null)
     bridge?.convert_scan_folder?.(folder, targetFmt).catch(() => {})
@@ -189,6 +217,7 @@ export function ConvertPanel(): JSX.Element {
           srcExt: (r.path.split('.').pop() ?? '').toLowerCase(),
           needsFix: r.needsFix,
           fixMessage: r.fixMessage,
+          isBak: r.isBak,
           state: { status: 'idle' },
         }]
       })
@@ -219,6 +248,11 @@ export function ConvertPanel(): JSX.Element {
     set_busy(true)
     for (const item of items) {
       if (item.state.status !== 'idle') continue
+      if (item.isBak) {
+        bridge?.convert_delete_file?.(item.srcPath)
+        remove_item(item.srcPath)
+        continue
+      }
       set_items(prev => prev.map(i =>
         i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
       ))
@@ -239,6 +273,11 @@ export function ConvertPanel(): JSX.Element {
         </span>
         {folder && (
           <div className="cv-toolbar-right">
+            {scanProgress && (
+              <span className="cv-scan-progress">
+                {Math.round(scanProgress.current / scanProgress.total * 100)}% / 100%
+              </span>
+            )}
             <select
               className="cv-fmt-select"
               value={targetFmt}
@@ -247,11 +286,6 @@ export function ConvertPanel(): JSX.Element {
             >
               {FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
-            {scanProgress && (
-              <span className="cv-scan-progress">
-                {Math.round(scanProgress.current / scanProgress.total * 100)}% / 100%
-              </span>
-            )}
             {hasItems && (
               <button className="cv-bulk-btn" onClick={bulk_apply} disabled={busy}>
                 <ListChecks size={13} strokeWidth={1.5} />
@@ -287,6 +321,10 @@ export function ConvertPanel(): JSX.Element {
             onRemove={() => remove_item(item.srcPath)}
             onConvert={() => start_one(item)}
             onReveal={() => bridge?.reveal_file?.(item.state.status === 'done' ? item.state.destPath : item.srcPath)}
+            onDelete={() => {
+              bridge?.convert_delete_file?.(item.srcPath)
+              remove_item(item.srcPath)
+            }}
           />
         ))}
       </div>

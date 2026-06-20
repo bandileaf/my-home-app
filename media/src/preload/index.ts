@@ -141,8 +141,15 @@ const api = {
     ipcRenderer.send('convert:start', srcPath, targetFmt, deleteOriginal ?? false, needsFix ?? false, fixMessage),
   convert_cancel: (srcPath: string): void =>
     ipcRenderer.send('convert:cancel', srcPath),
-  on_convert_scan_item: (cb: (item: { path: string; needsFix?: boolean; fixMessage?: string }) => void): (() => void) => {
-    const l = (_e: unknown, item: { path: string; needsFix?: boolean; fixMessage?: string }): void => cb(item)
+  convert_delete_file: (filePath: string): void =>
+    ipcRenderer.send('convert:delete-file', filePath),
+  on_convert_file_deleted: (cb: (d: { path: string }) => void): (() => void) => {
+    const l = (_e: unknown, d: { path: string }): void => cb(d)
+    ipcRenderer.on('convert:file-deleted', l)
+    return () => ipcRenderer.removeListener('convert:file-deleted', l)
+  },
+  on_convert_scan_item: (cb: (item: { path: string; needsFix?: boolean; fixMessage?: string; isBak?: boolean }) => void): (() => void) => {
+    const l = (_e: unknown, item: { path: string; needsFix?: boolean; fixMessage?: string; isBak?: boolean }): void => cb(item)
     ipcRenderer.on('convert:scan-item', l)
     return () => ipcRenderer.removeListener('convert:scan-item', l)
   },

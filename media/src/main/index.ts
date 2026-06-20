@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type WebContents } from 'electron'
-import { execFile, execFileSync } from 'child_process'
+import { execFile, execFileSync, spawnSync } from 'child_process'
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, watch, writeFileSync } from 'fs'
 import { stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
@@ -80,7 +80,7 @@ function log_event(message: string): void {
       mkdirSync(logDir, { recursive: true })
       _log_path = join(logDir, `${app.getName()}.log`)
     }
-    appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`)
+    appendFileSync(_log_path, `[${new Date().toISOString()}] ${message}\n`, { encoding: 'utf8' })
   } catch {
     // ignore
   }
@@ -107,7 +107,7 @@ function init_log_path(settingsPath: string): void {
     mkdirSync(logDir, { recursive: true })
     _log_path = join(logDir, `${_display_name}.log`)
     const BUILD_NUMBER = 8
-    appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid} build=${BUILD_NUMBER}\n`)
+    appendFileSync(_log_path, `\n[${new Date().toISOString()}] SESSION START pid=${process.pid} build=${BUILD_NUMBER}\n`, { encoding: 'utf8' })
   } catch {
     // fallback: lazy init in log_event will set it
   }
@@ -652,6 +652,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
 
   // ── Convert ──────────────────────────────────────────────────────────────
   const CONVERTIBLE = new Set(['mp3','flac','wav','aac','m4a','ogg','opus','wma','ape','mp4','mkv','avi','mov','wmv','webm','m4v'])
+  let convert_scan_id = 0
 
   ipcMain.handle('convert:pick-folder', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
@@ -681,6 +682,7 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
   }
 
   ipcMain.handle('convert:scan-folder', async (event, dir: string, targetExt: string): Promise<ScanResult[]> => {
+    const myId = ++convert_scan_id
     const target = targetExt.toLowerCase().replace(/^\./, '')
     const toConvert: string[] = []
     const mp3Files: string[] = []
@@ -697,8 +699,26 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
         else if (target === 'mp3' && ext === 'mp3') mp3Files.push(full)
       }
     }
+    const bakFiles: string[] = []
+    const scanDir = (d: string): void => {
+      let names: string[]
+      try { names = readdirSync(d) } catch { return }
+      for (const name of names) {
+        const full = join(d, name)
+        let isDir = false
+        try { isDir = statSync(full).isDirectory() } catch { continue }
+        if (isDir) { scanDir(full); continue }
+        if (name.toLowerCase().endsWith('.bak')) bakFiles.push(full)
+      }
+    }
     scan(dir)
+    scanDir(dir)
+    for (const p of bakFiles) {
+      if (myId !== convert_scan_id) return []
+      event.sender.send('convert:scan-item', { path: p, isBak: true })
+    }
     for (const p of toConvert) {
+      if (myId !== convert_scan_id) return []
       event.sender.send('convert:scan-item', { path: p })
     }
     if (target === 'mp3' && mp3Files.length > 0) {
@@ -708,13 +728,16 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
       } else {
         const total = mp3Files.length
         for (let i = 0; i < total; i++) {
+          if (myId !== convert_scan_id) return []
           const p = mp3Files[i]
           event.sender.send('convert:scan-progress', { current: i, total })
           const warnings = await run_mp3val_check(mp3valPath, p)
+          if (myId !== convert_scan_id) return []
           if (warnings) {
             event.sender.send('convert:scan-item', { path: p, needsFix: true, fixMessage: warnings })
           }
         }
+        if (myId !== convert_scan_id) return []
         event.sender.send('convert:scan-progress', { current: total, total })
       }
     }
@@ -752,52 +775,70 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
         ? srcPath
         : srcPath.slice(0, srcPath.length - src_ext.length) + '-수정완료' + src_ext
       const isVbr = /VBR/i.test(fixMessage ?? '')
+      log_event(`convert:start needsFix deleteOriginal=${deleteOriginal} isVbr=${isVbr} src=[${srcPath}] dest=[${destPath}]`)
       if (isVbr) {
-        // VBR 헤더 없음 → ffmpeg -c:a copy 로 Xing 헤더 재작성
         const ffmpegPath = find_ffmpeg_exe(resolve_ffmpeg_dir(app_dir()))
         if (!ffmpegPath) {
+          log_event(`convert:start ffmpeg 없음 [${srcPath}]`)
           event.sender.send('convert:error', { srcPath, message: 'ffmpeg를 찾을 수 없습니다.' })
           return
         }
         try {
-          if (!deleteOriginal) copyFileSync(srcPath, destPath)
-          execFileSync(ffmpegPath, ['-i', deleteOriginal ? srcPath : destPath, '-c:a', 'copy', '-y', destPath + '.tmp'], { windowsHide: true })
-          unlinkSync(deleteOriginal ? srcPath : destPath)
+          const tmpPath = destPath + '.tmp'
+          // srcPath 를 항상 input 으로 읽음
+          // deleteOriginal=false: ffmpeg -i srcPath -c:a copy -y destPath.tmp → rename → destPath (원본 보존)
+          // deleteOriginal=true:  ffmpeg -i srcPath -c:a copy -y srcPath.tmp  → delete srcPath → rename (원본 교체)
+          const ffResult = spawnSync(ffmpegPath, ['-i', srcPath, '-c:a', 'copy', '-f', 'mp3', '-y', tmpPath], { windowsHide: true })
+          const ffLog = [ffResult.stdout, ffResult.stderr].map(b => b?.toString('utf8') ?? '').filter(Boolean).join('\n')
+          if (ffLog) log_event(`convert:start VBR ffmpeg 출력 [${srcPath}]:\n${ffLog}`)
+          if (ffResult.error) throw ffResult.error
+          if (ffResult.status !== 0) throw new Error(`ffmpeg 종료코드 ${ffResult.status}`)
+          if (deleteOriginal) unlinkSync(srcPath)
           const { renameSync } = require('fs') as typeof import('fs')
-          renameSync(destPath + '.tmp', destPath)
+          renameSync(tmpPath, destPath)
           event.sender.send('convert:progress', { srcPath, percent: 100 })
           event.sender.send('convert:done', { srcPath, destPath })
         } catch (err: unknown) {
-          event.sender.send('convert:error', { srcPath, message: (err as Error).message })
+          const msg = (err as Error).message
+          log_event(`convert:start VBR ffmpeg 오류 [${srcPath}]: ${msg}`)
+          event.sender.send('convert:error', { srcPath, message: msg })
         }
       } else {
         // 스트림 오류 등 → mp3val -f -nb 로 수정 후 재검사
         const mp3valPath = find_mp3val_exe(join(app_dir(), 'bin'))
         if (!mp3valPath) {
+          log_event(`convert:start mp3val 없음 [${srcPath}]`)
           event.sender.send('convert:error', { srcPath, message: 'mp3val을 찾을 수 없습니다.' })
           return
         }
         try {
           if (!deleteOriginal) copyFileSync(srcPath, destPath)
-          execFileSync(mp3valPath, ['-f', '-nb', destPath], { windowsHide: true })
+          const mp3Result = spawnSync(mp3valPath, ['-f', '-nb', destPath], { windowsHide: true })
+          const mp3Log = [mp3Result.stdout, mp3Result.stderr].map(b => b?.toString('utf8') ?? '').filter(Boolean).join('\n')
+          if (mp3Log) log_event(`convert:start mp3val 출력 [${srcPath}]:\n${mp3Log}`)
+          if (mp3Result.error) throw mp3Result.error
           run_mp3val_check(mp3valPath, destPath).then(remaining => {
             if (remaining) log_event(`convert:start mp3val 재검사 후 경고 잔존 [${destPath}]: ${remaining}`)
           })
           event.sender.send('convert:progress', { srcPath, percent: 100 })
           event.sender.send('convert:done', { srcPath, destPath })
         } catch (err: unknown) {
-          event.sender.send('convert:error', { srcPath, message: (err as Error).message })
+          const msg = (err as Error).message
+          log_event(`convert:start mp3val 오류 [${srcPath}]: ${msg}`)
+          event.sender.send('convert:error', { srcPath, message: msg })
         }
       }
       return
     }
     const ffmpegPath = find_ffmpeg_exe(resolve_ffmpeg_dir(app_dir()))
     if (!ffmpegPath) {
+      log_event(`convert:start ffmpeg 없음 [${srcPath}]`)
       event.sender.send('convert:error', { srcPath, message: 'ffmpeg를 찾을 수 없습니다. 먼저 YouTube 패널에서 도구를 설치해주세요.' })
       return
     }
     const src_ext = extname(srcPath)
     const destPath = srcPath.slice(0, srcPath.length - src_ext.length) + '.' + targetFmt
+    log_event(`convert:start [${srcPath}] → [${destPath}]`)
     const { spawn: sp } = require('child_process') as typeof import('child_process')
     const proc = sp(ffmpegPath, ffmpeg_args(srcPath, destPath, targetFmt), { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
     active_converts.set(srcPath, () => proc.kill())
@@ -820,10 +861,12 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
         if (deleteOriginal) try { unlinkSync(srcPath) } catch { /* ignore */ }
         event.sender.send('convert:done', { srcPath, destPath })
       } else {
+        log_event(`convert:start ffmpeg 종료코드 ${code} [${srcPath}]: ${stderr.slice(-500)}`)
         event.sender.send('convert:error', { srcPath, message: stderr.slice(-300) })
       }
     })
     proc.on('error', (err: Error) => {
+      log_event(`convert:start ffmpeg spawn 오류 [${srcPath}]: ${err.message}`)
       event.sender.send('convert:error', { srcPath, message: err.message })
     })
   })
@@ -831,6 +874,16 @@ function register_ipc(settingsPath: string, db: DB, state: IndexState): void {
   ipcMain.on('convert:cancel', (_event, srcPath: string) => {
     active_converts.get(srcPath)?.()
     active_converts.delete(srcPath)
+  })
+
+  ipcMain.on('convert:delete-file', (event, filePath: string) => {
+    try {
+      unlinkSync(filePath)
+      log_event(`convert:delete-file [${filePath}]`)
+      event.sender.send('convert:file-deleted', { path: filePath })
+    } catch (err: unknown) {
+      log_event(`convert:delete-file 오류 [${filePath}]: ${(err as Error).message}`)
+    }
   })
 
 }
@@ -984,7 +1037,7 @@ if (!got_lock) {
       : process.cwd(), 'log')
     mkdirSync(logDir, { recursive: true })
     const logPath = join(logDir, `${basename(process.execPath, '.exe')}.log`)
-    appendFileSync(logPath, `\n[${new Date().toISOString()}] DUPLICATE LAUNCH rejected pid=${process.pid} argv=${JSON.stringify(process.argv)}\n`)
+    appendFileSync(logPath, `\n[${new Date().toISOString()}] DUPLICATE LAUNCH rejected pid=${process.pid} argv=${JSON.stringify(process.argv)}\n`, { encoding: 'utf8' })
   } catch { /* ignore */ }
   app.quit()
   process.exit(0)
