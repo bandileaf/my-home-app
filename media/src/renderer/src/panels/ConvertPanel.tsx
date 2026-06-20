@@ -17,15 +17,13 @@ interface ConvertItem {
   srcPath: string
   fileName: string
   srcExt: string
-  targetFmt: Fmt
   state: ItemState
 }
 
-function ConvertRow({ item, disabled, onRemove, onFmt, onConvert, onReveal }: {
+function ConvertRow({ item, disabled, onRemove, onConvert, onReveal }: {
   item: ConvertItem
   disabled: boolean
   onRemove: () => void
-  onFmt: (f: Fmt) => void
   onConvert: () => void
   onReveal: () => void
 }): JSX.Element {
@@ -48,15 +46,6 @@ function ConvertRow({ item, disabled, onRemove, onFmt, onConvert, onReveal }: {
           {state.status === 'error' && <span className="cv-error" title={state.message}>오류</span>}
           {state.status === 'idle' && (
             <div className="cv-fmt-group">
-              {FORMATS.map(f => (
-                <button
-                  key={f}
-                  className={`cv-fmt-btn${item.targetFmt === f ? ' active' : ''}`}
-                  onClick={() => onFmt(f)}
-                  disabled={disabled || item.srcExt === f}
-                  title={item.srcExt === f ? '이미 같은 형식입니다' : undefined}
-                >{f}</button>
-              ))}
               <button
                 className="cv-convert-btn"
                 title="변환"
@@ -167,16 +156,12 @@ export function ConvertPanel(): JSX.Element {
   useEffect(() => {
     if (!folder) { set_items([]); return }
     bridge?.convert_scan_folder?.(folder, targetFmt).then((files) => {
-      set_items(files.map(f => {
-        const ext = (f.split('.').pop() ?? '').toLowerCase() as Fmt
-        return {
-          srcPath: f,
-          fileName: f.split(/[\\/]/).pop() ?? f,
-          srcExt: ext,
-          targetFmt,
-          state: { status: 'idle' },
-        }
-      }))
+      set_items(files.map(f => ({
+        srcPath: f,
+        fileName: f.split(/[\\/]/).pop() ?? f,
+        srcExt: (f.split('.').pop() ?? '').toLowerCase(),
+        state: { status: 'idle' },
+      })))
     }).catch(() => {})
   }, [folder, targetFmt])
 
@@ -184,15 +169,11 @@ export function ConvertPanel(): JSX.Element {
     set_items(prev => prev.filter(i => i.srcPath !== srcPath))
   }
 
-  function set_item_fmt(srcPath: string, fmt: Fmt): void {
-    set_items(prev => prev.map(i => i.srcPath === srcPath ? { ...i, targetFmt: fmt } : i))
-  }
-
   function start_one(item: ConvertItem): void {
     set_items(prev => prev.map(i =>
       i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
     ))
-    bridge?.convert_start?.(item.srcPath, item.targetFmt, deleteOriginal)
+    bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal)
   }
 
   function bulk_convert(): void {
@@ -201,7 +182,7 @@ export function ConvertPanel(): JSX.Element {
       set_items(prev => prev.map(i =>
         i.srcPath === item.srcPath ? { ...i, state: { status: 'converting', percent: 0 } } : i
       ))
-      bridge?.convert_start?.(item.srcPath, item.targetFmt, deleteOriginal)
+      bridge?.convert_start?.(item.srcPath, targetFmt, deleteOriginal)
     }
   }
 
@@ -255,7 +236,6 @@ export function ConvertPanel(): JSX.Element {
             item={item}
             disabled={busy}
             onRemove={() => remove_item(item.srcPath)}
-            onFmt={(f) => set_item_fmt(item.srcPath, f)}
             onConvert={() => start_one(item)}
             onReveal={() => bridge?.reveal_file?.(item.srcPath)}
           />
