@@ -93,7 +93,10 @@ export function ConvertPanel(): JSX.Element {
   const [busy, set_busy] = useState(false)
   const bridge = get_bridge()
 
-  useEffect(() => { setTitle('변환') }, [])
+  useEffect(() => {
+    const name = folder ? folder.split(/[\\/]/).pop() : null
+    setTitle(name ? `변환 - ${name}` : '변환')
+  }, [folder])
 
   useEffect(() => {
     const key = 'convert.state'
