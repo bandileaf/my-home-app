@@ -161,7 +161,8 @@ async function run_ytdlp(
   outputDir: string,
   on_progress: (p: YoutubeProgress) => void,
   on_done: (filePath: string) => void,
-  on_error: (message: string) => void
+  on_error: (message: string) => void,
+  on_log: (msg: string) => void = () => {}
 ): Promise<void> {
   on_progress({ url, percent: 0, speed: '', eta: '' })
 
@@ -196,14 +197,24 @@ async function run_ytdlp(
       proc.on('close', (code) => {
         active_downloads.delete(key)
         if (code === 0) {
+          // --print after_move:filepath outputs just the absolute path on its own line.
+          // We match lines that START with a drive letter path (Windows: C:\...) or unix root (/).
+          // This avoids false positives like "Deleting original file C:\..." lines.
           let finalPath = ''
           for (const line of stdoutBuf.split('\n')) {
             const t = line.trim()
-            if (t && !t.startsWith('[') && !t.startsWith('WARNING') && !t.startsWith('ERROR') &&
-                (t.includes('\\') || t.includes('/'))) {
+            if (/^[A-Za-z]:[\\\/]/.test(t) || (t.startsWith('/') && t.length > 1 && !t.startsWith('//'))) {
               finalPath = t
             }
           }
+          // Fallback: parse [ExtractAudio] Destination: for older yt-dlp without after_move support
+          if (!finalPath) {
+            for (const line of stdoutBuf.split('\n')) {
+              const m = line.trim().match(/^\[ExtractAudio\] Destination:\s*(.+)/)
+              if (m) finalPath = m[1].trim()
+            }
+          }
+          on_log(`yt-dlp stdout hex: ${Buffer.from(stdoutBuf).toString('hex')}`)
           on_progress({ url, percent: 100, speed: '', eta: '' })
           on_done(finalPath || outputDir)
           resolve()
@@ -229,7 +240,8 @@ export async function youtube_download(
   audioFormat: string = 'm4a',  // 'm4a' | 'mp3'
   on_progress: (p: YoutubeProgress) => void,
   on_done: (filePath: string) => void,
-  on_error: (message: string) => void
+  on_error: (message: string) => void,
+  on_log: (msg: string) => void = () => {}
 ): Promise<void> {
   if (active_downloads.has(url)) return
   // -x --audio-format converts to the requested format using ffmpeg
@@ -239,11 +251,12 @@ export async function youtube_download(
     '--audio-quality', '0',
     '--ffmpeg-location', ffmpegDir,
     '--newline',
+    '--encoding', 'utf-8',
     '-o', join(outputDir, '%(title)s.%(ext)s'),
     '--print', 'after_move:filepath',
     url,
   ]
-  await run_ytdlp(url, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error)
+  await run_ytdlp(url, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error, on_log)
 }
 
 export async function youtube_download_video(
@@ -253,13 +266,14 @@ export async function youtube_download_video(
   ffmpegDir: string,
   on_progress: (p: YoutubeProgress) => void,
   on_done: (filePath: string) => void,
-  on_error: (message: string) => void
+  on_error: (message: string) => void,
+  on_log: (msg: string) => void = () => {}
 ): Promise<void> {
   const key = url + ':video'
   if (active_downloads.has(key)) return
   // bestvideo+bestaudio requires ffmpeg to merge streams → true highest quality
   const args = build_ytdlp_args(url, outputDir, 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio', ffmpegDir)
-  await run_ytdlp(key, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error)
+  await run_ytdlp(key, args, ytdlpPath, url, outputDir, on_progress, on_done, on_error, on_log)
 }
 
 export function youtube_cancel(url: string): void {

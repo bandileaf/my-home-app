@@ -11,6 +11,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "build:win": "electron-vite build && electron-builder --win dir",
+    "build:portable": "electron-vite build && electron-builder --win portable",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
