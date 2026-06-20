@@ -308,12 +308,12 @@ app.on('before-quit', (event) => {
   if (_offline_done || !_identity) return
   event.preventDefault()
   const bounds = win?.getBounds()
-  const appInfo: AppInfo = bounds ? { width: bounds.width, height: bounds.height } : {}
+  if (bounds) _appInfo = { ..._appInfo, width: bounds.width, height: bounds.height }
   void Promise.all([
-    update_app_info(_identity.deviceId, appInfo),
+    update_app_info(_identity.deviceId, _appInfo),
     set_user_offline(_identity.macAddresses, _identity.deviceId),
   ]).finally(() => {
-    log_event(`user: set offline, app_info saved ${JSON.stringify(appInfo)}`)
+    log_event(`user: set offline, app_info saved ${JSON.stringify(_appInfo)}`)
     _offline_done = true
     app.quit()
   })

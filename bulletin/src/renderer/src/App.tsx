@@ -22,7 +22,7 @@ function to_witty_message(error: string): string {
 export function App(): JSX.Element {
   const identity = useIdentity()
   const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
-  const get_profile = useUsers()
+  const { get_profile, refresh_users } = useUsers()
   const [appName, set_appName] = useState('')
   const [alias,  set_alias]  = useState<string | null>(null)
   const [avatar, set_avatar] = useState<string | null>(null)
@@ -37,6 +37,7 @@ export function App(): JSX.Element {
     set_alias(new_alias)
     set_avatar(new_avatar)
     get_bridge()?.save_profile?.(new_alias, new_avatar)
+    refresh_users()
   }
 
   const close_window = (): void => get_bridge()?.window_close?.()

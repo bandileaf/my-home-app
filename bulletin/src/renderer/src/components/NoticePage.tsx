@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Plus } from 'lucide-react'
+import { X } from 'lucide-react'
 import type { Identity, Notice, NoticeKind, UserProfile } from '../bridge'
 import { NoticeCard } from './NoticeCard'
 
@@ -23,6 +23,19 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
   const [composing, set_composing] = useState(false)
   const [compose_text, set_compose_text] = useState('')
   const [kind, set_kind] = useState<NoticeKind>('sticker')
+  const [drag_start, set_drag_start] = useState<number | null>(null)
+
+  function handle_mouse_down(e: React.MouseEvent): void {
+    set_drag_start(e.clientY)
+  }
+
+  function handle_mouse_up(e: React.MouseEvent): void {
+    if (drag_start === null) return
+    const delta = e.clientY - drag_start
+    if (delta > 60 && !composing) set_composing(true)
+    if (delta < -60 && composing) { set_composing(false); set_compose_text(''); set_kind('sticker') }
+    set_drag_start(null)
+  }
 
   function handle_post(): void {
     if (!compose_text.trim()) return
@@ -33,7 +46,13 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
   }
 
   return (
-    <div className="page" style={{ position: 'relative' }}>
+    <div
+      className="page"
+      style={{ position: 'relative', userSelect: 'none' }}
+      onMouseDown={handle_mouse_down}
+      onMouseUp={handle_mouse_up}
+      onMouseLeave={() => set_drag_start(null)}
+    >
       {composing ? (
         <div className="compose-view">
           <div className="compose-topbar">
@@ -48,7 +67,7 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
                 </button>
               ))}
             </div>
-            <button className="compose-close-btn" onClick={() => set_composing(false)}>
+            <button className="compose-close-btn" onClick={() => { set_composing(false); set_compose_text(''); set_kind('sticker') }}>
               <X size={20} />
             </button>
           </div>
@@ -58,6 +77,7 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
               placeholder="가족에게 알릴 내용을 입력하세요..."
               value={compose_text}
               onChange={(e) => set_compose_text(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
               autoFocus
             />
             <button className="compose-post-btn" onClick={handle_post}>게시</button>
@@ -81,10 +101,6 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
               on_vote={on_vote}
             />
           ))}
-
-          <button className="fab-compose" onClick={() => set_composing(true)}>
-            <Plus size={28} strokeWidth={2.5} />
-          </button>
         </>
       )}
     </div>

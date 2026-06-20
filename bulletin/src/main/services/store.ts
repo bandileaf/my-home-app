@@ -94,8 +94,8 @@ export async function create_reply(
     .eq('id', noticeId)
     .single()
   if (fetchErr) throw fetchErr
-  const replies = (data.replies as Reply[] ?? [])
-  replies.push({ id: randomUUID(), authorDeviceId, authorHostname, text, createdAt: Date.now() })
+  const replies = (data.replies as Record<string, unknown>[] ?? [])
+  replies.push({ id: randomUUID(), author_device_id: authorDeviceId, author_hostname: authorHostname, text, created_at: Date.now() })
   const { error } = await db().from('notices').update({ replies }).eq('id', noticeId)
   if (error) throw error
 }

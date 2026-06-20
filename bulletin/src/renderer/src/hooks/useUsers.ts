@@ -10,14 +10,18 @@ export function initials_of(profile: UserProfile | null | undefined): string {
   return display_name_of(profile).slice(0, 2).toUpperCase()
 }
 
-export function useUsers(): (deviceId: string) => UserProfile | null {
+export function useUsers(): { get_profile: (deviceId: string) => UserProfile | null; refresh_users: () => void } {
   const [map, set_map] = useState<Map<string, UserProfile>>(new Map())
 
-  useEffect(() => {
+  const load = useCallback(() => {
     get_bridge()?.list_users?.()
       .then((list) => set_map(new Map(list.map((u) => [u.deviceId, u]))))
       .catch(() => {})
   }, [])
 
-  return useCallback((deviceId: string) => map.get(deviceId) ?? null, [map])
+  useEffect(() => { load() }, [load])
+
+  const get_profile = useCallback((deviceId: string) => map.get(deviceId) ?? null, [map])
+
+  return { get_profile, refresh_users: load }
 }
