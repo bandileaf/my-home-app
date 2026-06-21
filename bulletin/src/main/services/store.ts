@@ -274,8 +274,20 @@ export async function delete_message(id: string, userId: string): Promise<void> 
   if (error) throw error
 }
 
-export async function mark_chat_read(userId: string): Promise<void> {
-  await db().rpc('mark_chat_read', { p_user_id: userId })
+export async function mark_messages_read(userId: string): Promise<void> {
+  const { data } = await db()
+    .from('chat_messages')
+    .select('id, read_by')
+    .not('read_by', 'cs', `{"${userId}"}`)
+  if (!data || data.length === 0) return
+  await Promise.all(
+    data.map(msg =>
+      db()
+        .from('chat_messages')
+        .update({ read_by: [...(msg.read_by as string[]), userId] })
+        .eq('id', msg.id)
+    )
+  )
 }
 
 export async function set_user_offline(macAddresses: string[], deviceId: string): Promise<void> {
