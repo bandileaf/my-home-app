@@ -77,11 +77,9 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
     return (
       <svg className="drag-svg-overlay">
         <line x1={sx} y1={sy} x2={sx} y2={cy}
-          stroke="#c4b5fd" strokeWidth={52} strokeLinecap="round" opacity={0.18} />
+          stroke="white" strokeWidth={52} strokeLinecap="round" opacity={0.4} />
         <line x1={sx} y1={sy} x2={sx} y2={cy}
-          stroke="#a78bfa" strokeWidth={28} strokeLinecap="round" opacity={0.35} />
-        <line x1={sx} y1={sy} x2={sx} y2={cy}
-          stroke="#a78bfa" strokeWidth={12} strokeLinecap="round" opacity={0.6} />
+          stroke="white" strokeWidth={24} strokeLinecap="round" opacity={0.4} />
       </svg>
     )
   }
