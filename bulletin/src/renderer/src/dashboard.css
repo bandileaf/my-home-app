@@ -704,8 +704,8 @@ body {
   gap: 8px;
 }
 
-.chat-row-mine  { justify-content: flex-start; }
-.chat-row-other { justify-content: flex-end; }
+.chat-row-mine  { justify-content: flex-end; }
+.chat-row-other { justify-content: flex-start; }
 
 .chat-bubble {
   max-width: 68%;
@@ -716,13 +716,13 @@ body {
   word-break: break-word;
 }
 
-.chat-bubble-mine  { background: var(--accent); color: white; border-bottom-left-radius: 4px; }
-.chat-bubble-other { background: #f0edf9; color: var(--text); border-bottom-right-radius: 4px; }
+.chat-bubble-mine  { background: var(--accent); color: white; border-bottom-right-radius: 4px; }
+.chat-bubble-other { background: #f0edf9; color: var(--text); border-bottom-left-radius: 4px; }
 
 .chat-other-body {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 4px;
 }
 
