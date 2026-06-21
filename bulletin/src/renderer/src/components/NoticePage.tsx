@@ -19,70 +19,39 @@ const KIND_OPTIONS: { key: NoticeKind; label: string }[] = [
   { key: 'vote',           label: 'Yes / No'  },
 ]
 
-interface DragIndicator {
-  x: number
-  y: number
-  delta: number
-}
+interface DragIndicator { sx: number; sy: number; cy: number }
 
-function droplet_style(delta: number): React.CSSProperties {
-  const base = 50
-  const abs = Math.max(Math.abs(delta) - 5, 0)
-  const extra = Math.min(abs * 0.9, 120)
-  const point = Math.min(abs / 70, 1)
-  const h = base + extra
-
-  if (delta > 5) {
-    const br = Math.round(50 * (1 - point * 0.85))
-    const br2 = Math.round(40 + point * 50)
-    return {
-      width: base, height: h,
-      marginTop: -(base / 2),
-      borderRadius: `50% 50% ${br}% ${br}% / 40% 40% ${br2}% ${br2}%`,
-    }
-  } else if (delta < -5) {
-    const br = Math.round(50 * (1 - point * 0.85))
-    const br2 = Math.round(40 + point * 50)
-    return {
-      width: base, height: h,
-      marginTop: -(base / 2 + extra),
-      borderRadius: `${br}% ${br}% 50% 50% / ${br2}% ${br2}% 40% 40%`,
-    }
-  }
-  return { width: base, height: base, marginTop: -(base / 2), borderRadius: '50%' }
-}
+const R = 22   // circle radius
+const AW = 11  // arrowhead half-width
+const AH = 14  // arrowhead height
 
 export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
   const [composing, set_composing] = useState(false)
   const [compose_text, set_compose_text] = useState('')
   const [kind, set_kind] = useState<NoticeKind>('sticker')
-  const [indicator, set_indicator] = useState<DragIndicator | null>(null)
+  const [ind, set_ind] = useState<DragIndicator | null>(null)
 
   const composing_ref = useRef(composing)
   useEffect(() => { composing_ref.current = composing }, [composing])
 
   useEffect(() => {
-    let start_y: number | null = null
-    let start_x: number | null = null
+    let sy: number | null = null
+    let sx: number | null = null
 
     function on_down(e: MouseEvent): void {
-      start_y = e.clientY
-      start_x = e.clientX
-      set_indicator({ x: e.clientX, y: e.clientY, delta: 0 })
+      sy = e.clientY; sx = e.clientX
+      set_ind({ sx: e.clientX, sy: e.clientY, cy: e.clientY })
     }
-
     function on_move(e: MouseEvent): void {
-      if (start_y === null || start_x === null) return
-      set_indicator({ x: start_x, y: start_y, delta: e.clientY - start_y })
+      if (sy === null || sx === null) return
+      set_ind({ sx: sx, sy: sy, cy: e.clientY })
     }
-
     function on_up(e: MouseEvent): void {
-      if (start_y === null) return
-      const delta = e.clientY - start_y
-      start_y = null
-      start_x = null
-      set_indicator(null)
-      if (delta > 60 && !composing_ref.current) { set_composing(true) }
+      if (sy === null) return
+      const delta = e.clientY - sy
+      sy = null; sx = null
+      set_ind(null)
+      if (delta > 60 && !composing_ref.current) set_composing(true)
       else if (delta < -60 && composing_ref.current) { set_composing(false); set_compose_text(''); set_kind('sticker') }
     }
 
@@ -104,25 +73,53 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
     set_composing(false)
   }
 
+  const renderDrag = (): JSX.Element | null => {
+    if (!ind) return null
+    const { sx, sy, cy } = ind
+    const delta = cy - sy
+    const dir = delta >= 0 ? 1 : -1
+    const abs = Math.abs(delta)
+    const showing = abs > R + 8
+    const arrowOpacity = Math.min((abs - R - 8) / 30, 1)
+
+    // line: from circle edge → arrow base
+    const lineY1 = sy + dir * R
+    const lineY2 = cy - dir * AH
+    // arrowhead tip
+    const tipY   = cy + dir * AH
+    const pts = `${sx},${tipY} ${sx - AW},${cy - dir * AH * 0.2} ${sx + AW},${cy - dir * AH * 0.2}`
+
+    return (
+      <svg className="drag-svg-overlay">
+        <circle cx={sx} cy={sy} r={R} className="drag-svg-circle"
+          fill="rgba(255,255,255,0.85)"
+          style={{ filter: 'drop-shadow(0 2px 10px rgba(0,0,0,0.18))' }}
+        />
+        {showing && (
+          <>
+            <line x1={sx} y1={lineY1} x2={sx} y2={lineY2}
+              stroke="rgba(255,255,255,0.7)" strokeWidth={2.5} strokeLinecap="round"
+              style={{ opacity: arrowOpacity }}
+            />
+            <polygon points={pts} fill="rgba(255,255,255,0.9)"
+              style={{ opacity: arrowOpacity, filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.15))' }}
+            />
+          </>
+        )}
+      </svg>
+    )
+  }
+
   return (
     <div className="page" style={{ position: 'relative', userSelect: 'none' }}>
-
-      {indicator && (
-        <div className="drag-indicator" style={{ left: indicator.x, top: indicator.y }}>
-          <div className="drag-droplet" style={droplet_style(indicator.delta)} />
-        </div>
-      )}
+      {renderDrag()}
 
       {composing ? (
         <div className="compose-view">
           <div className="compose-topbar">
             <div className="kind-selector">
               {KIND_OPTIONS.map((o) => (
-                <button
-                  key={o.key}
-                  className={`kind-btn ${kind === o.key ? 'active' : ''}`}
-                  onClick={() => set_kind(o.key)}
-                >
+                <button key={o.key} className={`kind-btn ${kind === o.key ? 'active' : ''}`} onClick={() => set_kind(o.key)}>
                   {o.label}
                 </button>
               ))}
@@ -148,7 +145,6 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
           <div className="page-head">
             <h2>알림장</h2>
           </div>
-
           {notices.map((notice) => (
             <NoticeCard
               key={notice.id}

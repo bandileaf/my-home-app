@@ -651,21 +651,20 @@ body {
 .dots span.active { background: var(--accent); width: 32px; }
 
 /* ── 드래그 시각 피드백 ── */
-.drag-indicator {
+.drag-svg-overlay {
   position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
   pointer-events: none;
-  transform: translateX(-50%);
   z-index: 9999;
+  overflow: visible;
 }
 
-.drag-droplet {
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
-  animation: droplet-appear 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  transition: border-radius 0.06s ease-out, height 0.06s ease-out, margin-top 0.06s ease-out;
+.drag-svg-circle {
+  animation: drag-circle-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-@keyframes droplet-appear {
-  from { transform: scale(0); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+@keyframes drag-circle-pop {
+  from { r: 0px; opacity: 0; }
+  to   { r: 22px; opacity: 1; }
 }
