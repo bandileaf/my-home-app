@@ -143,55 +143,40 @@ export async function upsert_user(
   macAddresses: string[],
   ip: string | null,
   deviceId: string
-): Promise<{ appInfo: AppInfo; alias: string | null }> {
-  let existing: UserRow | null = null
+): Promise<{ appInfo: AppInfo; alias: string | null; canonicalId: string }> {
+  const now = Date.now()
 
-  const { data: byDevice, error: deviceErr } = await db()
+  // device_id 또는 MAC 중 하나라도 일치하면 같은 사용자
+  let existing: UserRow | null = null
+  const { data: byDevice } = await db()
     .from('users')
     .select('id, app_info, alias, mac_addresses, device_id')
     .eq('device_id', deviceId)
     .maybeSingle()
-  if (deviceErr) throw deviceErr
   if (byDevice) {
     existing = byDevice as unknown as UserRow
   } else if (macAddresses.length > 0) {
-    const { data: byMac, error: macErr } = await db()
+    const { data: byMac } = await db()
       .from('users')
       .select('id, app_info, alias, mac_addresses, device_id')
       .overlaps('mac_addresses', macAddresses)
       .maybeSingle()
-    if (macErr) throw macErr
     if (byMac) existing = byMac as unknown as UserRow
   }
 
-  const now = Date.now()
-
   if (existing) {
+    const canonicalId = existing.device_id as string
     const merged_macs = Array.from(new Set([...(existing.mac_addresses ?? []), ...macAddresses]))
-    const update: Record<string, unknown> = {
-      hostname,
-      ip,
-      is_online: true,
-      last_seen: now,
-      mac_addresses: merged_macs,
-    }
-    if (!existing.device_id || existing.device_id !== deviceId) update.device_id = deviceId
-    const { error } = await db().from('users').update(update).eq('id', existing.id as string)
-    if (error) throw error
-    return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias }
+    await db().from('users').update({
+      hostname, ip, is_online: true, last_seen: now, mac_addresses: merged_macs,
+    }).eq('id', existing.id as string)
+    return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias as string | null, canonicalId }
   } else {
-    const { error } = await db().from('users').insert({
-      hostname,
-      mac_addresses: macAddresses,
-      ip,
-      device_id: deviceId,
-      is_online: true,
-      app_info: {},
-      last_seen: now,
-      created_at: now,
+    await db().from('users').insert({
+      hostname, mac_addresses: macAddresses, ip, device_id: deviceId,
+      is_online: true, app_info: {}, last_seen: now, created_at: now,
     })
-    if (error) throw error
-    return { appInfo: {}, alias: null }
+    return { appInfo: {}, alias: null, canonicalId: deviceId }
   }
 }
 
