@@ -457,9 +457,23 @@ body {
 /* ── 답글 입력 ── */
 .reply-input-row {
   display: flex;
+  align-items: center;
   gap: 10px;
   margin-top: 12px;
+  overflow: hidden;
 }
+.reply-slide-in  { animation: reply-in  0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.reply-slide-out { animation: reply-out 0.22s cubic-bezier(0.55, 0, 1, 0.45) both; }
+
+@keyframes reply-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes reply-out {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
+}
+
 .reply-input {
   flex: 1;
   border: 1px solid var(--page-border);
@@ -471,15 +485,17 @@ body {
   outline: none;
 }
 .reply-input:focus { border-color: var(--accent); }
-.reply-post-btn {
+
+/* 카드 푸터 — 답글 버튼 우측 정렬 */
+.card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.reply-btn-active {
   background: var(--accent);
   color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 0 20px;
-  font-size: 17px;
-  font-weight: 700;
-  cursor: pointer;
+  border-color: var(--accent);
 }
 
 /* ── 드래그 힌트 ── */

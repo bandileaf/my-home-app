@@ -36,6 +36,7 @@ export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_rep
   const [editing,    set_editing]    = useState(false)
   const [edit_text,  set_edit_text]  = useState(notice.text)
   const [replying,   set_replying]   = useState(false)
+  const [leaving,    set_leaving]    = useState(false)
   const [reply_text, set_reply_text] = useState('')
 
   const author_profile = get_profile(notice.userId)
@@ -46,11 +47,20 @@ export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_rep
     set_editing(false)
   }
 
-  function handle_reply(): void {
+  function open_reply(): void {
+    set_replying(true)
+    set_leaving(false)
+  }
+
+  function submit_reply(): void {
     if (!reply_text.trim()) return
     on_reply(notice.id, reply_text)
     set_reply_text('')
-    set_replying(false)
+    set_leaving(true)
+  }
+
+  function on_anim_end(): void {
+    if (leaving) { set_replying(false); set_leaving(false) }
   }
 
   return (
@@ -86,16 +96,10 @@ export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_rep
           {/* 투표 */}
           {notice.kind === 'vote' && (
             <div className="vote-area">
-              <button
-                className={`vote-btn vote-yes ${my_vote === 'yes' ? 'selected' : ''}`}
-                onClick={() => on_vote(notice.id, 'yes')}
-              >
+              <button className={`vote-btn vote-yes ${my_vote === 'yes' ? 'selected' : ''}`} onClick={() => on_vote(notice.id, 'yes')}>
                 👍 Yes {yes_count > 0 && <span className="vote-count">{yes_count}</span>}
               </button>
-              <button
-                className={`vote-btn vote-no ${my_vote === 'no' ? 'selected' : ''}`}
-                onClick={() => on_vote(notice.id, 'no')}
-              >
+              <button className={`vote-btn vote-no ${my_vote === 'no' ? 'selected' : ''}`} onClick={() => on_vote(notice.id, 'no')}>
                 👎 No {no_count > 0 && <span className="vote-count">{no_count}</span>}
               </button>
             </div>
@@ -117,23 +121,31 @@ export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_rep
             </div>
           )}
 
+          {/* 답글 입력 */}
           {replying && (
-            <div className="reply-input-row">
+            <div
+              className={`reply-input-row ${leaving ? 'reply-slide-out' : 'reply-slide-in'}`}
+              onAnimationEnd={on_anim_end}
+            >
               <Avatar profile={my_profile} size={26} />
               <input
                 className="reply-input"
                 placeholder="답글을 입력하세요..."
                 value={reply_text}
                 onChange={(e) => set_reply_text(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handle_reply() }}
+                onKeyDown={(e) => { if (e.key === 'Enter') submit_reply() }}
                 autoFocus
               />
-              <button className="reply-post-btn" onClick={handle_reply}>게시</button>
             </div>
           )}
 
           <div className="card-foot">
-            <button className="reply-btn" onClick={() => set_replying((v) => !v)}>답글</button>
+            <button
+              className={`reply-btn ${replying && !leaving ? 'reply-btn-active' : ''}`}
+              onClick={replying ? submit_reply : open_reply}
+            >
+              {replying && !leaving ? '등록' : '답글'}
+            </button>
           </div>
         </div>
       </div>
