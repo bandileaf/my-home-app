@@ -28,13 +28,16 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
   function handle_mouse_down(e: React.MouseEvent): void {
     drag_start.current = e.clientY
     const is_composing = composing
+    console.log(`[drag] mousedown y=${e.clientY} composing=${is_composing}`)
     function on_up(ev: MouseEvent): void {
       document.removeEventListener('mouseup', on_up)
-      if (drag_start.current === null) return
+      if (drag_start.current === null) { console.log('[drag] mouseup — drag_start is null, skip'); return }
       const delta = ev.clientY - drag_start.current
+      console.log(`[drag] mouseup y=${ev.clientY} delta=${delta} composing=${is_composing}`)
       drag_start.current = null
-      if (delta > 60 && !is_composing) set_composing(true)
-      if (delta < -60 && is_composing) { set_composing(false); set_compose_text(''); set_kind('sticker') }
+      if (delta > 60 && !is_composing) { console.log('[drag] → open compose'); set_composing(true) }
+      else if (delta < -60 && is_composing) { console.log('[drag] → close compose'); set_composing(false); set_compose_text(''); set_kind('sticker') }
+      else { console.log('[drag] delta 미달 — 무시') }
     }
     document.addEventListener('mouseup', on_up)
   }
