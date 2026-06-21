@@ -288,6 +288,7 @@ export async function add_reader(userId: string): Promise<void> {
     .from('chat_messages')
     .select('id, read_by')
     .not('read_by', 'cs', `{"${userId}"}`)
+    .neq('user_id', userId)
   if (!data || data.length === 0) return
   await Promise.all(
     data.map(msg =>
