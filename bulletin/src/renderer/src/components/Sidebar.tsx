@@ -12,11 +12,12 @@ interface SidebarProps {
   alias: string | null
   avatar: string | null
   on_profile_save: (alias: string | null, avatar: string | null) => void
+  on_section_change: (section: Section) => void
 }
 
 const TAB_ICON_SIZE = 30
 
-export function Sidebar({ active, identity, alias, avatar, on_profile_save }: SidebarProps): JSX.Element {
+export function Sidebar({ active, identity, alias, avatar, on_profile_save, on_section_change }: SidebarProps): JSX.Element {
   const [open, set_open] = useState(false)
 
   const name = alias?.trim() || identity?.hostname || '?'
@@ -25,10 +26,18 @@ export function Sidebar({ active, identity, alias, avatar, on_profile_save }: Si
   return (
     <>
       <div className="tabs">
-        <div className={`tab tab-notices ${active === 'notices' ? 'active' : ''}`}>
+        <div
+          className={`tab tab-notices ${active === 'notices' ? 'active' : ''}`}
+          onClick={() => on_section_change('notices')}
+          style={{ cursor: 'pointer' }}
+        >
           <StickyNote size={TAB_ICON_SIZE} strokeWidth={1.5} />
         </div>
-        <div className="tab tab-messenger disabled">
+        <div
+          className={`tab tab-messenger ${active === 'messenger' ? 'active' : ''}`}
+          onClick={() => on_section_change('messenger')}
+          style={{ cursor: 'pointer' }}
+        >
           <MessageCircle size={TAB_ICON_SIZE} strokeWidth={1.5} />
         </div>
         <div className="tab tab-calendar disabled">

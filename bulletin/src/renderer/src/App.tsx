@@ -4,6 +4,7 @@ import { useNotices } from './hooks/useNotices'
 import { useUsers } from './hooks/useUsers'
 import { Sidebar } from './components/Sidebar'
 import { NoticePage } from './components/NoticePage'
+import { ChatPage } from './components/ChatPage'
 import { NavRound } from './components/NavRound'
 import { Dots } from './components/Dots'
 import { get_bridge } from './bridge'
@@ -19,6 +20,9 @@ function to_witty_message(error: string): string {
   return '뭔가 잘못됐어요 😅 — 관리자를 호출하세요!'
 }
 
+const PAGES = ['notices', 'messenger'] as const
+type Page = typeof PAGES[number]
+
 export function App(): JSX.Element {
   const identity = useIdentity()
   const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
@@ -26,6 +30,9 @@ export function App(): JSX.Element {
   const [appName, set_appName] = useState('')
   const [alias,  set_alias]  = useState<string | null>(null)
   const [avatar, set_avatar] = useState<string | null>(null)
+  const [page,   set_page]   = useState<Page>('notices')
+
+  const page_idx = PAGES.indexOf(page)
 
   useEffect(() => {
     get_bridge()?.app_name?.().then(set_appName).catch(() => {})
@@ -41,6 +48,7 @@ export function App(): JSX.Element {
   }
 
   const close_window = (): void => get_bridge()?.window_close?.()
+  const my_profile = identity ? get_profile(identity.deviceId) : null
 
   return (
     <div className="app-shell">
@@ -52,25 +60,52 @@ export function App(): JSX.Element {
       </div>
 
       <div className="body-row">
-        <Sidebar active="notices" identity={identity} appName={appName}
-          alias={alias} avatar={avatar} on_profile_save={handle_profile_save} />
+        <Sidebar
+          active={page === 'messenger' ? 'messenger' : 'notices'}
+          identity={identity}
+          appName={appName}
+          alias={alias}
+          avatar={avatar}
+          on_profile_save={handle_profile_save}
+          on_section_change={(section) => set_page(section === 'messenger' ? 'messenger' : 'notices')}
+        />
 
         <div className="stage">
           <div className="page-row">
-            <NavRound direction="left" />
-            <NoticePage
-              identity={identity}
-              notices={notices}
-              on_post={post_notice}
-              on_reply={reply_notice}
-              on_edit={edit_notice}
-              on_vote={vote_notice}
-              get_profile={get_profile}
+            <NavRound
+              direction="left"
+              disabled={page_idx === 0}
+              on_click={() => set_page(PAGES[page_idx - 1])}
             />
-            <NavRound direction="right" />
+
+            {page === 'notices' && (
+              <NoticePage
+                identity={identity}
+                notices={notices}
+                on_post={post_notice}
+                on_reply={reply_notice}
+                on_edit={edit_notice}
+                on_vote={vote_notice}
+                get_profile={get_profile}
+              />
+            )}
+
+            {page === 'messenger' && (
+              <ChatPage
+                identity={identity}
+                my_profile={my_profile}
+                get_profile={get_profile}
+              />
+            )}
+
+            <NavRound
+              direction="right"
+              disabled={page_idx === PAGES.length - 1}
+              on_click={() => set_page(PAGES[page_idx + 1])}
+            />
           </div>
 
-          <Dots total={3} activeIndex={0} />
+          <Dots total={PAGES.length} activeIndex={page_idx} />
 
           {error && (
             <div className="notif-bar">

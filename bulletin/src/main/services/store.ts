@@ -230,6 +230,49 @@ export async function list_users(): Promise<UserProfile[]> {
   }))
 }
 
+export interface ChatMessage {
+  id: string
+  userId: string
+  text: string
+  createdAt: number
+}
+
+export async function list_messages(): Promise<ChatMessage[]> {
+  const week_ago = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const { data, error } = await db()
+    .from('chat_messages')
+    .select('*')
+    .gte('created_at', week_ago)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  void db().from('chat_messages').delete().lt('created_at', week_ago)
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    text: row.text as string,
+    createdAt: row.created_at as number,
+  }))
+}
+
+export async function send_message(userId: string, text: string): Promise<void> {
+  const { error } = await db().from('chat_messages').insert({
+    id: randomUUID(),
+    user_id: userId,
+    text,
+    created_at: Date.now(),
+  })
+  if (error) throw error
+}
+
+export async function delete_message(id: string, userId: string): Promise<void> {
+  const { error } = await db()
+    .from('chat_messages')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
 export async function set_user_offline(macAddresses: string[], deviceId: string): Promise<void> {
   let id: string | null = null
 

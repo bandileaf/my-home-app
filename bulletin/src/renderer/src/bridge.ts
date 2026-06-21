@@ -40,6 +40,13 @@ export interface UserProfile {
   avatar: string | null
 }
 
+export interface ChatMessage {
+  id: string
+  userId: string
+  text: string
+  createdAt: number
+}
+
 export interface AppBridge {
   window_close?: () => void
   window_minimize?: () => void
@@ -54,6 +61,9 @@ export interface AppBridge {
   get_alias?: () => Promise<string | null>
   get_avatar?: () => Promise<string | null>
   save_profile?: (alias: string | null, avatar: string | null) => Promise<void>
+  list_chat?: () => Promise<ChatMessage[]>
+  send_chat?: (text: string) => Promise<void>
+  delete_chat?: (id: string) => Promise<void>
 }
 
 export function get_bridge(): AppBridge | undefined {

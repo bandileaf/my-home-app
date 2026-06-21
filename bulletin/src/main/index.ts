@@ -17,6 +17,9 @@ import {
   get_user_avatar,
   save_user_avatar,
   set_user_offline,
+  list_messages,
+  send_message,
+  delete_message,
   type AppInfo,
 } from './services/store'
 import { run_update_check } from '@shared/update'
@@ -208,6 +211,18 @@ function register_ipc(identity: Identity): void {
   ipcMain.handle('user:list', async () => {
     try { return await list_users() }
     catch (e) { log_error('user:list', e); return [] }
+  })
+  ipcMain.handle('chat:list', async () => {
+    try { return await list_messages() }
+    catch (e) { log_error('chat:list', e); return [] }
+  })
+  ipcMain.handle('chat:send', async (_event, text: string) => {
+    try { await send_message(identity.deviceId, text) }
+    catch (e) { log_error('chat:send', e); throw e }
+  })
+  ipcMain.handle('chat:delete', async (_event, id: string) => {
+    try { await delete_message(id, identity.deviceId) }
+    catch (e) { log_error('chat:delete', e); throw e }
   })
 }
 

@@ -666,6 +666,122 @@ body {
 }
 .dots span.active { background: var(--accent); width: 32px; }
 
+/* ── 대화방 ── */
+.chat-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.chat-header-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-row-mine  { justify-content: flex-start; }
+.chat-row-other { justify-content: flex-end; }
+
+.chat-bubble {
+  max-width: 68%;
+  padding: 10px 16px;
+  border-radius: 18px;
+  font-size: 17px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.chat-bubble-mine  { background: var(--accent); color: white; border-bottom-left-radius: 4px; }
+.chat-bubble-other { background: #f0edf9; color: var(--text); border-bottom-right-radius: 4px; }
+
+.chat-other-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.chat-other-name {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.chat-del-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.chat-row-mine:hover .chat-del-btn { opacity: 1; }
+.chat-del-btn:hover { color: #dc2626; }
+
+.chat-input-row {
+  display: flex;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+
+.chat-input {
+  flex: 1;
+  border: 1px solid var(--page-border);
+  border-radius: 999px;
+  padding: 12px 20px;
+  font-size: 17px;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+}
+.chat-input:focus { border-color: var(--accent); }
+
+.chat-send-btn {
+  width: 44px; height: 44px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chat-send-btn:hover { background: var(--accent-strong); }
+
 /* ── 드래그 시각 피드백 ── */
 .drag-svg-overlay {
   position: fixed;
