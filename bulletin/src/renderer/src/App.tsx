@@ -4,7 +4,10 @@ import { useNotices } from './hooks/useNotices'
 import { useUsers } from './hooks/useUsers'
 import { Sidebar } from './components/Sidebar'
 import { NoticePage } from './components/NoticePage'
+import { NavRound } from './components/NavRound'
+import { Dots } from './components/Dots'
 import { get_bridge } from './bridge'
+
 
 function to_witty_message(error: string): string {
   if (error.toLowerCase().includes('not initialized') || error.toLowerCase().includes('supabase'))
@@ -53,15 +56,21 @@ export function App(): JSX.Element {
           alias={alias} avatar={avatar} on_profile_save={handle_profile_save} />
 
         <div className="stage">
-          <NoticePage
-            identity={identity}
-            notices={notices}
-            on_post={post_notice}
-            on_reply={reply_notice}
-            on_edit={edit_notice}
-            on_vote={vote_notice}
-            get_profile={get_profile}
-          />
+          <div className="page-row">
+            <NavRound direction="left" />
+            <NoticePage
+              identity={identity}
+              notices={notices}
+              on_post={post_notice}
+              on_reply={reply_notice}
+              on_edit={edit_notice}
+              on_vote={vote_notice}
+              get_profile={get_profile}
+            />
+            <NavRound direction="right" />
+          </div>
+
+          <Dots total={3} activeIndex={0} />
 
           {error && (
             <div className="notif-bar">
