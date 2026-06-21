@@ -62,13 +62,6 @@ jobs:
         run: npx electron-builder --win portable --publish never
         working-directory: bulletin
 
-      - name: Patch settings.json hub.tag
-        run: |
-          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
-          $json = Get-Content settings.json | ConvertFrom-Json
-          $json.'hub.tag' = $tag
-          $json | ConvertTo-Json -Depth 10 | Out-File settings.json -Encoding utf8NoBOM
-
       - name: Create family_bulletin.zip
         run: |
           $bulletinExe = (Get-ChildItem bulletin\dist -Filter "*.exe" | Select-Object -First 1).FullName
