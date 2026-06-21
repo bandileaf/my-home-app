@@ -79,7 +79,8 @@ export interface AppBridge {
   list_chat?: () => Promise<ChatMessage[]>
   send_chat?: (text: string) => Promise<void>
   delete_chat?: (id: string) => Promise<void>
-  mark_read_chat?: () => Promise<void>
+  has_unread_chat?: () => Promise<boolean>
+  add_reader_chat?: () => Promise<void>
   app_has_settings?: () => Promise<boolean>
   admin_is_enabled?: () => Promise<boolean>
   admin_get_settings?: () => Promise<string>

@@ -20,7 +20,8 @@ import {
   list_messages,
   send_message,
   delete_message,
-  mark_chat_read,
+  has_unread,
+  add_reader,
   type AppInfo,
 } from './services/store'
 import { run_update_check } from '@shared/update'
@@ -230,9 +231,13 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     try { await delete_message(id, identity.deviceId) }
     catch (e) { log_error('chat:delete', e) }
   })
-  ipcMain.handle('chat:mark_read', async () => {
-    try { await mark_chat_read(identity.deviceId) }
-    catch (e) { log_error('chat:mark_read', e) }
+  ipcMain.handle('chat:has_unread', async () => {
+    try { return await has_unread(identity.deviceId) }
+    catch (e) { log_error('chat:has_unread', e); return false }
+  })
+  ipcMain.handle('chat:add_reader', async () => {
+    try { await add_reader(identity.deviceId) }
+    catch (e) { log_error('chat:add_reader', e) }
   })
   ipcMain.handle('admin:is_enabled', () => _is_admin)
   ipcMain.handle('admin:get_settings', () => {

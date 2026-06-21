@@ -56,14 +56,10 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
     get_bridge()?.list_chat?.().then(set_messages).catch(() => {})
   }
 
-  function mark_read(): void {
-    get_bridge()?.mark_read_chat?.().catch(() => {})
-  }
-
   useEffect(() => {
     refresh_users()
     load()
-    get_bridge()?.mark_read_chat?.().then(load).catch(() => {})
+    get_bridge()?.add_reader_chat?.().then(load).catch(() => {})
     const timer = setInterval(load, 3000)
     return () => { clearInterval(timer); initialized_ref.current = false }
   }, [])
