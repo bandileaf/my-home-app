@@ -25,6 +25,33 @@ interface DragIndicator {
   delta: number
 }
 
+function droplet_style(delta: number): React.CSSProperties {
+  const base = 50
+  const abs = Math.max(Math.abs(delta) - 5, 0)
+  const extra = Math.min(abs * 0.9, 120)
+  const point = Math.min(abs / 70, 1)
+  const h = base + extra
+
+  if (delta > 5) {
+    const br = Math.round(50 * (1 - point * 0.85))
+    const br2 = Math.round(40 + point * 50)
+    return {
+      width: base, height: h,
+      marginTop: -(base / 2),
+      borderRadius: `50% 50% ${br}% ${br}% / 40% 40% ${br2}% ${br2}%`,
+    }
+  } else if (delta < -5) {
+    const br = Math.round(50 * (1 - point * 0.85))
+    const br2 = Math.round(40 + point * 50)
+    return {
+      width: base, height: h,
+      marginTop: -(base / 2 + extra),
+      borderRadius: `${br}% ${br}% 50% 50% / ${br2}% ${br2}% 40% 40%`,
+    }
+  }
+  return { width: base, height: base, marginTop: -(base / 2), borderRadius: '50%' }
+}
+
 export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
   const [composing, set_composing] = useState(false)
   const [compose_text, set_compose_text] = useState('')
@@ -81,14 +108,8 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
     <div className="page" style={{ position: 'relative', userSelect: 'none' }}>
 
       {indicator && (
-        <div
-          className="drag-indicator"
-          style={{ left: indicator.x, top: indicator.y }}
-        >
-          <div className="drag-circle" />
-          {indicator.delta > 20 && (
-            <div className="drag-arrow" style={{ opacity: Math.min((indicator.delta - 20) / 40, 1) }}>↓</div>
-          )}
+        <div className="drag-indicator" style={{ left: indicator.x, top: indicator.y }}>
+          <div className="drag-droplet" style={droplet_style(indicator.delta)} />
         </div>
       )}
 
