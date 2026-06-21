@@ -119,7 +119,7 @@ function create_window(appInfo: AppInfo = {}): BrowserWindow {
     frame: false,
     title: app_display_name(),
     icon: resolve_icon(),
-    show: true,
+    show: false,
     autoHideMenuBar: true,
     backgroundColor: '#faf9fc',
     webPreferences: {
@@ -151,7 +151,8 @@ function create_tray(window: BrowserWindow): Tray {
       { label: '종료', click: () => app.quit() }
     ])
   )
-  t.on('click', () => window.show())
+  t.on('click',        () => window.show())
+  t.on('double-click', () => window.show())
   return t
 }
 
@@ -172,7 +173,7 @@ function log_error(label: string, e: unknown): void {
 }
 
 function register_ipc(identity: Identity, settingsPath: string, is_admin: boolean): void {
-  ipcMain.on('window:close',    () => win?.close())
+  ipcMain.on('window:close',    () => win?.hide())
   ipcMain.on('window:minimize', () => win?.minimize())
   ipcMain.handle('app:name',     (): string => app_display_name())
   ipcMain.handle('identity:get', (): Identity => identity)
