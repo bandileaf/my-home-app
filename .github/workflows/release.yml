@@ -76,7 +76,6 @@ jobs:
           $mediaExe = (Get-ChildItem media\dist -Filter "*.exe" | Select-Object -First 1).FullName
           New-Item -ItemType Directory -Force -Path _media
           Copy-Item $mediaExe    _media\family_media.exe
-          Copy-Item recovery.bat _media\recovery.bat
           Compress-Archive -Path _media\* -DestinationPath family_media.zip -Force
           Write-Host "=== family_media.zip contents ==="
           Get-ChildItem _media
