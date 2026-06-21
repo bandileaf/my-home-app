@@ -258,7 +258,7 @@ function register_ipc(identity: Identity, settingsPath: string): void {
 }
 
 // --post-update: launched by update.bat — skip lock check (old process is dead, OS mutex may not have released yet)
-const isPostUpdate = process.argv.includes('--post-update')
+const isPostUpdate = process.argv.includes('--post-update') || process.argv.includes('--post-restart')
 const got_lock = isPostUpdate || app.requestSingleInstanceLock()
 if (!got_lock) {
   try {
