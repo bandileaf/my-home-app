@@ -878,6 +878,10 @@ body {
 .admin-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .admin-btn-export { color: var(--accent-strong); border-color: var(--accent); }
 .admin-btn-export:hover:not(:disabled) { background: #ede9fe; }
+.admin-btn-stop { color: #991b1b; border-color: #fca5a5; }
+.admin-btn-stop:hover { background: #fee2e2; }
+.admin-btn-ok   { color: #065f46; border-color: #6ee7b7; }
+.admin-btn-ok:hover   { background: #d1fae5; }
 
 .admin-settings-panel {
   display: flex;
@@ -956,6 +960,18 @@ body {
   font-weight: 700;
   color: var(--accent);
 }
+
+.admin-state {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+.admin-state-ok   { background: #d1fae5; color: #065f46; }
+.admin-state-warn { background: #fef3c7; color: #92400e; }
+.admin-state-stop { background: #fee2e2; color: #991b1b; }
 
 .admin-empty {
   text-align: center;

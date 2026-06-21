@@ -7,6 +7,8 @@ export interface ClientInfo {
   deviceId: string
   hostname: string
   version: string
+  has_settings: boolean
+  disabled: boolean
 }
 
 export interface CommandResult {
@@ -35,11 +37,14 @@ function probe_tcp(ip: string, port: number, timeout_ms: number): Promise<boolea
 
 function fetch_status(ip: string): Promise<ClientInfo | null> {
   return new Promise(resolve => {
-    const req = http.get(`http://${ip}:7799/status`, { timeout: 2000 }, res => {
+    const req = http.get(`http://${ip}:61799/status`, { timeout: 2000 }, res => {
       let body = ''
       res.on('data', (chunk: Buffer) => { body += chunk.toString() })
       res.on('end', () => {
-        try { resolve({ ip, ...(JSON.parse(body) as Omit<ClientInfo, 'ip'>) }) }
+        try {
+          const parsed = JSON.parse(body) as Omit<ClientInfo, 'ip'>
+          resolve({ ip, has_settings: true, disabled: false, ...parsed })
+        }
         catch { resolve(null) }
       })
     })
@@ -58,7 +63,7 @@ export async function scan_subnet(): Promise<ClientInfo[]> {
   const reachable: string[] = []
   for (let i = 0; i < ips.length; i += BATCH) {
     const results = await Promise.all(
-      ips.slice(i, i + BATCH).map(ip => probe_tcp(ip, 7799, 300).then(ok => ok ? ip : null))
+      ips.slice(i, i + BATCH).map(ip => probe_tcp(ip, 61799, 300).then(ok => ok ? ip : null))
     )
     reachable.push(...results.filter((ip): ip is string => ip !== null))
   }
@@ -69,7 +74,7 @@ export async function scan_subnet(): Promise<ClientInfo[]> {
 
 export function fetch_client_settings(ip: string): Promise<string | null> {
   return new Promise(resolve => {
-    const req = http.get(`http://${ip}:7799/settings`, { timeout: 3000 }, res => {
+    const req = http.get(`http://${ip}:61799/settings`, { timeout: 3000 }, res => {
       let body = ''
       res.on('data', (chunk: Buffer) => { body += chunk.toString() })
       res.on('end', () => resolve(body))
@@ -83,7 +88,7 @@ export function send_command(ip: string, path: string, body?: unknown): Promise<
   return new Promise(resolve => {
     const payload = body !== undefined ? JSON.stringify(body) : null
     const opts: http.RequestOptions = {
-      hostname: ip, port: 7799, path,
+      hostname: ip, port: 61799, path,
       method: payload ? 'POST' : 'GET',
       headers: payload
         ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }

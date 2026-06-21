@@ -176,6 +176,7 @@ function register_ipc(identity: Identity, settingsPath: string, is_admin: boolea
   ipcMain.on('window:close',       () => win?.hide())
   ipcMain.on('window:minimize',    () => win?.minimize())
   ipcMain.handle('app:has_settings', () => existsSync(settingsPath))
+  ipcMain.handle('app:disabled',     () => _disabled)
   ipcMain.handle('app:name',     (): string => app_display_name())
   ipcMain.handle('identity:get', (): Identity => identity)
   ipcMain.handle('user:alias',  (): string | null => _alias)
@@ -276,6 +277,7 @@ let _identity: ReturnType<typeof load_identity> | null = null
 let _appInfo: AppInfo = {}
 let _alias: string | null = null
 let _offline_done = false
+let _disabled = false
 
 app.whenReady().then(async () => {
   if (!got_lock) return
@@ -307,6 +309,8 @@ app.whenReady().then(async () => {
     deviceId: identity.deviceId,
     hostname: identity.hostname,
     settingsPath,
+    has_settings: () => existsSync(settingsPath),
+    is_disabled: () => _disabled,
     on_update: () => void run_update_check({ baseDir, settingsPath, appKey: app.getName() }, update_callbacks),
     on_settings_received: () => {
       log_event('control: settings received → restarting')
@@ -331,6 +335,19 @@ app.whenReady().then(async () => {
     const url = raw['hub.supabase.url'] as string | undefined
     const key = raw['hub.supabase.key'] as string | undefined
     is_admin = raw['hub.app.bulletin.admin'] === true
+    const autostart = raw['hub.app.bulletin.autostart'] === true
+    app.setLoginItemSettings({ openAtLogin: autostart, path: app.getPath('exe') })
+    log_event(`autostart: ${autostart}`)
+
+    _disabled = raw['hub.disabled'] === true
+    if (_disabled) {
+      log_event('hub.disabled=true — 기능 정지 모드, admin 대기')
+      register_ipc(identity, settingsPath, false)
+      win = create_window({}, true)
+      tray = create_tray(win)
+      return
+    }
+
     log_event(`supabase init: url=${url ?? '(없음)'} key=${key ? key.slice(0, 8) + '…' : '(없음)'} admin=${is_admin}`)
     if (!url || !key) throw new Error('hub.supabase.url 또는 hub.supabase.key 가 settings.json 에 없음')
     init_supabase(url, key)

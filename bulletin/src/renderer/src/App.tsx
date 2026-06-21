@@ -7,6 +7,7 @@ import { NoticePage } from './components/NoticePage'
 import { ChatPage } from './components/ChatPage'
 import { AdminPage } from './components/AdminPage'
 import { NoSettingsPage } from './components/NoSettingsPage'
+import { DisabledPage } from './components/DisabledPage'
 import { NavRound } from './components/NavRound'
 import { Dots } from './components/Dots'
 import { get_bridge } from './bridge'
@@ -30,6 +31,7 @@ export function App(): JSX.Element {
   const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
   const { get_profile, refresh_users } = useUsers()
   const [has_settings, set_has_settings] = useState(true)
+  const [is_disabled,  set_is_disabled]  = useState(false)
   const [appName,      set_appName]      = useState('')
   const [alias,        set_alias]        = useState<string | null>(null)
   const [avatar,       set_avatar]       = useState<string | null>(null)
@@ -40,6 +42,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     get_bridge()?.app_has_settings?.().then(set_has_settings).catch(() => {})
+    get_bridge()?.app_disabled?.().then(set_is_disabled).catch(() => {})
     get_bridge()?.app_name?.().then(set_appName).catch(() => {})
     get_bridge()?.get_alias?.().then(set_alias).catch(() => {})
     get_bridge()?.get_avatar?.().then(set_avatar).catch(() => {})
@@ -56,7 +59,8 @@ export function App(): JSX.Element {
   const close_window = (): void => get_bridge()?.window_close?.()
   const my_profile = identity ? get_profile(identity.deviceId) : null
 
-  if (!has_settings) return (
+  const waiting_screen = !has_settings ? <NoSettingsPage /> : is_disabled ? <DisabledPage /> : null
+  if (waiting_screen) return (
     <div className="app-shell">
       <div className="titlebar">
         <span className="titlebar-name">{appName || 'Family Bulletin'}</span>
@@ -64,7 +68,7 @@ export function App(): JSX.Element {
           <button className="wc-btn" onClick={close_window}>─</button>
         </div>
       </div>
-      <NoSettingsPage />
+      {waiting_screen}
     </div>
   )
 

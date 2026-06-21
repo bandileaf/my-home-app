@@ -66,7 +66,7 @@ app starts
   7. hub.tag 갱신
 ```
 
-## bulletin: Control Server (port 7799)
+## bulletin: Control Server (port 61799)
 
 `bulletin/src/main/services/control.ts` — 모든 클라이언트가 시작 시 자동으로 HTTP 서버 실행.
 

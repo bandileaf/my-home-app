@@ -27,6 +27,7 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 | `hub.supabase.url` | `string` | Supabase 프로젝트 URL — **커밋 금지** |
 | `hub.supabase.key` | `string` | Supabase anon key — **커밋 금지** |
 | `hub.app.bulletin.admin` | `boolean` | `true` 이면 관리자 패널 활성화 (해당 기기 로컬에만 설정) |
+| `hub.app.bulletin.autostart` | `boolean` | `true` 이면 Windows 시작 시 자동 실행 등록, `false` 이면 해제 |
 
 ### 예시
 
@@ -74,7 +75,7 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 
 ---
 
-## bulletin 제어 서버 (포트 7799)
+## bulletin 제어 서버 (포트 61799)
 
 모든 bulletin 인스턴스가 시작 시 자동으로 HTTP 서버를 띄운다.
 관리자 패널에서 원격 제어에 사용한다.
@@ -94,7 +95,7 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 로컬 `settings.json`에 `"hub.app.bulletin.admin": true` 를 추가하면
 사이드바에 Shield 아이콘이 나타난다.
 
-- **네트워크 스캔**: 로컬 서브넷에서 포트 7799 응답 기기를 검색
+- **네트워크 스캔**: 로컬 서브넷에서 포트 61799 응답 기기를 검색
 - **가져오기**: 선택 기기의 settings.json을 에디터로 불러옴
 - **내보내기**: 에디터 내용을 선택 기기에 전송 (앱 자동 재시작)
 - **재시작 / 업데이트 강제**: 개별 또는 전체 일괄 실행

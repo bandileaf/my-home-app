@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RefreshCw, RotateCcw, Download, Upload, FolderInput } from 'lucide-react'
+import { RefreshCw, RotateCcw, Download, Upload, FolderInput, PauseCircle, PlayCircle } from 'lucide-react'
 import type { ClientInfo, CommandResult } from '../bridge'
 import { get_bridge } from '../bridge'
 
@@ -9,6 +9,7 @@ export function AdminPage(): JSX.Element {
   const [status, set_status] = useState<Record<string, string>>({})
   const [settings_text, set_settings_text] = useState('')
   const [settings_from, set_settings_from] = useState<string | null>(null)
+  const [settings_loaded, set_settings_loaded] = useState(false)
 
   async function scan(): Promise<void> {
     set_scanning(true)
@@ -41,6 +42,7 @@ export function AdminPage(): JSX.Element {
       set_settings_text(text)
     }
     set_settings_from(hostname)
+    set_settings_loaded(true)
     set_status(s => ({ ...s, [key]: '✓' }))
   }
 
@@ -58,6 +60,17 @@ export function AdminPage(): JSX.Element {
   }
 
   const has_settings = settings_text.trim().length > 0
+
+  function handle_tab(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    if (e.key !== 'Tab') return
+    e.preventDefault()
+    const el = e.currentTarget
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const next = settings_text.substring(0, start) + '    ' + settings_text.substring(end)
+    set_settings_text(next)
+    requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = start + 4 })
+  }
 
   return (
     <div className="page admin-page">
@@ -91,17 +104,33 @@ export function AdminPage(): JSX.Element {
                 <div className="admin-client-info">
                   <span className="admin-hostname">{c.hostname}</span>
                   <span className="admin-meta">{c.ip} · v{c.version}</span>
+                  {!c.has_settings && <span className="admin-state admin-state-warn">초기설정필요</span>}
+                  {c.has_settings && c.disabled && <span className="admin-state admin-state-stop">강제 정지</span>}
+                  {c.has_settings && !c.disabled && <span className="admin-state admin-state-ok">정상 동작</span>}
                 </div>
                 <div className="admin-client-actions">
                   <button className="admin-btn" onClick={() => void cmd(c.ip, '/restart', {})}>
                     <RotateCcw size={13} /> 재시작
                   </button>
+                  {status[c.ip + '/restart'] && <span className="admin-result">{status[c.ip + '/restart']}</span>}
                   <button className="admin-btn" onClick={() => void cmd(c.ip, '/update', {})}>
                     <Download size={13} /> 업데이트
                   </button>
+                  {status[c.ip + '/update'] && <span className="admin-result">{status[c.ip + '/update']}</span>}
+                  {!c.disabled
+                    ? <button className="admin-btn admin-btn-stop" onClick={() => void cmd(c.ip, '/disable')}>
+                        <PauseCircle size={13} /> 정지
+                      </button>
+                    : <button className="admin-btn admin-btn-ok" onClick={() => void cmd(c.ip, '/enable')}>
+                        <PlayCircle size={13} /> 해제
+                      </button>
+                  }
+                  {status[c.ip + '/disable'] && <span className="admin-result">{status[c.ip + '/disable']}</span>}
+                  {status[c.ip + '/enable']  && <span className="admin-result">{status[c.ip + '/enable']}</span>}
                   <button className="admin-btn" onClick={() => void import_settings(c.ip, c.hostname)}>
                     <FolderInput size={13} /> 가져오기
                   </button>
+                  {status[c.ip + '/import'] && <span className="admin-result">{status[c.ip + '/import']}</span>}
                   <button
                     className="admin-btn admin-btn-export"
                     onClick={() => export_settings(c.ip)}
@@ -110,11 +139,7 @@ export function AdminPage(): JSX.Element {
                   >
                     <Upload size={13} /> 내보내기
                   </button>
-                  {(status[c.ip + '/import'] || status[c.ip + '/restart'] || status[c.ip + '/update'] || status[c.ip + '/settings']) && (
-                    <span className="admin-result">
-                      {status[c.ip + '/import'] ?? status[c.ip + '/settings'] ?? status[c.ip + '/restart'] ?? status[c.ip + '/update']}
-                    </span>
-                  )}
+                  {status[c.ip + '/settings'] && <span className="admin-result">{status[c.ip + '/settings']}</span>}
                 </div>
               </div>
             ))}
@@ -122,7 +147,7 @@ export function AdminPage(): JSX.Element {
         </>
       )}
 
-      {has_settings && (
+      {settings_loaded && (
         <div className="admin-settings-panel">
           <div className="admin-settings-label">
             {settings_from ? `${settings_from} 에서 가져온 설정` : '로컬 설정'}
@@ -131,6 +156,7 @@ export function AdminPage(): JSX.Element {
             className="admin-settings-editor"
             value={settings_text}
             onChange={e => set_settings_text(e.target.value)}
+            onKeyDown={handle_tab}
             spellCheck={false}
           />
         </div>

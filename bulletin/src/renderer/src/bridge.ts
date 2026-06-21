@@ -53,6 +53,8 @@ export interface ClientInfo {
   deviceId: string
   hostname: string
   version: string
+  has_settings: boolean
+  disabled: boolean
 }
 
 export interface CommandResult {
