@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Send, Trash2 } from 'lucide-react'
 import type { ChatMessage, Identity, UserProfile } from '../bridge'
 import { get_bridge } from '../bridge'
-import { initials_of } from '../hooks/useUsers'
+import { display_name_of, initials_of } from '../hooks/useUsers'
 
 interface ChatPageProps {
   identity: Identity | null
@@ -44,7 +44,7 @@ function read_indicator(msg: ChatMessage, my_id: string | undefined): string {
   return `${msg.readBy.length}`
 }
 
-export function ChatPage({ identity, get_profile, refresh_users, online_users }: ChatPageProps): JSX.Element {
+export function ChatPage({ identity, my_profile, get_profile, refresh_users, online_users }: ChatPageProps): JSX.Element {
   const [messages, set_messages] = useState<ChatMessage[]>([])
   const [text, set_text] = useState('')
   const scroll_ref = useRef<HTMLDivElement>(null)

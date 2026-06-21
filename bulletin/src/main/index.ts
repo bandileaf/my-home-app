@@ -296,7 +296,7 @@ app.whenReady().then(async () => {
   const settingsPath = join(baseDir, 'settings.json')
   init_log_path(settingsPath)
   log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}`)
-  const identity = load_identity()
+  const identity = load_identity(baseDir)
   _identity = identity
 
   const has_settings = existsSync(settingsPath)

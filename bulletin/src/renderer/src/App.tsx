@@ -56,6 +56,7 @@ export function App(): JSX.Element {
     refresh_users()
   }
 
+  const close_window    = (): void => get_bridge()?.window_close?.()
   const minimize_window = (): void => get_bridge()?.window_minimize?.()
   const my_profile = identity ? get_profile(identity.deviceId) : null
 
