@@ -274,6 +274,15 @@ export async function delete_message(id: string, userId: string): Promise<void> 
   if (error) throw error
 }
 
+export async function has_unread(userId: string): Promise<boolean> {
+  const { data } = await db()
+    .from('chat_messages')
+    .select('id')
+    .not('read_by', 'cs', `{"${userId}"}`)
+    .limit(1)
+  return (data?.length ?? 0) > 0
+}
+
 export async function add_reader(userId: string): Promise<void> {
   const { data } = await db()
     .from('chat_messages')
