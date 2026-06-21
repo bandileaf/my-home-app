@@ -29,7 +29,7 @@ type Page = typeof PAGES[number] | 'admin'
 export function App(): JSX.Element {
   const identity = useIdentity()
   const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
-  const { get_profile, refresh_users } = useUsers()
+  const { get_profile, refresh_users, online_users } = useUsers()
   const [has_settings, set_has_settings] = useState(true)
   const [is_disabled,  set_is_disabled]  = useState(false)
   const [appName,      set_appName]      = useState('')
@@ -125,6 +125,7 @@ export function App(): JSX.Element {
                 my_profile={my_profile}
                 get_profile={get_profile}
                 refresh_users={refresh_users}
+                online_users={online_users}
               />
             )}
 

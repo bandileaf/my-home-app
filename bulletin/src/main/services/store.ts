@@ -217,16 +217,18 @@ export interface UserProfile {
   hostname: string
   alias: string | null
   avatar: string | null
+  isOnline?: boolean
 }
 
 export async function list_users(): Promise<UserProfile[]> {
-  const { data, error } = await db().from('users').select('device_id, hostname, alias, avatar')
+  const { data, error } = await db().from('users').select('device_id, hostname, alias, avatar, is_online')
   if (error) throw error
   return (data ?? []).map((row) => ({
     deviceId: row.device_id as string,
     hostname: row.hostname as string,
     alias: row.alias as string | null,
     avatar: row.avatar as string | null,
+    isOnline: (row.is_online as boolean) ?? false,
   }))
 }
 

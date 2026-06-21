@@ -9,6 +9,7 @@ interface ChatPageProps {
   my_profile: UserProfile | null
   get_profile: (deviceId: string) => UserProfile | null
   refresh_users: () => void
+  online_users: UserProfile[]
 }
 
 function Avatar({ profile, size = 36 }: { profile: UserProfile | null; size?: number }): JSX.Element {
@@ -43,7 +44,7 @@ function read_indicator(msg: ChatMessage, my_id: string | undefined): string {
   return `${msg.readBy.length}`
 }
 
-export function ChatPage({ identity, my_profile, get_profile, refresh_users }: ChatPageProps): JSX.Element {
+export function ChatPage({ identity, my_profile, get_profile, refresh_users, online_users }: ChatPageProps): JSX.Element {
   const [messages, set_messages] = useState<ChatMessage[]>([])
   const [text, set_text] = useState('')
   const scroll_ref = useRef<HTMLDivElement>(null)
@@ -95,8 +96,14 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
   return (
     <div className="page chat-page">
       <div className="chat-header">
-        <Avatar profile={my_profile} size={48} />
-        <span className="chat-header-name">{display_name_of(my_profile)}</span>
+        <div className="chat-online-avatars">
+          {online_users.map((u, i) => (
+            <div key={u.deviceId} style={{ marginLeft: i === 0 ? 0 : -16, zIndex: online_users.length - i }}>
+              <Avatar profile={u} size={36} />
+            </div>
+          ))}
+        </div>
+        <span className="chat-header-name">{online_users.length}명 온라인</span>
       </div>
 
       <div className="chat-messages" ref={scroll_ref}>
