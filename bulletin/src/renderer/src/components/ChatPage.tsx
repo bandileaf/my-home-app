@@ -37,6 +37,12 @@ function same_day(a: number, b: number): boolean {
     && da.getDate() === db.getDate()
 }
 
+function read_indicator(msg: ChatMessage, my_id: string | undefined): string {
+  if (!my_id || !msg.readBy.includes(my_id)) return 'N'
+  if (msg.readBy.length === 0) return '읽지 않음'
+  return `${msg.readBy.length}`
+}
+
 export function ChatPage({ identity, my_profile, get_profile, refresh_users }: ChatPageProps): JSX.Element {
   const [messages, set_messages] = useState<ChatMessage[]>([])
   const [text, set_text] = useState('')
@@ -46,15 +52,11 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
   const my_id = identity?.deviceId
 
   function load(): void {
-    get_bridge()?.list_chat?.()
-      .then(set_messages)
-      .catch(() => {})
+    get_bridge()?.list_chat?.().then(set_messages).catch(() => {})
   }
 
   function mark_read(): void {
-    get_bridge()?.mark_read_chat?.()
-      .then(load)
-      .catch(() => {})
+    get_bridge()?.mark_read_chat?.().then(load).catch(() => {})
   }
 
   useEffect(() => {
@@ -104,7 +106,15 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
           const is_mine = msg.userId === my_id
           const profile = get_profile(msg.userId)
           const show_date = i === 0 || !same_day(messages[i - 1].createdAt, msg.createdAt)
-          const is_new = my_id ? !msg.readBy.includes(my_id) : false
+          const indicator = read_indicator(msg, my_id)
+          const is_new = indicator === 'N'
+
+          const meta = (
+            <div className="chat-meta">
+              <span className="chat-time">{format_time(msg.createdAt)}</span>
+              <span className={`chat-indicator ${is_new ? 'chat-indicator-new' : ''}`}>{indicator}</span>
+            </div>
+          )
 
           return (
             <div key={msg.id}>
@@ -119,24 +129,14 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
                     <button className="chat-del-btn" onClick={() => delete_msg(msg.id)}>
                       <Trash2 size={14} />
                     </button>
-                    <div className="chat-bubble-wrap">
-                      <div className="chat-bubble-inner">
-                        {is_new && <span className="chat-new">N</span>}
-                        <div className="chat-bubble chat-bubble-mine">{msg.text}</div>
-                      </div>
-                      <span className="chat-time">{format_time(msg.createdAt)}</span>
-                    </div>
+                    {meta}
+                    <div className="chat-bubble chat-bubble-mine">{msg.text}</div>
                   </>
                 ) : (
                   <>
                     <Avatar profile={profile} size={32} />
-                    <div className="chat-bubble-wrap">
-                      <div className="chat-bubble-inner">
-                        <div className="chat-bubble chat-bubble-other">{msg.text}</div>
-                        {is_new && <span className="chat-new">N</span>}
-                      </div>
-                      <span className="chat-time">{format_time(msg.createdAt)}</span>
-                    </div>
+                    <div className="chat-bubble chat-bubble-other">{msg.text}</div>
+                    {meta}
                   </>
                 )}
               </div>
