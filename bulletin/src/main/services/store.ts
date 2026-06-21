@@ -238,7 +238,7 @@ export interface ChatMessage {
 }
 
 export async function list_messages(): Promise<ChatMessage[]> {
-  const week_ago = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const week_ago = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data, error } = await db()
     .from('chat_messages')
     .select('*')
@@ -250,7 +250,7 @@ export async function list_messages(): Promise<ChatMessage[]> {
     id: row.id as string,
     userId: row.user_id as string,
     text: row.text as string,
-    createdAt: row.created_at as number,
+    createdAt: new Date(row.created_at as string).getTime(),
   }))
 }
 
@@ -259,7 +259,7 @@ export async function send_message(userId: string, text: string): Promise<void> 
     id: randomUUID(),
     user_id: userId,
     text,
-    created_at: Date.now(),
+    created_at: new Date().toISOString(),
   })
   if (error) throw error
 }
