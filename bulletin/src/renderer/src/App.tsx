@@ -33,10 +33,10 @@ export function App(): JSX.Element {
     get_bridge()?.get_avatar?.().then(set_avatar).catch(() => {})
   }, [])
 
-  function handle_profile_save(new_alias: string | null, new_avatar: string | null): void {
+  async function handle_profile_save(new_alias: string | null, new_avatar: string | null): Promise<void> {
     set_alias(new_alias)
     set_avatar(new_avatar)
-    get_bridge()?.save_profile?.(new_alias, new_avatar)
+    await get_bridge()?.save_profile?.(new_alias, new_avatar)
     refresh_users()
   }
 
