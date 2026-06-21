@@ -38,6 +38,7 @@ export interface UserProfile {
   hostname: string
   alias: string | null
   avatar: string | null
+  isOnline?: boolean
 }
 
 export interface ChatMessage {
@@ -82,6 +83,7 @@ export interface AppBridge {
   has_unread_chat?: () => Promise<boolean>
   add_reader_chat?: () => Promise<void>
   app_has_settings?: () => Promise<boolean>
+  app_disabled?: () => Promise<boolean>
   admin_is_enabled?: () => Promise<boolean>
   admin_get_settings?: () => Promise<string>
   admin_scan?: () => Promise<ClientInfo[]>

@@ -1,37 +1,11 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { hostname, networkInterfaces } from 'os'
-import { randomUUID } from 'crypto'
-import { join } from 'path'
+import { createHash } from 'crypto'
 
-// 이 PC의 정체성. deviceId 는 한 번 만들어지면 hostname/mac/ip 가 바뀌어도 유지된다 —
-// 다른 모든 기능이 참조할 안정적인 기준 키.
 export interface Identity {
   deviceId: string
   hostname: string
   macAddresses: string[]
   ip: string | null
-}
-
-interface StoredIdentity {
-  deviceId: string
-}
-
-function resolve_identity_path(baseDir: string): string {
-  return join(baseDir, 'identity.json')
-}
-
-function read_stored_device_id(path: string): string | null {
-  try {
-    if (!existsSync(path)) return null
-    const raw = JSON.parse(readFileSync(path, 'utf-8')) as StoredIdentity
-    return raw.deviceId ?? null
-  } catch {
-    return null
-  }
-}
-
-function write_stored_device_id(path: string, deviceId: string): void {
-  writeFileSync(path, JSON.stringify({ deviceId }, null, 2), 'utf-8')
 }
 
 const VIRTUAL_MAC_PREFIXES = [
@@ -45,7 +19,7 @@ const VIRTUAL_MAC_PREFIXES = [
 function is_virtual_mac(mac: string): boolean {
   const lower = mac.toLowerCase()
   const firstByte = parseInt(lower.split(':')[0], 16)
-  if ((firstByte & 0x02) !== 0) return true  // locally administered = 가상
+  if ((firstByte & 0x02) !== 0) return true
   return VIRTUAL_MAC_PREFIXES.some(p => lower.startsWith(p))
 }
 
@@ -65,13 +39,14 @@ function collect_network_info(): { macAddresses: string[]; ip: string | null } {
   return { macAddresses: Array.from(macAddresses), ip }
 }
 
-export function load_identity(baseDir: string): Identity {
-  const path = resolve_identity_path(baseDir)
-  let deviceId = read_stored_device_id(path)
-  if (!deviceId) {
-    deviceId = randomUUID()
-    write_stored_device_id(path, deviceId)
-  }
+function mac_to_device_id(macs: string[]): string {
+  const key = [...macs].sort().join(',')
+  const h = createHash('sha256').update(key).digest('hex')
+  return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-${((parseInt(h.slice(16,18),16)&0x3f)|0x80).toString(16)}${h.slice(18,20)}-${h.slice(20,32)}`
+}
+
+export function load_identity(): Identity {
   const { macAddresses, ip } = collect_network_info()
+  const deviceId = mac_to_device_id(macAddresses)
   return { deviceId, hostname: hostname(), macAddresses, ip }
 }

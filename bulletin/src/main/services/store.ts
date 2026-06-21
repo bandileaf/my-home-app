@@ -168,6 +168,7 @@ export async function upsert_user(
 
   if (existing) {
     const merged_macs = Array.from(new Set([...(existing.mac_addresses ?? []), ...macAddresses]))
+    const oldDeviceId = existing.device_id as string | null
     const update: Record<string, unknown> = {
       hostname,
       ip,
@@ -175,7 +176,12 @@ export async function upsert_user(
       last_seen: now,
       mac_addresses: merged_macs,
     }
-    if (!existing.device_id || existing.device_id !== deviceId) update.device_id = deviceId
+    if (oldDeviceId !== deviceId) {
+      update.device_id = deviceId
+      if (oldDeviceId) {
+        await db().from('chat_messages').update({ user_id: deviceId }).eq('user_id', oldDeviceId)
+      }
+    }
     const { error } = await db().from('users').update(update).eq('id', existing.id as string)
     if (error) throw error
     return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias }
