@@ -94,6 +94,7 @@ export function App(): JSX.Element {
                 identity={identity}
                 my_profile={my_profile}
                 get_profile={get_profile}
+                refresh_users={refresh_users}
               />
             )}
 
