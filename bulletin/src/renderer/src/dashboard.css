@@ -923,6 +923,13 @@ body {
   box-sizing: border-box;
 }
 
+.admin-log-editor {
+  min-height: 260px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  cursor: default;
+}
+
 .admin-list {
   display: flex;
   flex-direction: column;

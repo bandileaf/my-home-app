@@ -72,6 +72,18 @@ export async function scan_subnet(): Promise<ClientInfo[]> {
   return clients.filter((c): c is ClientInfo => c !== null)
 }
 
+export function fetch_client_log(ip: string): Promise<string | null> {
+  return new Promise(resolve => {
+    const req = http.get(`http://${ip}:61799/log`, { timeout: 5000 }, res => {
+      let body = ''
+      res.on('data', (chunk: Buffer) => { body += chunk.toString() })
+      res.on('end', () => resolve(body))
+    })
+    req.on('error', () => resolve(null))
+    req.on('timeout', () => { req.destroy(); resolve(null) })
+  })
+}
+
 export function fetch_client_settings(ip: string): Promise<string | null> {
   return new Promise(resolve => {
     const req = http.get(`http://${ip}:61799/settings`, { timeout: 3000 }, res => {

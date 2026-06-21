@@ -34,6 +34,8 @@ const api = {
     ipcRenderer.invoke('admin:command', ip, path, body),
   admin_fetch_settings: (ip: string): Promise<string | null> =>
     ipcRenderer.invoke('admin:fetch_settings', ip),
+  admin_fetch_log: (ip: string): Promise<string | null> =>
+    ipcRenderer.invoke('admin:fetch_log', ip),
 }
 
 export type PreloadApi = typeof api

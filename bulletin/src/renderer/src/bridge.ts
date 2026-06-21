@@ -87,6 +87,7 @@ export interface AppBridge {
   admin_scan?: () => Promise<ClientInfo[]>
   admin_command?: (ip: string, path: string, body?: unknown) => Promise<CommandResult>
   admin_fetch_settings?: (ip: string) => Promise<string | null>
+  admin_fetch_log?: (ip: string) => Promise<string | null>
 }
 
 export function get_bridge(): AppBridge | undefined {

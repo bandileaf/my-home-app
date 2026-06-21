@@ -26,7 +26,7 @@ import {
 } from './services/store'
 import { run_update_check } from '@shared/update'
 import { start_control_server } from './services/control'
-import { scan_subnet, send_command, fetch_client_settings } from './services/admin'
+import { scan_subnet, send_command, fetch_client_settings, fetch_client_log } from './services/admin'
 
 function app_dir(): string {
   if (app.isPackaged) {
@@ -255,6 +255,10 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     try { return await fetch_client_settings(ip) }
     catch (e) { log_error('admin:fetch_settings', e); return null }
   })
+  ipcMain.handle('admin:fetch_log', async (_e, ip: string) => {
+    try { return await fetch_client_log(ip) }
+    catch (e) { log_error('admin:fetch_log', e); return null }
+  })
 }
 
 // --post-update: launched by update.bat — skip lock check (old process is dead, OS mutex may not have released yet)
@@ -317,6 +321,7 @@ app.whenReady().then(async () => {
     deviceId: identity.deviceId,
     hostname: identity.hostname,
     settingsPath,
+    logPath: () => _log_path,
     has_settings: () => existsSync(settingsPath),
     is_disabled: () => _disabled,
     is_admin: () => _is_admin,

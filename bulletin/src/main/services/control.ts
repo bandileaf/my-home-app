@@ -7,6 +7,7 @@ export interface ControlContext {
   deviceId: string
   hostname: string
   settingsPath: string
+  logPath: () => string | null
   has_settings: () => boolean
   is_disabled: () => boolean
   is_admin: () => boolean
@@ -42,6 +43,14 @@ export function start_control_server(ctx: ControlContext): void {
           has_settings: ctx.has_settings(),
           disabled: ctx.is_disabled(),
         })
+        return
+      }
+      if (method === 'GET' && url === '/log') {
+        const logPath = ctx.logPath()
+        let content = '(로그 없음)'
+        try { if (logPath) content = readFileSync(logPath, 'utf-8') } catch { /* ignore */ }
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' })
+        res.end(content)
         return
       }
       if (method === 'GET' && url === '/settings') {

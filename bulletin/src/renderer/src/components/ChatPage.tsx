@@ -77,7 +77,6 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users, onl
         const near_bottom = scrollHeight - scrollTop - clientHeight < 120
         if (near_bottom) bottom_ref.current?.scrollIntoView({ behavior: 'smooth' })
       }
-      mark_read()
     }
     prev_count_ref.current = new_count
   }, [messages])

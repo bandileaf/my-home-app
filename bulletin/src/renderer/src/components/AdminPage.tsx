@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RefreshCw, RotateCcw, Download, Upload, FolderInput, PauseCircle, PlayCircle } from 'lucide-react'
+import { RefreshCw, RotateCcw, Download, Upload, FolderInput, PauseCircle, PlayCircle, FileText } from 'lucide-react'
 import type { ClientInfo, CommandResult } from '../bridge'
 import { get_bridge } from '../bridge'
 
@@ -10,6 +10,8 @@ export function AdminPage(): JSX.Element {
   const [settings_text, set_settings_text] = useState('')
   const [settings_from, set_settings_from] = useState<string | null>(null)
   const [settings_loaded, set_settings_loaded] = useState(false)
+  const [log_text, set_log_text] = useState<string | null>(null)
+  const [log_from, set_log_from] = useState<string | null>(null)
 
   async function scan(): Promise<void> {
     set_scanning(true)
@@ -25,6 +27,19 @@ export function AdminPage(): JSX.Element {
     set_status(s => ({ ...s, [key]: '...' }))
     const result: CommandResult = await get_bridge()?.admin_command?.(ip, path, body) ?? { ok: false, error: '연결 없음' }
     set_status(s => ({ ...s, [key]: result.ok ? '✓' : `✗ ${result.error ?? ''}` }))
+  }
+
+  async function fetch_log(ip: string, hostname: string): Promise<void> {
+    const key = ip + '/log'
+    set_status(s => ({ ...s, [key]: '...' }))
+    const text = await get_bridge()?.admin_fetch_log?.(ip) ?? null
+    if (text === null) {
+      set_status(s => ({ ...s, [key]: '✗ 실패' }))
+      return
+    }
+    set_log_text(text)
+    set_log_from(hostname)
+    set_status(s => ({ ...s, [key]: '✓' }))
   }
 
   async function import_settings(ip: string, hostname: string): Promise<void> {
@@ -135,6 +150,10 @@ export function AdminPage(): JSX.Element {
                   }
                   {status[c.ip + '/disable'] && <span className="admin-result">{status[c.ip + '/disable']}</span>}
                   {status[c.ip + '/enable']  && <span className="admin-result">{status[c.ip + '/enable']}</span>}
+                  <button className="admin-btn" onClick={() => void fetch_log(c.ip, c.hostname)}>
+                    <FileText size={13} /> 로그
+                  </button>
+                  {status[c.ip + '/log'] && <span className="admin-result">{status[c.ip + '/log']}</span>}
                   <button className="admin-btn" onClick={() => void import_settings(c.ip, c.hostname)}>
                     <FolderInput size={13} /> 가져오기
                   </button>
@@ -165,6 +184,20 @@ export function AdminPage(): JSX.Element {
             value={settings_text}
             onChange={e => set_settings_text(e.target.value)}
             onKeyDown={handle_tab}
+            spellCheck={false}
+          />
+        </div>
+      )}
+
+      {log_text !== null && (
+        <div className="admin-settings-panel">
+          <div className="admin-settings-label">
+            {log_from ? `${log_from} 로그` : '로그'}
+          </div>
+          <textarea
+            className="admin-settings-editor admin-log-editor"
+            value={log_text}
+            readOnly
             spellCheck={false}
           />
         </div>
