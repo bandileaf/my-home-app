@@ -76,19 +76,12 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
     if (Math.abs(cy - sy) < 3) return null
     return (
       <svg className="drag-svg-overlay">
-        <defs>
-          <filter id="drag-blur">
-            <feGaussianBlur stdDeviation="3" />
-          </filter>
-        </defs>
         <line x1={sx} y1={sy} x2={sx} y2={cy}
-          stroke="rgba(167,139,250,0.45)" strokeWidth={30}
-          strokeLinecap="round" filter="url(#drag-blur)"
-        />
+          stroke="#c4b5fd" strokeWidth={52} strokeLinecap="round" opacity={0.18} />
         <line x1={sx} y1={sy} x2={sx} y2={cy}
-          stroke="rgba(167,139,250,0.25)" strokeWidth={48}
-          strokeLinecap="round" filter="url(#drag-blur)"
-        />
+          stroke="#a78bfa" strokeWidth={28} strokeLinecap="round" opacity={0.35} />
+        <line x1={sx} y1={sy} x2={sx} y2={cy}
+          stroke="#a78bfa" strokeWidth={12} strokeLinecap="round" opacity={0.6} />
       </svg>
     )
   }
