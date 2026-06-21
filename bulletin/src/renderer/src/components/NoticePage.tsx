@@ -21,7 +21,6 @@ const KIND_OPTIONS: { key: NoticeKind; label: string }[] = [
 
 interface DragIndicator { sx: number; sy: number; cy: number }
 
-const R = 26
 
 export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
   const [composing, set_composing] = useState(false)
@@ -74,27 +73,21 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
   const renderDrag = (): JSX.Element | null => {
     if (!ind) return null
     const { sx, sy, cy } = ind
-    const delta = cy - sy
-    const abs = Math.abs(delta)
-    const chevronOpacity = Math.min(Math.max((abs - 15) / 35, 0), 1)
-    const down = delta >= 0
-    // chevron path: V shape pointing in drag direction, centered in circle
-    const cx = sx, top = sy - 9, bot = sy + 9
-    const chevron = down
-      ? `M ${cx - 9},${top} L ${cx},${bot} L ${cx + 9},${top}`
-      : `M ${cx - 9},${bot} L ${cx},${top} L ${cx + 9},${bot}`
-
+    if (Math.abs(cy - sy) < 3) return null
     return (
       <svg className="drag-svg-overlay">
-        <circle cx={sx} cy={sy} r={R} className="drag-svg-circle"
-          fill="rgba(255,255,255,0.88)"
-          style={{ filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.16))' }}
+        <defs>
+          <filter id="drag-blur">
+            <feGaussianBlur stdDeviation="3" />
+          </filter>
+        </defs>
+        <line x1={sx} y1={sy} x2={sx} y2={cy}
+          stroke="rgba(167,139,250,0.45)" strokeWidth={30}
+          strokeLinecap="round" filter="url(#drag-blur)"
         />
-        <path d={chevron}
-          stroke="rgba(120,90,220,0.85)" strokeWidth={2.5}
-          strokeLinecap="round" strokeLinejoin="round"
-          fill="none"
-          style={{ opacity: chevronOpacity, transition: 'opacity 0.12s' }}
+        <line x1={sx} y1={sy} x2={sx} y2={cy}
+          stroke="rgba(167,139,250,0.25)" strokeWidth={48}
+          strokeLinecap="round" filter="url(#drag-blur)"
         />
       </svg>
     )
