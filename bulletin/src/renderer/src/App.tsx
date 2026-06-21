@@ -74,8 +74,7 @@ export function App(): JSX.Element {
           <div className="page-row">
             <NavRound
               direction="left"
-              disabled={page_idx === 0}
-              on_click={() => set_page(PAGES[page_idx - 1])}
+              on_click={() => set_page(PAGES[(page_idx - 1 + PAGES.length) % PAGES.length])}
             />
 
             {page === 'notices' && (
@@ -100,8 +99,7 @@ export function App(): JSX.Element {
 
             <NavRound
               direction="right"
-              disabled={page_idx === PAGES.length - 1}
-              on_click={() => set_page(PAGES[page_idx + 1])}
+              on_click={() => set_page(PAGES[(page_idx + 1) % PAGES.length])}
             />
           </div>
 

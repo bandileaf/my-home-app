@@ -54,7 +54,7 @@ export function ChatPage({ identity, my_profile, get_profile }: ChatPageProps): 
   }
 
   return (
-    <div className="chat-page">
+    <div className="page chat-page">
       <div className="chat-header">
         <Avatar profile={my_profile} size={48} />
         <span className="chat-header-name">{display_name_of(my_profile)}</span>
