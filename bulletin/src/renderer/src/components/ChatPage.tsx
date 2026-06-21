@@ -48,6 +48,7 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
   const [text, set_text] = useState('')
   const scroll_ref = useRef<HTMLDivElement>(null)
   const bottom_ref = useRef<HTMLDivElement>(null)
+  const initialized_ref = useRef(false)
   const prev_count_ref = useRef(0)
   const my_id = identity?.deviceId
 
@@ -56,27 +57,28 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
   }
 
   function mark_read(): void {
-    get_bridge()?.mark_read_chat?.().then(load).catch(() => {})
+    get_bridge()?.mark_read_chat?.().catch(() => {})
   }
 
   useEffect(() => {
     refresh_users()
     load()
-    mark_read()
-    const timer = setInterval(load, 1000)
-    return () => clearInterval(timer)
+    get_bridge()?.mark_read_chat?.().then(load).catch(() => {})
+    const timer = setInterval(load, 3000)
+    return () => { clearInterval(timer); initialized_ref.current = false }
   }, [])
 
   useEffect(() => {
     const new_count = messages.length
-    if (new_count > prev_count_ref.current) {
+    if (!initialized_ref.current && new_count > 0) {
+      bottom_ref.current?.scrollIntoView({ behavior: 'instant' })
+      initialized_ref.current = true
+    } else if (new_count > prev_count_ref.current) {
       const container = scroll_ref.current
       if (container) {
         const { scrollTop, scrollHeight, clientHeight } = container
         const near_bottom = scrollHeight - scrollTop - clientHeight < 120
-        if (near_bottom || prev_count_ref.current === 0) {
-          bottom_ref.current?.scrollIntoView({ behavior: 'smooth' })
-        }
+        if (near_bottom) bottom_ref.current?.scrollIntoView({ behavior: 'smooth' })
       }
       mark_read()
     }
