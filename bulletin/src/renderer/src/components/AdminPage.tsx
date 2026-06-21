@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { RefreshCw, RotateCcw, Download, Upload, FolderInput } from 'lucide-react'
 import type { ClientInfo, CommandResult } from '../bridge'
 import { get_bridge } from '../bridge'
@@ -9,10 +9,6 @@ export function AdminPage(): JSX.Element {
   const [status, set_status] = useState<Record<string, string>>({})
   const [settings_text, set_settings_text] = useState('')
   const [settings_from, set_settings_from] = useState<string | null>(null)
-
-  useEffect(() => {
-    get_bridge()?.admin_get_settings?.().then(set_settings_text).catch(() => {})
-  }, [])
 
   async function scan(): Promise<void> {
     set_scanning(true)
