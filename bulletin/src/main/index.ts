@@ -296,7 +296,7 @@ app.whenReady().then(async () => {
   const settingsPath = join(baseDir, 'settings.json')
   init_log_path(settingsPath)
   log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}`)
-  const identity = load_identity(baseDir)
+  const identity = load_identity()
   _identity = identity
   log_event(`identity: deviceId=${identity.deviceId} mac=[${identity.macAddresses.join(', ')}] ip=${identity.ip ?? 'null'}`)
 
