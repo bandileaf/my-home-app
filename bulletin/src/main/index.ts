@@ -244,7 +244,12 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     try { return readFileSync(settingsPath, 'utf-8') } catch { return '{}' }
   })
   ipcMain.handle('admin:scan', async () => {
-    try { return await scan_subnet() }
+    try {
+      log_event('admin:scan 시작')
+      const result = await scan_subnet()
+      log_event(`admin:scan 완료 — ${result.length}개 발견: ${result.map(c => `${c.hostname}(${c.ip})`).join(', ')}`)
+      return result
+    }
     catch (e) { log_error('admin:scan', e); return [] }
   })
   ipcMain.handle('admin:command', async (_e, ip: string, path: string, body?: unknown) => {
