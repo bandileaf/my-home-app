@@ -1121,7 +1121,7 @@ app.whenReady().then(() => {
     if (!toastReady || !winReady) return
     log_event('update: starting check (window + toast both ready)')
     void run_update_check(
-      { baseDir: app_dir(), settingsPath, appKey: app.getName() },
+      { baseDir: app_dir(), settingsPath, appKey: 'hub.media.zip' },
       {
         set_status: (msg) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
         set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },

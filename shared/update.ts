@@ -249,10 +249,10 @@ export async function run_update_check(
   const repo       = settings['hub.repo']                              as string | undefined
   const autoUpdate = settings['hub.auto-update']                       as boolean | undefined
   const localTag   = settings['hub.tag']                               as string | undefined
-  const zipName    = settings[`hub.${config.appKey}.zip`]              as string | undefined
+  const zipName    = settings[config.appKey]                           as string | undefined
 
   if (!repo)    { cb.log('update: hub.repo not set in settings'); return }
-  if (!zipName) { cb.log(`update: hub.${config.appKey}.zip not set in settings`); return }
+  if (!zipName) { cb.log(`update: ${config.appKey} not set in settings`); return }
   if (autoUpdate === false) { cb.log('update: auto-update disabled (hub.auto-update=false)'); return }
 
   const exeName  = zipName.replace(/\.zip$/i, '.exe')

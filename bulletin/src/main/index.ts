@@ -315,7 +315,7 @@ app.whenReady().then(async () => {
     has_settings: () => existsSync(settingsPath),
     is_disabled: () => _disabled,
     is_admin: () => _is_admin,
-    on_update: () => void run_update_check({ baseDir, settingsPath, appKey: app.getName() }, update_callbacks),
+    on_update: () => void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks),
     on_settings_received: () => {
       log_event('control: settings received → restarting')
       setTimeout(() => { app.relaunch(); app.quit() }, 500)
@@ -373,7 +373,7 @@ app.whenReady().then(async () => {
   const start_update = (): void => {
     if (!toastReady || !winReady) return
     log_event('update: starting check (window + toast both ready)')
-    void run_update_check({ baseDir, settingsPath, appKey: app.getName() }, update_callbacks)
+    void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
   }
   toast.webContents.once('did-finish-load', () => { toastReady = true; start_update() })
   win.webContents.once('did-finish-load',   () => { winReady = true;   start_update() })
