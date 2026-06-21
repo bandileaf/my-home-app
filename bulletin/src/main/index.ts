@@ -380,8 +380,8 @@ app.whenReady().then(async () => {
     log_event('update: starting check (window + toast both ready)')
     void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
   }
-  toast.webContents.once('did-finish-load', () => { toastReady = true; start_update() })
-  win.webContents.once('did-finish-load',   () => { winReady = true;   start_update() })
+  toast.webContents.once('did-finish-load', () => { log_event('toast: did-finish-load'); toastReady = true; start_update() })
+  win.webContents.once('did-finish-load',   () => { log_event('win: did-finish-load');   winReady = true;   start_update() })
 
   app.on('activate', () => {
     if (win) win.show()

@@ -251,6 +251,7 @@ export async function run_update_check(
   const localTag   = settings['hub.tag']                               as string | undefined
   const zipName    = settings[config.appKey]                           as string | undefined
 
+  cb.log(`update: repo=${repo ?? '(없음)'} tag=${localTag ?? '(없음)'} zip=${zipName ?? '(없음)'} auto=${autoUpdate}`)
   if (!repo)    { cb.log('update: hub.repo not set in settings'); return }
   if (!zipName) { cb.log(`update: ${config.appKey} not set in settings`); return }
   if (autoUpdate === false) { cb.log('update: auto-update disabled (hub.auto-update=false)'); return }
