@@ -132,6 +132,8 @@ function create_window(appInfo: AppInfo = {}): BrowserWindow {
   if (devUrl) window.loadURL(devUrl)
   else window.loadFile(join(__dirname, '../renderer/index.html'))
 
+  window.webContents.openDevTools()
+
   return window
 }
 
