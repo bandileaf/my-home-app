@@ -2,27 +2,8 @@
   "hub.repo": "bandileaf/my-home-app",
   "hub.auto-update": true,
   "hub.tag": "v0.0.30",
-  "hub.zip": "myhome_app.zip",
+  "hub.zip": "family_bulletin.zip",
   "hub.update-bat": "update.bat",
-  "hub.app.media.name": "family_media.exe",
   "hub.app.media.db": "indexing.db",
-  "hub.app.bulletin.name": "family_bulletin.exe",
-  "hub.bins": [
-    {
-      "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
-      "exes": ["yt-dlp.exe"],
-      "version": ""
-    },
-    {
-      "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
-      "exes": ["ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe", "ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe"],
-      "version": ""
-    },
-    {
-      "url": "http://downloads.sourceforge.net/mp3val/mp3val-0.1.8-bin-win32.zip",
-      "exes": ["mp3val.exe"],
-      "version": ""
-    }
-  ]
-
+  "hub.app.bulletin.name": "family_bulletin.exe"
 }
