@@ -298,7 +298,7 @@ app.whenReady().then(async () => {
   log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}`)
   const identity = load_identity()
   _identity = identity
-  log_event(`identity: deviceId=${identity.deviceId} mac=[${identity.macAddresses.join(', ')}] ip=${identity.ip ?? 'null'}`)
+  log_event(`identity: deviceId=${identity.deviceId} hostname=${identity.hostname} mac=[${identity.macAddresses.join(', ')}] ip=${identity.ip ?? 'null'}`)
 
   const has_settings = existsSync(settingsPath)
   log_event(`settings.json: ${has_settings ? '있음' : '없음 — 관리자 대기 모드'}`)
