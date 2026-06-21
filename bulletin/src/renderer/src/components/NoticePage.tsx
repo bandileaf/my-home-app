@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Identity, Notice, NoticeKind, UserProfile } from '../bridge'
 import { NoticeCard } from './NoticeCard'
@@ -23,24 +23,34 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
   const [composing, set_composing] = useState(false)
   const [compose_text, set_compose_text] = useState('')
   const [kind, set_kind] = useState<NoticeKind>('sticker')
-  const drag_start = useRef<number | null>(null)
+  const composing_ref = useRef(composing)
+  useEffect(() => { composing_ref.current = composing }, [composing])
 
-  function handle_mouse_down(e: React.MouseEvent): void {
-    drag_start.current = e.clientY
-    const is_composing = composing
-    console.log(`[drag] mousedown y=${e.clientY} composing=${is_composing}`)
-    function on_up(ev: MouseEvent): void {
-      document.removeEventListener('mouseup', on_up)
-      if (drag_start.current === null) { console.log('[drag] mouseup — drag_start is null, skip'); return }
-      const delta = ev.clientY - drag_start.current
-      console.log(`[drag] mouseup y=${ev.clientY} delta=${delta} composing=${is_composing}`)
-      drag_start.current = null
-      if (delta > 60 && !is_composing) { console.log('[drag] → open compose'); set_composing(true) }
-      else if (delta < -60 && is_composing) { console.log('[drag] → close compose'); set_composing(false); set_compose_text(''); set_kind('sticker') }
-      else { console.log('[drag] delta 미달 — 무시') }
+  useEffect(() => {
+    let start_y: number | null = null
+
+    function on_down(e: MouseEvent): void {
+      start_y = e.clientY
+      console.log(`[drag] mousedown y=${e.clientY} composing=${composing_ref.current}`)
     }
+
+    function on_up(e: MouseEvent): void {
+      if (start_y === null) return
+      const delta = e.clientY - start_y
+      console.log(`[drag] mouseup y=${e.clientY} delta=${delta} composing=${composing_ref.current}`)
+      start_y = null
+      if (delta > 60 && !composing_ref.current) { console.log('[drag] → open compose'); set_composing(true) }
+      else if (delta < -60 && composing_ref.current) { console.log('[drag] → close compose'); set_composing(false); set_compose_text(''); set_kind('sticker') }
+      else { console.log('[drag] delta 미달') }
+    }
+
+    document.addEventListener('mousedown', on_down)
     document.addEventListener('mouseup', on_up)
-  }
+    return () => {
+      document.removeEventListener('mousedown', on_down)
+      document.removeEventListener('mouseup', on_up)
+    }
+  }, [])
 
   function handle_post(): void {
     if (!compose_text.trim()) return
@@ -54,7 +64,6 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
     <div
       className="page"
       style={{ position: 'relative', userSelect: 'none' }}
-      onMouseDown={handle_mouse_down}
     >
       {composing ? (
         <div className="compose-view">
