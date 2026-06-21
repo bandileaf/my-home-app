@@ -274,7 +274,7 @@ export async function delete_message(id: string, userId: string): Promise<void> 
   if (error) throw error
 }
 
-export async function mark_messages_read(userId: string): Promise<void> {
+export async function add_reader(userId: string): Promise<void> {
   const { data } = await db()
     .from('chat_messages')
     .select('id, read_by')
