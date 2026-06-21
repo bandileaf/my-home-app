@@ -5,6 +5,7 @@ import { useUsers } from './hooks/useUsers'
 import { Sidebar } from './components/Sidebar'
 import { NoticePage } from './components/NoticePage'
 import { ChatPage } from './components/ChatPage'
+import { AdminPage } from './components/AdminPage'
 import { NavRound } from './components/NavRound'
 import { Dots } from './components/Dots'
 import { get_bridge } from './bridge'
@@ -21,23 +22,25 @@ function to_witty_message(error: string): string {
 }
 
 const PAGES = ['notices', 'messenger'] as const
-type Page = typeof PAGES[number]
+type Page = typeof PAGES[number] | 'admin'
 
 export function App(): JSX.Element {
   const identity = useIdentity()
   const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
   const { get_profile, refresh_users } = useUsers()
-  const [appName, set_appName] = useState('')
-  const [alias,  set_alias]  = useState<string | null>(null)
-  const [avatar, set_avatar] = useState<string | null>(null)
-  const [page,   set_page]   = useState<Page>('notices')
+  const [appName,   set_appName]   = useState('')
+  const [alias,     set_alias]     = useState<string | null>(null)
+  const [avatar,    set_avatar]    = useState<string | null>(null)
+  const [page,      set_page]      = useState<Page>('notices')
+  const [is_admin,  set_is_admin]  = useState(false)
 
-  const page_idx = PAGES.indexOf(page)
+  const page_idx = page === 'admin' ? -1 : PAGES.indexOf(page as typeof PAGES[number])
 
   useEffect(() => {
     get_bridge()?.app_name?.().then(set_appName).catch(() => {})
     get_bridge()?.get_alias?.().then(set_alias).catch(() => {})
     get_bridge()?.get_avatar?.().then(set_avatar).catch(() => {})
+    get_bridge()?.admin_is_enabled?.().then(set_is_admin).catch(() => {})
   }, [])
 
   async function handle_profile_save(new_alias: string | null, new_avatar: string | null): Promise<void> {
@@ -61,21 +64,28 @@ export function App(): JSX.Element {
 
       <div className="body-row">
         <Sidebar
-          active={page === 'messenger' ? 'messenger' : 'notices'}
+          active={page === 'messenger' ? 'messenger' : page === 'admin' ? 'admin' : 'notices'}
           identity={identity}
           appName={appName}
           alias={alias}
           avatar={avatar}
+          is_admin={is_admin}
           on_profile_save={handle_profile_save}
-          on_section_change={(section) => set_page(section === 'messenger' ? 'messenger' : 'notices')}
+          on_section_change={(section) => {
+            if (section === 'admin') set_page('admin')
+            else if (section === 'messenger') set_page('messenger')
+            else set_page('notices')
+          }}
         />
 
         <div className="stage">
           <div className="page-row">
-            <NavRound
-              direction="left"
-              on_click={() => set_page(PAGES[(page_idx - 1 + PAGES.length) % PAGES.length])}
-            />
+            {page !== 'admin' && (
+              <NavRound
+                direction="left"
+                on_click={() => set_page(PAGES[(page_idx - 1 + PAGES.length) % PAGES.length])}
+              />
+            )}
 
             {page === 'notices' && (
               <NoticePage
@@ -98,13 +108,17 @@ export function App(): JSX.Element {
               />
             )}
 
-            <NavRound
-              direction="right"
-              on_click={() => set_page(PAGES[(page_idx + 1) % PAGES.length])}
-            />
+            {page === 'admin' && <AdminPage />}
+
+            {page !== 'admin' && (
+              <NavRound
+                direction="right"
+                on_click={() => set_page(PAGES[(page_idx + 1) % PAGES.length])}
+              />
+            )}
           </div>
 
-          <Dots total={PAGES.length} activeIndex={page_idx} />
+          {page !== 'admin' && <Dots total={PAGES.length} activeIndex={page_idx} />}
 
           {error && (
             <div className="notif-bar">

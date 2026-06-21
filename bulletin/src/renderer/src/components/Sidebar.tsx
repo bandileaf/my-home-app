@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { StickyNote, MessageCircle, Calendar } from 'lucide-react'
+import { StickyNote, MessageCircle, Calendar, ShieldCheck } from 'lucide-react'
 import type { Identity } from '../bridge'
 import { ProfilePanel } from './ProfilePanel'
 
-export type Section = 'notices' | 'messenger' | 'calendar'
+export type Section = 'notices' | 'messenger' | 'calendar' | 'admin'
 
 interface SidebarProps {
   active: Section
@@ -11,13 +11,14 @@ interface SidebarProps {
   appName: string
   alias: string | null
   avatar: string | null
+  is_admin: boolean
   on_profile_save: (alias: string | null, avatar: string | null) => void
   on_section_change: (section: Section) => void
 }
 
 const TAB_ICON_SIZE = 30
 
-export function Sidebar({ active, identity, alias, avatar, on_profile_save, on_section_change }: SidebarProps): JSX.Element {
+export function Sidebar({ active, identity, alias, avatar, is_admin, on_profile_save, on_section_change }: SidebarProps): JSX.Element {
   const [open, set_open] = useState(false)
 
   const name = alias?.trim() || identity?.hostname || '?'
@@ -44,6 +45,15 @@ export function Sidebar({ active, identity, alias, avatar, on_profile_save, on_s
           <Calendar size={TAB_ICON_SIZE} strokeWidth={1.5} />
         </div>
         <div className="tab-spacer" />
+        {is_admin && (
+          <div
+            className={`tab tab-admin ${active === 'admin' ? 'active' : ''}`}
+            onClick={() => on_section_change('admin')}
+            style={{ cursor: 'pointer' }}
+          >
+            <ShieldCheck size={TAB_ICON_SIZE} strokeWidth={1.5} />
+          </div>
+        )}
         <div className="tab tab-me" onClick={() => set_open(true)} style={{ cursor: 'pointer' }}>
           {avatar
             ? <img src={avatar} className="tab-avatar" style={{ objectFit: 'cover' }} alt="me" />

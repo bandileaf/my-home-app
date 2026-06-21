@@ -24,6 +24,8 @@ import {
   type AppInfo,
 } from './services/store'
 import { run_update_check } from '@shared/update'
+import { start_control_server } from './services/control'
+import { scan_subnet, send_command, fetch_client_settings } from './services/admin'
 
 function app_dir(): string {
   if (app.isPackaged) {
@@ -169,7 +171,7 @@ function log_error(label: string, e: unknown): void {
   log_event(`[ERROR] ${label}: ${msg}`)
 }
 
-function register_ipc(identity: Identity): void {
+function register_ipc(identity: Identity, settingsPath: string, is_admin: boolean): void {
   ipcMain.on('window:close',    () => win?.close())
   ipcMain.on('window:minimize', () => win?.minimize())
   ipcMain.handle('app:name',     (): string => app_display_name())
@@ -229,6 +231,22 @@ function register_ipc(identity: Identity): void {
     try { await mark_chat_read(identity.deviceId) }
     catch (e) { log_error('chat:mark_read', e) }
   })
+  ipcMain.handle('admin:is_enabled', () => is_admin)
+  ipcMain.handle('admin:get_settings', () => {
+    try { return readFileSync(settingsPath, 'utf-8') } catch { return '{}' }
+  })
+  ipcMain.handle('admin:scan', async () => {
+    try { return await scan_subnet() }
+    catch (e) { log_error('admin:scan', e); return [] }
+  })
+  ipcMain.handle('admin:command', async (_e, ip: string, path: string, body?: unknown) => {
+    try { return await send_command(ip, path, body) }
+    catch (e) { log_error('admin:command', e); return { ok: false, error: String(e) } }
+  })
+  ipcMain.handle('admin:fetch_settings', async (_e, ip: string) => {
+    try { return await fetch_client_settings(ip) }
+    catch (e) { log_error('admin:fetch_settings', e); return null }
+  })
 }
 
 // --post-update: launched by update.bat — skip lock check (old process is dead, OS mutex may not have released yet)
@@ -268,11 +286,13 @@ app.whenReady().then(async () => {
   _identity = identity
 
   log_event(`supabase init: reading ${settingsPath}`)
+  let is_admin = false
   try {
     const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
     const url = raw['hub.supabase.url'] as string | undefined
     const key = raw['hub.supabase.key'] as string | undefined
-    log_event(`supabase init: url=${url ?? '(없음)'} key=${key ? key.slice(0, 8) + '…' : '(없음)'}`)
+    is_admin = raw['hub.app.bulletin.admin'] === true
+    log_event(`supabase init: url=${url ?? '(없음)'} key=${key ? key.slice(0, 8) + '…' : '(없음)'} admin=${is_admin}`)
     if (!url || !key) throw new Error('hub.supabase.url 또는 hub.supabase.key 가 settings.json 에 없음')
     init_supabase(url, key)
     log_event('supabase init: 성공')
@@ -289,7 +309,7 @@ app.whenReady().then(async () => {
     log_event(`user upsert failed: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  register_ipc(identity)
+  register_ipc(identity, settingsPath, is_admin)
 
   const toast = create_toast_window()
   ipcMain.on('toast:close',    () => toast.hide())
@@ -297,6 +317,23 @@ app.whenReady().then(async () => {
 
   win = create_window(_appInfo)
   tray = create_tray(win)
+
+  start_control_server({
+    deviceId: identity.deviceId,
+    hostname: identity.hostname,
+    settingsPath,
+    on_update: () => void run_update_check(
+      { baseDir, settingsPath, appKey: app.getName() },
+      {
+        set_status:   (msg) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
+        set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
+        on_error:     (msg) => { toast.webContents.send('toast:error', msg); toast.show() },
+        on_quit:      () => app.quit(),
+        log:          log_event,
+      }
+    ),
+    log: log_event,
+  })
 
   let toastReady = false
   let winReady = false

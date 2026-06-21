@@ -48,6 +48,18 @@ export interface ChatMessage {
   readBy: string[]
 }
 
+export interface ClientInfo {
+  ip: string
+  deviceId: string
+  hostname: string
+  version: string
+}
+
+export interface CommandResult {
+  ok: boolean
+  error?: string
+}
+
 export interface AppBridge {
   window_close?: () => void
   window_minimize?: () => void
@@ -66,6 +78,11 @@ export interface AppBridge {
   send_chat?: (text: string) => Promise<void>
   delete_chat?: (id: string) => Promise<void>
   mark_read_chat?: () => Promise<void>
+  admin_is_enabled?: () => Promise<boolean>
+  admin_get_settings?: () => Promise<string>
+  admin_scan?: () => Promise<ClientInfo[]>
+  admin_command?: (ip: string, path: string, body?: unknown) => Promise<CommandResult>
+  admin_fetch_settings?: (ip: string) => Promise<string | null>
 }
 
 export function get_bridge(): AppBridge | undefined {

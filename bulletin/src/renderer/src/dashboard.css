@@ -131,6 +131,7 @@ body {
 .tab-notices   { background: var(--tab-notices-bg);   color: var(--tab-notices-fg); }
 .tab-messenger { background: var(--tab-messenger-bg); color: var(--tab-messenger-fg); }
 .tab-calendar  { background: var(--tab-calendar-bg);  color: var(--tab-calendar-fg); }
+.tab-admin     { background: #fef3c7; color: #b45309; }
 
 /* 활성 탭: 오른쪽 경계 없이 스테이지와 연결 */
 .tab.active {
@@ -205,14 +206,17 @@ body {
 
 .page-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0;
   width: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── 좌우 이동 버튼 ── */
 .nav-round {
   flex-shrink: 0;
+  align-self: center;
   width: 92px; height: 92px;
   border-radius: 999px;
   background: #ffffff;
@@ -231,7 +235,8 @@ body {
 /* ── 공책 페이지 ── */
 .page {
   flex: 1;
-  max-height: 90vh;
+  height: 100%;
+  box-sizing: border-box;
   overflow: auto;
   background: var(--page-bg);
   border: 1px solid var(--page-border);
@@ -704,7 +709,7 @@ body {
   gap: 8px;
 }
 
-.chat-row-mine  { justify-content: flex-start; }
+.chat-row-mine  { justify-content: flex-end; }
 .chat-row-other { justify-content: flex-start; }
 
 .chat-bubble {
@@ -821,3 +826,143 @@ body {
   z-index: 9999;
   overflow: visible;
 }
+
+/* ── 어드민 페이지 ── */
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-scan-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-scan-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-found {
+  font-size: 14px;
+  color: var(--text-faint);
+  margin-right: 4px;
+}
+
+.admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--page-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+.admin-btn:hover { background: #f0edf9; }
+.admin-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.admin-btn-export { color: var(--accent-strong); border-color: var(--accent); }
+.admin-btn-export:hover:not(:disabled) { background: #ede9fe; }
+
+.admin-settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.admin-settings-label {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.admin-settings-editor {
+  width: 100%;
+  min-height: 180px;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8f7fc;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.admin-client {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #f8f7fc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.admin-client-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-hostname {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.admin-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.admin-client-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.admin-result {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.admin-empty {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 16px;
+  padding: 40px 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }

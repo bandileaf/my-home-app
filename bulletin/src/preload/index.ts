@@ -24,6 +24,13 @@ const api = {
   send_chat:      (text: string): Promise<void> => ipcRenderer.invoke('chat:send', text),
   delete_chat:    (id: string):   Promise<void> => ipcRenderer.invoke('chat:delete', id),
   mark_read_chat: ():             Promise<void> => ipcRenderer.invoke('chat:mark_read'),
+  admin_is_enabled:  (): Promise<boolean>      => ipcRenderer.invoke('admin:is_enabled'),
+  admin_get_settings: (): Promise<string>      => ipcRenderer.invoke('admin:get_settings'),
+  admin_scan:        (): Promise<unknown[]>    => ipcRenderer.invoke('admin:scan'),
+  admin_command: (ip: string, path: string, body?: unknown): Promise<unknown> =>
+    ipcRenderer.invoke('admin:command', ip, path, body),
+  admin_fetch_settings: (ip: string): Promise<string | null> =>
+    ipcRenderer.invoke('admin:fetch_settings', ip),
 }
 
 export type PreloadApi = typeof api
