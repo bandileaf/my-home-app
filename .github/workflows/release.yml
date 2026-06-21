@@ -74,7 +74,6 @@ jobs:
           $bulletinExe = (Get-ChildItem bulletin\dist -Filter "*.exe" | Select-Object -First 1).FullName
           New-Item -ItemType Directory -Force -Path _bulletin
           Copy-Item $bulletinExe  _bulletin\family_bulletin.exe
-          Copy-Item settings.json _bulletin\settings.json
           Compress-Archive -Path _bulletin\* -DestinationPath family_bulletin.zip -Force
           Write-Host "=== family_bulletin.zip contents ==="
           Get-ChildItem _bulletin
