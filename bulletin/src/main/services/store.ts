@@ -143,10 +143,9 @@ export async function upsert_user(
   macAddresses: string[],
   ip: string | null,
   deviceId: string
-): Promise<{ appInfo: AppInfo; alias: string | null; canonicalId: string }> {
+): Promise<{ appInfo: AppInfo; alias: string | null }> {
   const now = Date.now()
 
-  // device_id 또는 MAC 중 하나라도 일치하면 같은 사용자
   let existing: UserRow | null = null
   const { data: byDevice } = await db()
     .from('users')
@@ -165,18 +164,17 @@ export async function upsert_user(
   }
 
   if (existing) {
-    const canonicalId = existing.id as string
     await db().from('users').update({
       hostname, ip, is_online: true, last_seen: now,
     }).eq('id', existing.id as string)
-    return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias as string | null, canonicalId }
+    return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias as string | null }
   } else {
-    const { data, error } = await db().from('users').insert({
+    const { error } = await db().from('users').insert({
       hostname, mac_addresses: macAddresses, ip, device_id: deviceId,
       is_online: true, app_info: {}, last_seen: now, created_at: now,
-    }).select('id').single()
+    })
     if (error) throw error
-    return { appInfo: {}, alias: null, canonicalId: (data as { id: string }).id }
+    return { appInfo: {}, alias: null }
   }
 }
 

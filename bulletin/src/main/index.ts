@@ -371,11 +371,6 @@ app.whenReady().then(async () => {
     const result = await upsert_user(identity.hostname, identity.macAddresses, identity.ip, identity.deviceId)
     _appInfo = result.appInfo
     _alias = result.alias
-    if (result.canonicalId !== identity.deviceId) {
-      log_event(`identity: canonicalId 변경 ${identity.deviceId} → ${result.canonicalId}`)
-      identity.deviceId = result.canonicalId
-      _identity = identity
-    }
     log_event(`user upsert 완료. app_info=${JSON.stringify(_appInfo)} alias=${_alias ?? 'null'}`)
   } catch (e) {
     log_event(`user upsert failed: ${e instanceof Error ? e.message : String(e)}`)
