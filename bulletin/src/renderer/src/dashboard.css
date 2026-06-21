@@ -721,21 +721,32 @@ body {
 
 .chat-bubble-wrap {
   display: flex;
-  align-items: flex-end;
-  gap: 5px;
+  flex-direction: column;
+  gap: 3px;
   flex: 1;
   min-width: 0;
 }
-.chat-row-mine  .chat-bubble-wrap { justify-content: flex-end; }
-.chat-row-other .chat-bubble-wrap { justify-content: flex-start; }
+.chat-row-mine  .chat-bubble-wrap { align-items: flex-end; }
+.chat-row-other .chat-bubble-wrap { align-items: flex-start; }
 
-.chat-unread {
+.chat-bubble-inner {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.chat-new {
   font-size: 12px;
   font-weight: 700;
   color: #facc15;
-  line-height: 1;
   flex-shrink: 0;
+  line-height: 1;
   padding-bottom: 2px;
+}
+
+.chat-time {
+  font-size: 11px;
+  color: var(--text-faint);
   white-space: nowrap;
 }
 

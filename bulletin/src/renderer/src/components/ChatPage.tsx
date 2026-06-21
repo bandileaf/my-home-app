@@ -9,7 +9,6 @@ interface ChatPageProps {
   my_profile: UserProfile | null
   get_profile: (deviceId: string) => UserProfile | null
   refresh_users: () => void
-  users_count: number
 }
 
 function Avatar({ profile, size = 36 }: { profile: UserProfile | null; size?: number }): JSX.Element {
@@ -27,6 +26,10 @@ function format_date_label(ms: number): string {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
+function format_time(ms: number): string {
+  return new Date(ms).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
 function same_day(a: number, b: number): boolean {
   const da = new Date(a), db = new Date(b)
   return da.getFullYear() === db.getFullYear()
@@ -34,7 +37,7 @@ function same_day(a: number, b: number): boolean {
     && da.getDate() === db.getDate()
 }
 
-export function ChatPage({ identity, my_profile, get_profile, refresh_users, users_count }: ChatPageProps): JSX.Element {
+export function ChatPage({ identity, my_profile, get_profile, refresh_users }: ChatPageProps): JSX.Element {
   const [messages, set_messages] = useState<ChatMessage[]>([])
   const [text, set_text] = useState('')
   const scroll_ref = useRef<HTMLDivElement>(null)
@@ -49,13 +52,15 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users, use
   }
 
   function mark_read(): void {
-    get_bridge()?.mark_read_chat?.().catch(() => {})
+    get_bridge()?.mark_read_chat?.()
+      .then(load)
+      .catch(() => {})
   }
 
   useEffect(() => {
     refresh_users()
-    mark_read()
     load()
+    mark_read()
     const timer = setInterval(load, 1000)
     return () => clearInterval(timer)
   }, [])
@@ -99,7 +104,7 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users, use
           const is_mine = msg.userId === my_id
           const profile = get_profile(msg.userId)
           const show_date = i === 0 || !same_day(messages[i - 1].createdAt, msg.createdAt)
-          const unread = users_count > 0 ? Math.max(0, users_count - msg.readBy.length) : 0
+          const is_new = my_id ? !msg.readBy.includes(my_id) : false
 
           return (
             <div key={msg.id}>
@@ -115,16 +120,22 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users, use
                       <Trash2 size={14} />
                     </button>
                     <div className="chat-bubble-wrap">
-                      {unread > 0 && <span className="chat-unread">{unread}</span>}
-                      <div className="chat-bubble chat-bubble-mine">{msg.text}</div>
+                      <div className="chat-bubble-inner">
+                        {is_new && <span className="chat-new">N</span>}
+                        <div className="chat-bubble chat-bubble-mine">{msg.text}</div>
+                      </div>
+                      <span className="chat-time">{format_time(msg.createdAt)}</span>
                     </div>
                   </>
                 ) : (
                   <>
                     <Avatar profile={profile} size={32} />
                     <div className="chat-bubble-wrap">
-                      <div className="chat-bubble chat-bubble-other">{msg.text}</div>
-                      {unread > 0 && <span className="chat-unread">{unread}</span>}
+                      <div className="chat-bubble-inner">
+                        <div className="chat-bubble chat-bubble-other">{msg.text}</div>
+                        {is_new && <span className="chat-new">N</span>}
+                      </div>
+                      <span className="chat-time">{format_time(msg.createdAt)}</span>
                     </div>
                   </>
                 )}

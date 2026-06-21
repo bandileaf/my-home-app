@@ -258,10 +258,8 @@ export async function list_messages(): Promise<ChatMessage[]> {
 
 export async function send_message(userId: string, text: string): Promise<void> {
   const { error } = await db().from('chat_messages').insert({
-    id: randomUUID(),
     user_id: userId,
     text,
-    created_at: new Date().toISOString(),
     read_by: [userId],
   })
   if (error) throw error
