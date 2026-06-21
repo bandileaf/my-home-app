@@ -246,20 +246,18 @@ export async function run_update_check(
     return
   }
 
-  const repo       = settings['hub.repo']       as string | undefined
-  const autoUpdate = settings['hub.auto-update'] as boolean | undefined
-  const localTag   = settings['hub.tag']         as string | undefined
-  const zipName    = settings['hub.zip']         as string | undefined
-  const batName    = settings['hub.update-bat']  as string | undefined
-  const appNames   = Object.keys(settings)
-    .filter(k => /^hub\.app\.[^.]+\.name$/.test(k))
-    .map(k => settings[k] as string)
-    .filter(Boolean)
+  const repo       = settings['hub.repo']                              as string | undefined
+  const autoUpdate = settings['hub.auto-update']                       as boolean | undefined
+  const localTag   = settings['hub.tag']                               as string | undefined
+  const zipName    = settings[`hub.${config.appKey}.zip`]              as string | undefined
 
   if (!repo)    { cb.log('update: hub.repo not set in settings'); return }
-  if (!zipName) { cb.log('update: hub.zip not set in settings'); return }
-  if (!batName) { cb.log('update: hub.update-bat not set in settings'); return }
+  if (!zipName) { cb.log(`update: hub.${config.appKey}.zip not set in settings`); return }
   if (autoUpdate === false) { cb.log('update: auto-update disabled (hub.auto-update=false)'); return }
+
+  const exeName  = zipName.replace(/\.zip$/i, '.exe')
+  const batName  = exeName.replace(/\.exe$/i, '_update.bat')
+  const appNames = [exeName]
 
   const ua = repo.split('/')[1] ?? repo
 
@@ -288,7 +286,7 @@ export async function run_update_check(
 
   const tmpDir   = join(config.baseDir, 'tmp')
   mkdirSync(tmpDir, { recursive: true })
-  const lockPath = join(tmpDir, '.update.lock')
+  const lockPath = join(tmpDir, `.update_${config.appKey}.lock`)
 
   // Wait until lock is free, then acquire it
   const waitStart = Date.now()

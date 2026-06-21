@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, Tray } from 'electron'
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { basename, dirname, join } from 'path'
 import { parse as parse_jsonc } from 'jsonc-parser'
 import { load_identity, type Identity } from './services/identity'
@@ -111,7 +111,7 @@ function create_toast_window(): BrowserWindow {
   return toast
 }
 
-function create_window(appInfo: AppInfo = {}): BrowserWindow {
+function create_window(appInfo: AppInfo = {}, show = false): BrowserWindow {
   log_event(`window: creating — title="${app_display_name()}"`)
   const window = new BrowserWindow({
     width:  appInfo.width  ?? 1280,
@@ -119,7 +119,7 @@ function create_window(appInfo: AppInfo = {}): BrowserWindow {
     frame: false,
     title: app_display_name(),
     icon: resolve_icon(),
-    show: false,
+    show,
     autoHideMenuBar: true,
     backgroundColor: '#faf9fc',
     webPreferences: {
@@ -173,8 +173,9 @@ function log_error(label: string, e: unknown): void {
 }
 
 function register_ipc(identity: Identity, settingsPath: string, is_admin: boolean): void {
-  ipcMain.on('window:close',    () => win?.hide())
-  ipcMain.on('window:minimize', () => win?.minimize())
+  ipcMain.on('window:close',       () => win?.hide())
+  ipcMain.on('window:minimize',    () => win?.minimize())
+  ipcMain.handle('app:has_settings', () => existsSync(settingsPath))
   ipcMain.handle('app:name',     (): string => app_display_name())
   ipcMain.handle('identity:get', (): Identity => identity)
   ipcMain.handle('user:alias',  (): string | null => _alias)
@@ -286,7 +287,44 @@ app.whenReady().then(async () => {
   const identity = load_identity(baseDir)
   _identity = identity
 
-  log_event(`supabase init: reading ${settingsPath}`)
+  const has_settings = existsSync(settingsPath)
+  log_event(`settings.json: ${has_settings ? '있음' : '없음 — 관리자 대기 모드'}`)
+
+  // 제어서버는 settings 유무 무관하게 항상 시작
+  const toast = create_toast_window()
+  ipcMain.on('toast:close',    () => toast.hide())
+  ipcMain.on('toast:open-log', () => { if (_log_path) void shell.openPath(_log_path) })
+
+  const update_callbacks = {
+    set_status:   (msg: string) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
+    set_progress: (pct: number) => { toast.webContents.send('toast:progress', pct) },
+    on_error:     (msg: string) => { toast.webContents.send('toast:error', msg); toast.show() },
+    on_quit:      () => app.quit(),
+    log:          log_event,
+  }
+
+  start_control_server({
+    deviceId: identity.deviceId,
+    hostname: identity.hostname,
+    settingsPath,
+    on_update: () => void run_update_check({ baseDir, settingsPath, appKey: app.getName() }, update_callbacks),
+    on_settings_received: () => {
+      log_event('control: settings received → restarting')
+      setTimeout(() => { app.relaunch(); app.quit() }, 500)
+    },
+    log: log_event,
+  })
+
+  if (!has_settings) {
+    // settings.json 없음 — 관리자 대기 화면, 창 즉시 표시
+    register_ipc(identity, settingsPath, false)
+    win = create_window({}, true)
+    tray = create_tray(win)
+    log_event('no settings: waiting for admin to push settings.json')
+    return
+  }
+
+  // settings.json 있음 — 정상 초기화
   let is_admin = false
   try {
     const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
@@ -312,48 +350,18 @@ app.whenReady().then(async () => {
 
   register_ipc(identity, settingsPath, is_admin)
 
-  const toast = create_toast_window()
-  ipcMain.on('toast:close',    () => toast.hide())
-  ipcMain.on('toast:open-log', () => { if (_log_path) void shell.openPath(_log_path) })
-
-  win = create_window(_appInfo)
+  win = create_window(_appInfo)  // show=false (트레이 시작)
   tray = create_tray(win)
-
-  start_control_server({
-    deviceId: identity.deviceId,
-    hostname: identity.hostname,
-    settingsPath,
-    on_update: () => void run_update_check(
-      { baseDir, settingsPath, appKey: app.getName() },
-      {
-        set_status:   (msg) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
-        set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
-        on_error:     (msg) => { toast.webContents.send('toast:error', msg); toast.show() },
-        on_quit:      () => app.quit(),
-        log:          log_event,
-      }
-    ),
-    log: log_event,
-  })
 
   let toastReady = false
   let winReady = false
   const start_update = (): void => {
     if (!toastReady || !winReady) return
     log_event('update: starting check (window + toast both ready)')
-    void run_update_check(
-      { baseDir, settingsPath, appKey: app.getName() },
-      {
-        set_status:   (msg) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
-        set_progress: (pct) => { toast.webContents.send('toast:progress', pct) },
-        on_error:     (msg) => { toast.webContents.send('toast:error', msg); toast.show() },
-        on_quit:      () => app.quit(),
-        log:          log_event,
-      }
-    )
+    void run_update_check({ baseDir, settingsPath, appKey: app.getName() }, update_callbacks)
   }
   toast.webContents.once('did-finish-load', () => { toastReady = true; start_update() })
-  win.webContents.once('did-finish-load', () => { winReady = true; start_update() })
+  win.webContents.once('did-finish-load',   () => { winReady = true;   start_update() })
 
   app.on('activate', () => {
     if (win) win.show()

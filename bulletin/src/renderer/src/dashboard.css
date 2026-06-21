@@ -966,3 +966,24 @@ body {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; }
+
+/* ── 설정 없음 대기 화면 ── */
+.no-settings-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--bg);
+}
+.no-settings-icon { color: #f59e0b; }
+.no-settings-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+.no-settings-desc {
+  font-size: 16px;
+  color: var(--text-faint);
+}

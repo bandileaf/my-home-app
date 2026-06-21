@@ -8,6 +8,7 @@ export interface ControlContext {
   hostname: string
   settingsPath: string
   on_update: () => void
+  on_settings_received: () => void
   log: (msg: string) => void
 }
 
@@ -35,7 +36,8 @@ export function start_control_server(ctx: ControlContext): void {
         return
       }
       if (method === 'GET' && url === '/settings') {
-        const content = readFileSync(ctx.settingsPath, 'utf-8')
+        let content = '{}'
+        try { content = readFileSync(ctx.settingsPath, 'utf-8') } catch { /* no settings yet */ }
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' })
         res.end(content)
         return
@@ -45,7 +47,8 @@ export function start_control_server(ctx: ControlContext): void {
         const parsed = JSON.parse(body)
         writeFileSync(ctx.settingsPath, JSON.stringify(parsed, null, 2), 'utf-8')
         send_json(res, 200, { ok: true })
-        ctx.log('control: settings updated remotely')
+        ctx.log('control: settings received, restarting...')
+        setTimeout(() => ctx.on_settings_received(), 500)
         return
       }
       if (method === 'POST' && url === '/restart') {

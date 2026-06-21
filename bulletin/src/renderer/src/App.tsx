@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar'
 import { NoticePage } from './components/NoticePage'
 import { ChatPage } from './components/ChatPage'
 import { AdminPage } from './components/AdminPage'
+import { NoSettingsPage } from './components/NoSettingsPage'
 import { NavRound } from './components/NavRound'
 import { Dots } from './components/Dots'
 import { get_bridge } from './bridge'
@@ -28,15 +29,17 @@ export function App(): JSX.Element {
   const identity = useIdentity()
   const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
   const { get_profile, refresh_users } = useUsers()
-  const [appName,   set_appName]   = useState('')
-  const [alias,     set_alias]     = useState<string | null>(null)
-  const [avatar,    set_avatar]    = useState<string | null>(null)
-  const [page,      set_page]      = useState<Page>('notices')
-  const [is_admin,  set_is_admin]  = useState(false)
+  const [has_settings, set_has_settings] = useState(true)
+  const [appName,      set_appName]      = useState('')
+  const [alias,        set_alias]        = useState<string | null>(null)
+  const [avatar,       set_avatar]       = useState<string | null>(null)
+  const [page,         set_page]         = useState<Page>('notices')
+  const [is_admin,     set_is_admin]     = useState(false)
 
   const page_idx = page === 'admin' ? -1 : PAGES.indexOf(page as typeof PAGES[number])
 
   useEffect(() => {
+    get_bridge()?.app_has_settings?.().then(set_has_settings).catch(() => {})
     get_bridge()?.app_name?.().then(set_appName).catch(() => {})
     get_bridge()?.get_alias?.().then(set_alias).catch(() => {})
     get_bridge()?.get_avatar?.().then(set_avatar).catch(() => {})
@@ -52,6 +55,18 @@ export function App(): JSX.Element {
 
   const close_window = (): void => get_bridge()?.window_close?.()
   const my_profile = identity ? get_profile(identity.deviceId) : null
+
+  if (!has_settings) return (
+    <div className="app-shell">
+      <div className="titlebar">
+        <span className="titlebar-name">{appName || 'Family Bulletin'}</span>
+        <div className="window-controls">
+          <button className="wc-btn" onClick={close_window}>─</button>
+        </div>
+      </div>
+      <NoSettingsPage />
+    </div>
+  )
 
   return (
     <div className="app-shell">

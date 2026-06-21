@@ -24,6 +24,7 @@ const api = {
   send_chat:      (text: string): Promise<void> => ipcRenderer.invoke('chat:send', text),
   delete_chat:    (id: string):   Promise<void> => ipcRenderer.invoke('chat:delete', id),
   mark_read_chat: ():             Promise<void> => ipcRenderer.invoke('chat:mark_read'),
+  app_has_settings:  (): Promise<boolean>      => ipcRenderer.invoke('app:has_settings'),
   admin_is_enabled:  (): Promise<boolean>      => ipcRenderer.invoke('admin:is_enabled'),
   admin_get_settings: (): Promise<string>      => ipcRenderer.invoke('admin:get_settings'),
   admin_scan:        (): Promise<unknown[]>    => ipcRenderer.invoke('admin:scan'),

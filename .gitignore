@@ -2,6 +2,7 @@ node_modules/
 out/
 dist/
 *.log
+*.bak
 .DS_Store
 *.db
 *.db-wal

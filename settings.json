@@ -2,8 +2,8 @@
   "hub.repo": "bandileaf/my-home-app",
   "hub.auto-update": true,
   "hub.tag": "v0.0.30",
-  "hub.zip": "family_bulletin.zip",
-  "hub.update-bat": "update.bat",
-  "hub.app.media.db": "indexing.db",
-  "hub.app.bulletin.name": "family_bulletin.exe"
+  "hub.bulletin.zip": "family_bulletin.zip",
+
+  "hub.media.zip": "family_media.zip",
+  "hub.app.media.db": "indexing.db"
 }
