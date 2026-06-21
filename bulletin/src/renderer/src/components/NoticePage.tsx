@@ -21,9 +21,7 @@ const KIND_OPTIONS: { key: NoticeKind; label: string }[] = [
 
 interface DragIndicator { sx: number; sy: number; cy: number }
 
-const R = 22   // circle radius
-const AW = 11  // arrowhead half-width
-const AH = 14  // arrowhead height
+const R = 26
 
 export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
   const [composing, set_composing] = useState(false)
@@ -77,35 +75,27 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
     if (!ind) return null
     const { sx, sy, cy } = ind
     const delta = cy - sy
-    const dir = delta >= 0 ? 1 : -1
     const abs = Math.abs(delta)
-    const showing = abs > R + 8
-    const arrowOpacity = Math.min((abs - R - 8) / 30, 1)
-
-    // line: from circle edge → arrow base
-    const lineY1 = sy + dir * R
-    const lineY2 = cy - dir * AH
-    // arrowhead tip
-    const tipY   = cy + dir * AH
-    const pts = `${sx},${tipY} ${sx - AW},${cy - dir * AH * 0.2} ${sx + AW},${cy - dir * AH * 0.2}`
+    const chevronOpacity = Math.min(Math.max((abs - 15) / 35, 0), 1)
+    const down = delta >= 0
+    // chevron path: V shape pointing in drag direction, centered in circle
+    const cx = sx, top = sy - 9, bot = sy + 9
+    const chevron = down
+      ? `M ${cx - 9},${top} L ${cx},${bot} L ${cx + 9},${top}`
+      : `M ${cx - 9},${bot} L ${cx},${top} L ${cx + 9},${bot}`
 
     return (
       <svg className="drag-svg-overlay">
         <circle cx={sx} cy={sy} r={R} className="drag-svg-circle"
-          fill="rgba(255,255,255,0.85)"
-          style={{ filter: 'drop-shadow(0 2px 10px rgba(0,0,0,0.18))' }}
+          fill="rgba(255,255,255,0.88)"
+          style={{ filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.16))' }}
         />
-        {showing && (
-          <>
-            <line x1={sx} y1={lineY1} x2={sx} y2={lineY2}
-              stroke="rgba(255,255,255,0.7)" strokeWidth={2.5} strokeLinecap="round"
-              style={{ opacity: arrowOpacity }}
-            />
-            <polygon points={pts} fill="rgba(255,255,255,0.9)"
-              style={{ opacity: arrowOpacity, filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.15))' }}
-            />
-          </>
-        )}
+        <path d={chevron}
+          stroke="rgba(120,90,220,0.85)" strokeWidth={2.5}
+          strokeLinecap="round" strokeLinejoin="round"
+          fill="none"
+          style={{ opacity: chevronOpacity, transition: 'opacity 0.12s' }}
+        />
       </svg>
     )
   }
