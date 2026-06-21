@@ -9,6 +9,7 @@ export interface ControlContext {
   settingsPath: string
   has_settings: () => boolean
   is_disabled: () => boolean
+  is_admin: () => boolean
   on_update: () => void
   on_settings_received: () => void
   log: (msg: string) => void
@@ -66,6 +67,7 @@ export function start_control_server(ctx: ControlContext): void {
         return
       }
       if (method === 'POST' && url === '/disable') {
+        if (ctx.is_admin()) { send_json(res, 200, { ok: false, error: 'admin' }); return }
         try {
           let raw: Record<string, unknown> = {}
           try { raw = JSON.parse(readFileSync(ctx.settingsPath, 'utf-8')) as Record<string, unknown> } catch { /* no settings yet */ }
@@ -73,8 +75,7 @@ export function start_control_server(ctx: ControlContext): void {
           writeFileSync(ctx.settingsPath, JSON.stringify(raw, null, 2), 'utf-8')
         } catch (e) { send_json(res, 500, { error: String(e) }); return }
         send_json(res, 200, { ok: true })
-        ctx.log('control: disable command received — hub.disabled=true, restarting...')
-        setTimeout(() => { app.relaunch(); app.quit() }, 500)
+        ctx.log('control: disable — hub.disabled=true saved')
         return
       }
       if (method === 'POST' && url === '/enable') {
@@ -85,8 +86,7 @@ export function start_control_server(ctx: ControlContext): void {
           writeFileSync(ctx.settingsPath, JSON.stringify(raw, null, 2), 'utf-8')
         } catch (e) { send_json(res, 500, { error: String(e) }); return }
         send_json(res, 200, { ok: true })
-        ctx.log('control: enable command received — hub.disabled removed, restarting...')
-        setTimeout(() => { app.relaunch(); app.quit() }, 500)
+        ctx.log('control: enable — hub.disabled removed')
         return
       }
       if (method === 'POST' && url === '/restart') {

@@ -56,7 +56,8 @@ export function App(): JSX.Element {
     refresh_users()
   }
 
-  const close_window = (): void => get_bridge()?.window_close?.()
+  const close_window    = (): void => get_bridge()?.window_close?.()
+  const minimize_window = (): void => get_bridge()?.window_minimize?.()
   const my_profile = identity ? get_profile(identity.deviceId) : null
 
   const waiting_screen = !has_settings ? <NoSettingsPage /> : is_disabled ? <DisabledPage /> : null
@@ -65,7 +66,8 @@ export function App(): JSX.Element {
       <div className="titlebar">
         <span className="titlebar-name">{appName || 'Family Bulletin'}</span>
         <div className="window-controls">
-          <button className="wc-btn" onClick={close_window}>─</button>
+          <button className="wc-btn" onClick={minimize_window}>─</button>
+          <button className="wc-btn" onClick={close_window}>✕</button>
         </div>
       </div>
       {waiting_screen}
@@ -77,7 +79,8 @@ export function App(): JSX.Element {
       <div className="titlebar">
         <span className="titlebar-name">{appName || 'Family Bulletin'}</span>
         <div className="window-controls">
-          <button className="wc-btn" onClick={close_window}>─</button>
+          <button className="wc-btn" onClick={minimize_window}>─</button>
+          <button className="wc-btn" onClick={close_window}>✕</button>
         </div>
       </div>
 

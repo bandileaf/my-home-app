@@ -118,10 +118,18 @@ export function AdminPage(): JSX.Element {
                   </button>
                   {status[c.ip + '/update'] && <span className="admin-result">{status[c.ip + '/update']}</span>}
                   {!c.disabled
-                    ? <button className="admin-btn admin-btn-stop" onClick={() => void cmd(c.ip, '/disable')}>
+                    ? <button className="admin-btn admin-btn-stop" onClick={async () => {
+                        const r = await get_bridge()?.admin_command?.(c.ip, '/disable', {}) ?? { ok: false }
+                        set_status(s => ({ ...s, [c.ip + '/disable']: r.ok ? '✓' : `✗ ${'error' in r ? r.error : ''}` }))
+                        if (r.ok) void cmd(c.ip, '/restart', {})
+                      }}>
                         <PauseCircle size={13} /> 정지
                       </button>
-                    : <button className="admin-btn admin-btn-ok" onClick={() => void cmd(c.ip, '/enable')}>
+                    : <button className="admin-btn admin-btn-ok" onClick={async () => {
+                        const r = await get_bridge()?.admin_command?.(c.ip, '/enable', {}) ?? { ok: false }
+                        set_status(s => ({ ...s, [c.ip + '/enable']: r.ok ? '✓' : `✗ ${'error' in r ? r.error : ''}` }))
+                        if (r.ok) void cmd(c.ip, '/restart', {})
+                      }}>
                         <PlayCircle size={13} /> 해제
                       </button>
                   }

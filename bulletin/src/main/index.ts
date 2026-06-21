@@ -172,7 +172,7 @@ function log_error(label: string, e: unknown): void {
   log_event(`[ERROR] ${label}: ${msg}`)
 }
 
-function register_ipc(identity: Identity, settingsPath: string, is_admin: boolean): void {
+function register_ipc(identity: Identity, settingsPath: string): void {
   ipcMain.on('window:close',       () => win?.hide())
   ipcMain.on('window:minimize',    () => win?.minimize())
   ipcMain.handle('app:has_settings', () => existsSync(settingsPath))
@@ -196,23 +196,23 @@ function register_ipc(identity: Identity, settingsPath: string, is_admin: boolea
   })
   ipcMain.handle('notice:list', async () => {
     try { return await list_notices() }
-    catch (e) { log_error('notice:list', e); throw e }
+    catch (e) { log_error('notice:list', e); return [] }
   })
   ipcMain.handle('notice:create', async (_event, text: string, kind: string) => {
     try { return await create_notice(identity.deviceId, text, (kind as 'sticker' | 'reply_request' | 'vote') ?? 'sticker') }
-    catch (e) { log_error('notice:create', e); throw e }
+    catch (e) { log_error('notice:create', e); return null }
   })
   ipcMain.handle('notice:reply', async (_event, noticeId: string, text: string) => {
     try { await create_reply(noticeId, identity.deviceId, text) }
-    catch (e) { log_error('notice:reply', e); throw e }
+    catch (e) { log_error('notice:reply', e) }
   })
   ipcMain.handle('notice:update', async (_event, noticeId: string, text: string) => {
     try { await update_notice(noticeId, text) }
-    catch (e) { log_error('notice:update', e); throw e }
+    catch (e) { log_error('notice:update', e) }
   })
   ipcMain.handle('notice:vote', async (_event, noticeId: string, vote: 'yes' | 'no') => {
     try { await cast_vote(noticeId, identity.deviceId, vote) }
-    catch (e) { log_error('notice:vote', e); throw e }
+    catch (e) { log_error('notice:vote', e) }
   })
   ipcMain.handle('user:list', async () => {
     try { return await list_users() }
@@ -224,17 +224,17 @@ function register_ipc(identity: Identity, settingsPath: string, is_admin: boolea
   })
   ipcMain.handle('chat:send', async (_event, text: string) => {
     try { await send_message(identity.deviceId, text) }
-    catch (e) { log_error('chat:send', e); throw e }
+    catch (e) { log_error('chat:send', e) }
   })
   ipcMain.handle('chat:delete', async (_event, id: string) => {
     try { await delete_message(id, identity.deviceId) }
-    catch (e) { log_error('chat:delete', e); throw e }
+    catch (e) { log_error('chat:delete', e) }
   })
   ipcMain.handle('chat:mark_read', async () => {
     try { await mark_chat_read(identity.deviceId) }
     catch (e) { log_error('chat:mark_read', e) }
   })
-  ipcMain.handle('admin:is_enabled', () => is_admin)
+  ipcMain.handle('admin:is_enabled', () => _is_admin)
   ipcMain.handle('admin:get_settings', () => {
     try { return readFileSync(settingsPath, 'utf-8') } catch { return '{}' }
   })
@@ -278,6 +278,7 @@ let _appInfo: AppInfo = {}
 let _alias: string | null = null
 let _offline_done = false
 let _disabled = false
+let _is_admin = false
 
 app.whenReady().then(async () => {
   if (!got_lock) return
@@ -305,12 +306,15 @@ app.whenReady().then(async () => {
     log:          log_event,
   }
 
+  register_ipc(identity, settingsPath)
+
   start_control_server({
     deviceId: identity.deviceId,
     hostname: identity.hostname,
     settingsPath,
     has_settings: () => existsSync(settingsPath),
     is_disabled: () => _disabled,
+    is_admin: () => _is_admin,
     on_update: () => void run_update_check({ baseDir, settingsPath, appKey: app.getName() }, update_callbacks),
     on_settings_received: () => {
       log_event('control: settings received → restarting')
@@ -320,8 +324,6 @@ app.whenReady().then(async () => {
   })
 
   if (!has_settings) {
-    // settings.json 없음 — 관리자 대기 화면, 창 즉시 표시
-    register_ipc(identity, settingsPath, false)
     win = create_window({}, true)
     tray = create_tray(win)
     log_event('no settings: waiting for admin to push settings.json')
@@ -329,12 +331,11 @@ app.whenReady().then(async () => {
   }
 
   // settings.json 있음 — 정상 초기화
-  let is_admin = false
   try {
     const raw = parse_jsonc(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
     const url = raw['hub.supabase.url'] as string | undefined
     const key = raw['hub.supabase.key'] as string | undefined
-    is_admin = raw['hub.app.bulletin.admin'] === true
+    _is_admin = raw['hub.app.bulletin.admin'] === true
     const autostart = raw['hub.app.bulletin.autostart'] === true
     app.setLoginItemSettings({ openAtLogin: autostart, path: app.getPath('exe') })
     log_event(`autostart: ${autostart}`)
@@ -342,13 +343,12 @@ app.whenReady().then(async () => {
     _disabled = raw['hub.disabled'] === true
     if (_disabled) {
       log_event('hub.disabled=true — 기능 정지 모드, admin 대기')
-      register_ipc(identity, settingsPath, false)
       win = create_window({}, true)
       tray = create_tray(win)
       return
     }
 
-    log_event(`supabase init: url=${url ?? '(없음)'} key=${key ? key.slice(0, 8) + '…' : '(없음)'} admin=${is_admin}`)
+    log_event(`supabase init: url=${url ?? '(없음)'} key=${key ? key.slice(0, 8) + '…' : '(없음)'} admin=${_is_admin}`)
     if (!url || !key) throw new Error('hub.supabase.url 또는 hub.supabase.key 가 settings.json 에 없음')
     init_supabase(url, key)
     log_event('supabase init: 성공')
@@ -364,8 +364,6 @@ app.whenReady().then(async () => {
   } catch (e) {
     log_event(`user upsert failed: ${e instanceof Error ? e.message : String(e)}`)
   }
-
-  register_ipc(identity, settingsPath, is_admin)
 
   win = create_window(_appInfo)  // show=false (트레이 시작)
   tray = create_tray(win)
