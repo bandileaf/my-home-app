@@ -340,7 +340,7 @@ app.whenReady().then(async () => {
     app.setLoginItemSettings({ openAtLogin: autostart, path: app.getPath('exe') })
     log_event(`autostart: ${autostart}`)
 
-    _disabled = raw['hub.disabled'] === true
+    _disabled = raw['hub.disabled'] === true && !_is_admin
     if (_disabled) {
       log_event('hub.disabled=true — 기능 정지 모드, admin 대기')
       win = create_window({}, true)

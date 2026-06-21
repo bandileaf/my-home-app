@@ -67,7 +67,6 @@ export function App(): JSX.Element {
         <span className="titlebar-name">{appName || 'Family Bulletin'}</span>
         <div className="window-controls">
           <button className="wc-btn" onClick={minimize_window}>─</button>
-          <button className="wc-btn" onClick={close_window}>✕</button>
         </div>
       </div>
       {waiting_screen}
