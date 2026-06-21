@@ -17,6 +17,11 @@ export function AdminPage(): JSX.Element {
     set_scanning(true)
     set_clients([])
     set_status({})
+    set_settings_loaded(false)
+    set_settings_text('')
+    set_settings_from(null)
+    set_log_text(null)
+    set_log_from(null)
     const found = await get_bridge()?.admin_scan?.() ?? []
     set_clients(found)
     set_scanning(false)
