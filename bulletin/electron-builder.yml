@@ -1,0 +1,15 @@
+appId: com.nwork.bulletin
+productName: family_bulletin
+artifactName: "family_bulletin.exe"
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: build/icon.ico
+    to: icon.ico
+win:
+  icon: build/icon.ico
+  signAndEditExecutable: false

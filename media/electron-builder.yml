@@ -1,0 +1,18 @@
+appId: com.nwork.media
+productName: family_media
+artifactName: "family_media.exe"
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: bin/yt-dlp.exe
+    to: bin/yt-dlp.exe
+  - from: build/icon.ico
+    to: icon.ico
+# settings.json is not bundled — the app creates it on first launch and never overwrites it after
+win:
+  icon: build/icon.ico
+  signAndEditExecutable: false

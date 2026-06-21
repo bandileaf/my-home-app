@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+tmp/
+*.log
+*.bak
+.DS_Store
+*.db
+*.db-wal
+*.db-shm
+MyMusic/
+build/ffmpeg.exe
+familyhub/settings.json
+bin/yt-dlp.exe
+bin/ffmpeg.exe
+bin/ffprobe.exe
+run-on-windows.bat

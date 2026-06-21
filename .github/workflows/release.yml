@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. v0.0.13)'
+        required: true
+        default: 'v0.0.13'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set version from tag
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
+          $ver = $tag.TrimStart('v')
+          $replace = '"version": "' + $ver + '"'
+          (Get-Content media\package.json)   -replace '"version": "[^"]*"', $replace | Set-Content media\package.json
+          (Get-Content bulletin\package.json) -replace '"version": "[^"]*"', $replace | Set-Content bulletin\package.json
+
+      - name: Install media dependencies
+        run: npm ci
+        working-directory: media
+
+      - name: Install bulletin dependencies
+        run: npm ci
+        working-directory: bulletin
+
+      - name: Download yt-dlp for media
+        run: |
+          New-Item -ItemType Directory -Force -Path media\bin
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "media\bin\yt-dlp.exe"
+
+      - name: Build media
+        run: npx electron-vite build
+        working-directory: media
+
+      - name: Package media (portable)
+        run: npx electron-builder --win portable --publish never
+        working-directory: media
+
+      - name: Build bulletin
+        run: npx electron-vite build
+        working-directory: bulletin
+
+      - name: Package bulletin (portable)
+        run: npx electron-builder --win portable --publish never
+        working-directory: bulletin
+
+      - name: Patch settings.json hub.tag
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
+          $json = Get-Content settings.json | ConvertFrom-Json
+          $json.'hub.tag' = $tag
+          $json | ConvertTo-Json -Depth 10 | Out-File settings.json -Encoding utf8NoBOM
+
+      - name: Create family_bulletin.zip
+        run: |
+          $bulletinExe = (Get-ChildItem bulletin\dist -Filter "*.exe" | Select-Object -First 1).FullName
+          New-Item -ItemType Directory -Force -Path _bulletin
+          Copy-Item $bulletinExe  _bulletin\family_bulletin.exe
+          Compress-Archive -Path _bulletin\* -DestinationPath family_bulletin.zip -Force
+          Write-Host "=== family_bulletin.zip contents ==="
+          Get-ChildItem _bulletin
+
+      - name: Create family_media.zip
+        run: |
+          $mediaExe = (Get-ChildItem media\dist -Filter "*.exe" | Select-Object -First 1).FullName
+          New-Item -ItemType Directory -Force -Path _media
+          Copy-Item $mediaExe    _media\family_media.exe
+          Copy-Item recovery.bat _media\recovery.bat
+          Compress-Archive -Path _media\* -DestinationPath family_media.zip -Force
+          Write-Host "=== family_media.zip contents ==="
+          Get-ChildItem _media
+
+      - name: Upload to Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            family_bulletin.zip
+            family_media.zip
+          generate_release_notes: true
