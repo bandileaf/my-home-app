@@ -20,6 +20,7 @@ import {
   list_messages,
   send_message,
   delete_message,
+  mark_chat_read,
   type AppInfo,
 } from './services/store'
 import { run_update_check } from '@shared/update'
@@ -223,6 +224,10 @@ function register_ipc(identity: Identity): void {
   ipcMain.handle('chat:delete', async (_event, id: string) => {
     try { await delete_message(id, identity.deviceId) }
     catch (e) { log_error('chat:delete', e); throw e }
+  })
+  ipcMain.handle('chat:mark_read', async () => {
+    try { await mark_chat_read(identity.deviceId) }
+    catch (e) { log_error('chat:mark_read', e) }
   })
 }
 

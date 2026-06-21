@@ -9,6 +9,7 @@ interface ChatPageProps {
   my_profile: UserProfile | null
   get_profile: (deviceId: string) => UserProfile | null
   refresh_users: () => void
+  users_count: number
 }
 
 function Avatar({ profile, size = 36 }: { profile: UserProfile | null; size?: number }): JSX.Element {
@@ -33,7 +34,7 @@ function same_day(a: number, b: number): boolean {
     && da.getDate() === db.getDate()
 }
 
-export function ChatPage({ identity, my_profile, get_profile, refresh_users }: ChatPageProps): JSX.Element {
+export function ChatPage({ identity, my_profile, get_profile, refresh_users, users_count }: ChatPageProps): JSX.Element {
   const [messages, set_messages] = useState<ChatMessage[]>([])
   const [text, set_text] = useState('')
   const scroll_ref = useRef<HTMLDivElement>(null)
@@ -47,8 +48,13 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
       .catch(() => {})
   }
 
+  function mark_read(): void {
+    get_bridge()?.mark_read_chat?.().catch(() => {})
+  }
+
   useEffect(() => {
     refresh_users()
+    mark_read()
     load()
     const timer = setInterval(load, 1000)
     return () => clearInterval(timer)
@@ -65,6 +71,7 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
           bottom_ref.current?.scrollIntoView({ behavior: 'smooth' })
         }
       }
+      mark_read()
     }
     prev_count_ref.current = new_count
   }, [messages])
@@ -92,6 +99,7 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
           const is_mine = msg.userId === my_id
           const profile = get_profile(msg.userId)
           const show_date = i === 0 || !same_day(messages[i - 1].createdAt, msg.createdAt)
+          const unread = users_count > 0 ? Math.max(0, users_count - msg.readBy.length) : 0
 
           return (
             <div key={msg.id}>
@@ -106,14 +114,17 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users }: C
                     <button className="chat-del-btn" onClick={() => delete_msg(msg.id)}>
                       <Trash2 size={14} />
                     </button>
-                    <div className="chat-bubble chat-bubble-mine">{msg.text}</div>
+                    <div className="chat-bubble-wrap">
+                      {unread > 0 && <span className="chat-unread">{unread}</span>}
+                      <div className="chat-bubble chat-bubble-mine">{msg.text}</div>
+                    </div>
                   </>
                 ) : (
                   <>
                     <Avatar profile={profile} size={32} />
-                    <div className="chat-bubble chat-bubble-other">
-                      <span className="chat-bubble-name">{display_name_of(profile)}</span>
-                      <span>{msg.text}</span>
+                    <div className="chat-bubble-wrap">
+                      <div className="chat-bubble chat-bubble-other">{msg.text}</div>
+                      {unread > 0 && <span className="chat-unread">{unread}</span>}
                     </div>
                   </>
                 )}

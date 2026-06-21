@@ -26,7 +26,7 @@ type Page = typeof PAGES[number]
 export function App(): JSX.Element {
   const identity = useIdentity()
   const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
-  const { get_profile, refresh_users } = useUsers()
+  const { get_profile, refresh_users, users_count } = useUsers()
   const [appName, set_appName] = useState('')
   const [alias,  set_alias]  = useState<string | null>(null)
   const [avatar, set_avatar] = useState<string | null>(null)
@@ -95,6 +95,7 @@ export function App(): JSX.Element {
                 my_profile={my_profile}
                 get_profile={get_profile}
                 refresh_users={refresh_users}
+                users_count={users_count}
               />
             )}
 

@@ -235,6 +235,7 @@ export interface ChatMessage {
   userId: string
   text: string
   createdAt: number
+  readBy: string[]
 }
 
 export async function list_messages(): Promise<ChatMessage[]> {
@@ -251,6 +252,7 @@ export async function list_messages(): Promise<ChatMessage[]> {
     userId: row.user_id as string,
     text: row.text as string,
     createdAt: new Date(row.created_at as string).getTime(),
+    readBy: (row.read_by as string[]) ?? [],
   }))
 }
 
@@ -260,6 +262,7 @@ export async function send_message(userId: string, text: string): Promise<void> 
     user_id: userId,
     text,
     created_at: new Date().toISOString(),
+    read_by: [userId],
   })
   if (error) throw error
 }
@@ -271,6 +274,10 @@ export async function delete_message(id: string, userId: string): Promise<void> 
     .eq('id', id)
     .eq('user_id', userId)
   if (error) throw error
+}
+
+export async function mark_chat_read(userId: string): Promise<void> {
+  await db().rpc('mark_chat_read', { p_user_id: userId })
 }
 
 export async function set_user_offline(macAddresses: string[], deviceId: string): Promise<void> {

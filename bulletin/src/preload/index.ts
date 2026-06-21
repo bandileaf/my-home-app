@@ -20,9 +20,10 @@ const api = {
   get_avatar:       (): Promise<string | null>  => ipcRenderer.invoke('user:avatar'),
   save_profile: (alias: string | null, avatar: string | null): Promise<void> =>
     ipcRenderer.invoke('user:save_profile', alias, avatar),
-  list_chat:   (): Promise<unknown[]>     => ipcRenderer.invoke('chat:list'),
-  send_chat:   (text: string): Promise<void> => ipcRenderer.invoke('chat:send', text),
-  delete_chat: (id: string):  Promise<void> => ipcRenderer.invoke('chat:delete', id),
+  list_chat:      (): Promise<unknown[]>        => ipcRenderer.invoke('chat:list'),
+  send_chat:      (text: string): Promise<void> => ipcRenderer.invoke('chat:send', text),
+  delete_chat:    (id: string):   Promise<void> => ipcRenderer.invoke('chat:delete', id),
+  mark_read_chat: ():             Promise<void> => ipcRenderer.invoke('chat:mark_read'),
 }
 
 export type PreloadApi = typeof api

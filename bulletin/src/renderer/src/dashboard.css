@@ -717,20 +717,21 @@ body {
 }
 
 .chat-bubble-mine  { background: var(--accent); color: white; border-bottom-right-radius: 4px; }
-.chat-bubble-other {
-  background: #f0edf9;
-  color: var(--text);
-  border-bottom-left-radius: 4px;
+.chat-bubble-other { background: #f0edf9; color: var(--text); border-bottom-left-radius: 4px; }
+
+.chat-bubble-wrap {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: flex-end;
+  gap: 5px;
 }
 
-.chat-bubble-name {
+.chat-unread {
   font-size: 12px;
   font-weight: 700;
-  color: var(--accent-strong);
-  opacity: 0.85;
+  color: #facc15;
+  line-height: 1;
+  flex-shrink: 0;
+  padding-bottom: 2px;
 }
 
 .chat-date-sep {

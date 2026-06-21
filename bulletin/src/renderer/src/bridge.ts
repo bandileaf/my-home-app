@@ -45,6 +45,7 @@ export interface ChatMessage {
   userId: string
   text: string
   createdAt: number
+  readBy: string[]
 }
 
 export interface AppBridge {
@@ -64,6 +65,7 @@ export interface AppBridge {
   list_chat?: () => Promise<ChatMessage[]>
   send_chat?: (text: string) => Promise<void>
   delete_chat?: (id: string) => Promise<void>
+  mark_read_chat?: () => Promise<void>
 }
 
 export function get_bridge(): AppBridge | undefined {
