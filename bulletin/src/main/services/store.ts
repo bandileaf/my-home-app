@@ -165,18 +165,19 @@ export async function upsert_user(
   }
 
   if (existing) {
-    const canonicalId = existing.device_id as string
+    const canonicalId = existing.id as string
     const merged_macs = Array.from(new Set([...(existing.mac_addresses ?? []), ...macAddresses]))
     await db().from('users').update({
       hostname, ip, is_online: true, last_seen: now, mac_addresses: merged_macs,
     }).eq('id', existing.id as string)
     return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias as string | null, canonicalId }
   } else {
-    await db().from('users').insert({
+    const { data, error } = await db().from('users').insert({
       hostname, mac_addresses: macAddresses, ip, device_id: deviceId,
       is_online: true, app_info: {}, last_seen: now, created_at: now,
-    })
-    return { appInfo: {}, alias: null, canonicalId: deviceId }
+    }).select('id').single()
+    if (error) throw error
+    return { appInfo: {}, alias: null, canonicalId: (data as { id: string }).id }
   }
 }
 
