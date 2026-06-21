@@ -19,35 +19,52 @@ const KIND_OPTIONS: { key: NoticeKind; label: string }[] = [
   { key: 'vote',           label: 'Yes / No'  },
 ]
 
+interface DragIndicator {
+  x: number
+  y: number
+  delta: number
+}
+
 export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_vote, get_profile }: NoticePageProps): JSX.Element {
   const [composing, set_composing] = useState(false)
   const [compose_text, set_compose_text] = useState('')
   const [kind, set_kind] = useState<NoticeKind>('sticker')
+  const [indicator, set_indicator] = useState<DragIndicator | null>(null)
+
   const composing_ref = useRef(composing)
   useEffect(() => { composing_ref.current = composing }, [composing])
 
   useEffect(() => {
     let start_y: number | null = null
+    let start_x: number | null = null
 
     function on_down(e: MouseEvent): void {
       start_y = e.clientY
-      console.log(`[drag] mousedown y=${e.clientY} composing=${composing_ref.current}`)
+      start_x = e.clientX
+      set_indicator({ x: e.clientX, y: e.clientY, delta: 0 })
+    }
+
+    function on_move(e: MouseEvent): void {
+      if (start_y === null || start_x === null) return
+      set_indicator({ x: start_x, y: start_y, delta: e.clientY - start_y })
     }
 
     function on_up(e: MouseEvent): void {
       if (start_y === null) return
       const delta = e.clientY - start_y
-      console.log(`[drag] mouseup y=${e.clientY} delta=${delta} composing=${composing_ref.current}`)
       start_y = null
-      if (delta > 60 && !composing_ref.current) { console.log('[drag] → open compose'); set_composing(true) }
-      else if (delta < -60 && composing_ref.current) { console.log('[drag] → close compose'); set_composing(false); set_compose_text(''); set_kind('sticker') }
-      else { console.log('[drag] delta 미달') }
+      start_x = null
+      set_indicator(null)
+      if (delta > 60 && !composing_ref.current) { set_composing(true) }
+      else if (delta < -60 && composing_ref.current) { set_composing(false); set_compose_text(''); set_kind('sticker') }
     }
 
     document.addEventListener('mousedown', on_down)
+    document.addEventListener('mousemove', on_move)
     document.addEventListener('mouseup', on_up)
     return () => {
       document.removeEventListener('mousedown', on_down)
+      document.removeEventListener('mousemove', on_move)
       document.removeEventListener('mouseup', on_up)
     }
   }, [])
@@ -61,10 +78,20 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
   }
 
   return (
-    <div
-      className="page"
-      style={{ position: 'relative', userSelect: 'none' }}
-    >
+    <div className="page" style={{ position: 'relative', userSelect: 'none' }}>
+
+      {indicator && (
+        <div
+          className="drag-indicator"
+          style={{ left: indicator.x, top: indicator.y }}
+        >
+          <div className="drag-circle" />
+          {indicator.delta > 20 && (
+            <div className="drag-arrow" style={{ opacity: Math.min((indicator.delta - 20) / 40, 1) }}>↓</div>
+          )}
+        </div>
+      )}
+
       {composing ? (
         <div className="compose-view">
           <div className="compose-topbar">
