@@ -400,15 +400,6 @@ app.whenReady().then(async () => {
   win.webContents.once('did-finish-load', () => {
     log_event('win: did-finish-load')
     void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
-    // 테스트: 10개 연속 알림
-    const test_msgs = [
-      ['엄마', '안녕하세요'], ['아빠', '밥은 먹었어?'], ['엄마', '오늘 학교 어땠어?'],
-      ['아빠', '집에 몇시에 와?'], ['엄마', '숙제 다 했어?'], ['아빠', '심심하다'],
-      ['엄마', '간식 있어'], ['아빠', '주말에 뭐 할까?'], ['엄마', '사랑해'], ['아빠', '나도'],
-    ]
-    test_msgs.forEach(([sender, text], i) => {
-      setTimeout(() => show_chat_notification(sender, text), 1000 + i * 400)
-    })
   })
 
   // 창 숨김 상태일 때 새 채팅 폴링
