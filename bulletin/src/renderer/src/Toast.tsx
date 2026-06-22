@@ -16,7 +16,7 @@ declare global {
 }
 
 const ACCENT  = '#CBA6F7'  // purple
-const BG      = 'rgba(28, 18, 42, 0.93)'
+const BG      = 'rgba(28, 18, 42, 0.78)'
 const FRAMES  = ['◐', '◓', '◑', '◒']
 
 export default function Toast() {
