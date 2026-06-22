@@ -395,7 +395,7 @@ app.whenReady().then(async () => {
     log_event('win: did-finish-load')
     void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
     // 테스트: 시작 즉시 알림 발생
-    setTimeout(() => show_chat_notification('HI', 'HI'), 1000)
+    setTimeout(() => show_chat_notification('테스트', '안녕하세요'), 1000)
   })
 
   // 창 숨김 상태일 때 새 채팅 폴링

@@ -25,17 +25,25 @@ export default function Toast() {
   const [error,    setError]    = useState('')
   const [frameIdx, setFrameIdx] = useState(0)
   const [appName,  setAppName]  = useState('')
-  const [chat,     setChat]     = useState<{ sender: string; text: string } | null>(null)
+  const [chat,    setChat]   = useState<{ sender: string; text: string } | null>(null)
+  const [fading,  setFading] = useState(false)
 
   useEffect(() => {
     window.toast.onStatus(setMessage)
     window.toast.onProgress(setProgress)
     window.toast.onError(setError)
-    window.toast.onChat((sender, text) => setChat({ sender, text }))
+    window.toast.onChat((sender, text) => { setChat({ sender, text }); setFading(false) })
     window.toast.get_name().then(setAppName).catch(() => {})
     const id = setInterval(() => setFrameIdx(i => (i + 1) % 4), 350)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    if (!chat) return
+    const fade = setTimeout(() => setFading(true), 5000)
+    const close = setTimeout(() => window.toast.close(), 5700)
+    return () => { clearTimeout(fade); clearTimeout(close) }
+  }, [chat])
 
   if (chat) return (
     <div
@@ -44,6 +52,8 @@ export default function Toast() {
         display: 'flex', flexDirection: 'column', justifyContent: 'center',
         padding: '12px 20px', background: BG, borderRadius: 10,
         width: '100%', height: '100%', position: 'relative', cursor: 'pointer',
+        opacity: fading ? 0 : 1,
+        transition: 'opacity 0.7s ease',
       }}
     >
       <button
