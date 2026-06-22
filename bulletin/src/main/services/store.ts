@@ -285,6 +285,14 @@ export async function add_reader(userId: string): Promise<void> {
   )
 }
 
+export function subscribe_notices(cb: () => void): () => void {
+  const channel = db()
+    .channel('notices-realtime')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notices' }, cb)
+    .subscribe()
+  return () => { void db().removeChannel(channel) }
+}
+
 export function subscribe_chat(cb: (msg: ChatMessage) => void): () => void {
   const channel = db()
     .channel('chat-realtime')

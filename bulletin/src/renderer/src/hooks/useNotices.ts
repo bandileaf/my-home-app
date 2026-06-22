@@ -4,6 +4,7 @@ import { get_bridge, type Notice, type NoticeKind } from '../bridge'
 interface UseNoticesResult {
   notices: Notice[]
   error: string | null
+  reload: () => void
   post_notice: (text: string, kind: NoticeKind) => Promise<void>
   reply_notice: (noticeId: string, text: string) => Promise<void>
   edit_notice: (noticeId: string, text: string) => Promise<void>
@@ -66,5 +67,5 @@ export function useNotices(): UseNoticesResult {
     [reload]
   )
 
-  return { notices, error, post_notice, reply_notice, edit_notice, vote_notice }
+  return { notices, error, reload, post_notice, reply_notice, edit_notice, vote_notice }
 }

@@ -28,7 +28,7 @@ type Page = typeof PAGES[number] | 'admin'
 
 export function App(): JSX.Element {
   const identity = useIdentity()
-  const { notices, error, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
+  const { notices, error, reload: reload_notices, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
   const { get_profile, refresh_users, online_users } = useUsers()
   const [has_settings, set_has_settings] = useState(true)
   const [is_disabled,  set_is_disabled]  = useState(false)
@@ -48,6 +48,7 @@ export function App(): JSX.Element {
     get_bridge()?.get_avatar?.().then(set_avatar).catch(() => {})
     get_bridge()?.admin_is_enabled?.().then(set_is_admin).catch(() => {})
     get_bridge()?.onOpenChat?.(() => set_page('messenger'))
+    get_bridge()?.onNoticeRefresh?.(() => reload_notices())
   }, [])
 
   async function handle_profile_save(new_alias: string | null, new_avatar: string | null): Promise<void> {
