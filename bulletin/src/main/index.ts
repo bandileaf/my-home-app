@@ -365,8 +365,8 @@ app.whenReady().then(async () => {
     const url = raw['hub.supabase.url'] as string | undefined
     const key = raw['hub.supabase.key'] as string | undefined
     _is_admin = raw['hub.app.bulletin.admin'] === true
-    const dbCheckMin = typeof raw['hub.app.bulletin.db-check-min'] === 'number'
-      ? (raw['hub.app.bulletin.db-check-min'] as number)
+    const dbCheckMin = typeof raw['hub.bulletin.poll-min'] === 'number'
+      ? (raw['hub.bulletin.poll-min'] as number)
       : 10
     _db_check_ms = Math.max(5000, Math.round(dbCheckMin * 60 * 1000))
     const autostart = raw['hub.app.bulletin.autostart'] === true
