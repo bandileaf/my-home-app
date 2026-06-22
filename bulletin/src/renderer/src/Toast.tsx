@@ -25,17 +25,12 @@ export default function Toast() {
   const [error,    setError]    = useState('')
   const [frameIdx, setFrameIdx] = useState(0)
   const [appName,  setAppName]  = useState('')
-  const [hasUpdate, setHasUpdate] = useState(false)
   type ChatItem = { id: number; sender: string; text: string; fading: boolean }
   const [chats,   setChats]  = useState<ChatItem[]>([])
   const nextId = useRef(0)
 
   useEffect(() => {
-    if (chats.length === 0 && !hasUpdate) window.toast.close()
-  }, [chats, hasUpdate])
-
-  useEffect(() => {
-    window.toast.onStatus(msg => { setMessage(msg); setHasUpdate(true) })
+    window.toast.onStatus(setMessage)
     window.toast.onProgress(setProgress)
     window.toast.onError(setError)
     window.toast.onChat((sender, text) => {
@@ -48,8 +43,6 @@ export default function Toast() {
     const id = setInterval(() => setFrameIdx(i => (i + 1) % 4), 350)
     return () => clearInterval(id)
   }, [])
-
-  if (chats.length === 0 && !hasUpdate) return null
 
   if (chats.length > 0) return (
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%', gap: 6, padding: '0 0 6px 0' }}>
