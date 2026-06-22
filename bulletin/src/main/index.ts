@@ -408,7 +408,7 @@ app.whenReady().then(async () => {
     void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
   })
 
-  // Supabase Realtime 구독 — 새 채팅 수신
+  // Supabase Realtime 구독 — 새 채팅 즉시 수신
   subscribe_chat(async (msg) => {
     if (!_identity || msg.userId === _identity.deviceId) return
     if (!win || !win.isVisible()) {
@@ -419,6 +419,31 @@ app.whenReady().then(async () => {
       win.webContents.send('chat:refresh')
     }
   })
+
+  // 폴링 fallback — Realtime 누락 대비
+  let _last_poll_time = 0
+  log_event(`chat poll fallback: ${_db_check_ms}ms`)
+  setInterval(async () => {
+    if (!_identity) return
+    try {
+      const msgs = await list_messages()
+      if (msgs.length === 0) return
+      const latest = msgs[msgs.length - 1]
+      if (_last_poll_time === 0) { _last_poll_time = latest.createdAt; return }
+      if (latest.createdAt > _last_poll_time && latest.userId !== _identity.deviceId) {
+        _last_poll_time = latest.createdAt
+        if (!win || !win.isVisible()) {
+          const profile = (await list_users()).find(u => u.deviceId === latest.userId)
+          const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
+          show_chat_notification(sender, latest.text)
+        } else {
+          win.webContents.send('chat:refresh')
+        }
+      } else {
+        _last_poll_time = Math.max(_last_poll_time, latest.createdAt)
+      }
+    } catch { /* ignore */ }
+  }, _db_check_ms)
 
   app.on('activate', () => {
     if (win) win.show()
