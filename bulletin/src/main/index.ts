@@ -353,7 +353,8 @@ app.whenReady().then(async () => {
     const key = raw['hub.supabase.key'] as string | undefined
     _is_admin = raw['hub.app.bulletin.admin'] === true
     const autostart = raw['hub.app.bulletin.autostart'] === true
-    app.setLoginItemSettings({ openAtLogin: autostart, path: app.getPath('exe') })
+    const exePath = process.env.PORTABLE_EXECUTABLE_FILE ?? app.getPath('exe')
+    app.setLoginItemSettings({ openAtLogin: autostart, path: exePath })
     log_event(`autostart: ${autostart}`)
 
     _disabled = raw['hub.disabled'] === true && !_is_admin
