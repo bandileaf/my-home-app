@@ -296,6 +296,7 @@ let _alias: string | null = null
 let _offline_done = false
 let _disabled = false
 let _is_admin = false
+let _db_check_ms = 5000
 
 app.whenReady().then(async () => {
   if (!got_lock) return
@@ -364,6 +365,10 @@ app.whenReady().then(async () => {
     const url = raw['hub.supabase.url'] as string | undefined
     const key = raw['hub.supabase.key'] as string | undefined
     _is_admin = raw['hub.app.bulletin.admin'] === true
+    const dbCheckMin = typeof raw['hub.app.bulletin.db-check-min'] === 'number'
+      ? (raw['hub.app.bulletin.db-check-min'] as number)
+      : 10
+    _db_check_ms = Math.max(5000, Math.round(dbCheckMin * 60 * 1000))
     const autostart = raw['hub.app.bulletin.autostart'] === true
     const exePath = process.env.PORTABLE_EXECUTABLE_FILE ?? app.getPath('exe')
     app.setLoginItemSettings({ openAtLogin: autostart, path: exePath })
@@ -404,6 +409,7 @@ app.whenReady().then(async () => {
 
   // 창 숨김 상태일 때 새 채팅 폴링
   let _last_msg_time = 0
+  log_event(`chat poll interval: ${_db_check_ms}ms`)
   setInterval(async () => {
     if (!win || win.isVisible() || !_identity) return
     try {
@@ -419,7 +425,7 @@ app.whenReady().then(async () => {
         _last_msg_time = latest.createdAt
       }
     } catch { /* ignore */ }
-  }, 5000)
+  }, _db_check_ms)
 
   app.on('activate', () => {
     if (win) win.show()
