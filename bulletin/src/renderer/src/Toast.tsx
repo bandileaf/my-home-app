@@ -30,6 +30,10 @@ export default function Toast() {
   const nextId = useRef(0)
 
   useEffect(() => {
+    if (chats.length === 0) window.toast.close()
+  }, [chats])
+
+  useEffect(() => {
     window.toast.onStatus(setMessage)
     window.toast.onProgress(setProgress)
     window.toast.onError(setError)
