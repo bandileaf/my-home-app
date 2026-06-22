@@ -89,13 +89,16 @@ function resolve_icon(): string {
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
 
+const TOAST_W = 420
+const TOAST_ITEM_H = 72
+const TOAST_MAX = 8
+
 function create_toast_window(): BrowserWindow {
   log_event('toast: creating notification window')
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
-  const W = 420, H = 130
   const toast = new BrowserWindow({
-    width: W, height: H,
-    x: width - W - 16, y: height - H - 24,
+    width: TOAST_W, height: TOAST_ITEM_H * TOAST_MAX,
+    x: width - TOAST_W - 16, y: height - TOAST_ITEM_H * TOAST_MAX - 24,
     frame: false, transparent: true,
     backgroundColor: '#00000000',
     skipTaskbar: true, alwaysOnTop: true,
@@ -394,8 +397,15 @@ app.whenReady().then(async () => {
   win.webContents.once('did-finish-load', () => {
     log_event('win: did-finish-load')
     void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
-    // 테스트: 시작 즉시 알림 발생
-    setTimeout(() => show_chat_notification('테스트', '안녕하세요'), 1000)
+    // 테스트: 10개 연속 알림
+    const test_msgs = [
+      ['엄마', '안녕하세요'], ['아빠', '밥은 먹었어?'], ['엄마', '오늘 학교 어땠어?'],
+      ['아빠', '집에 몇시에 와?'], ['엄마', '숙제 다 했어?'], ['아빠', '심심하다'],
+      ['엄마', '간식 있어'], ['아빠', '주말에 뭐 할까?'], ['엄마', '사랑해'], ['아빠', '나도'],
+    ]
+    test_msgs.forEach(([sender, text], i) => {
+      setTimeout(() => show_chat_notification(sender, text), 1000 + i * 400)
+    })
   })
 
   // 창 숨김 상태일 때 새 채팅 폴링

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 declare global {
   interface Window {
@@ -25,48 +25,49 @@ export default function Toast() {
   const [error,    setError]    = useState('')
   const [frameIdx, setFrameIdx] = useState(0)
   const [appName,  setAppName]  = useState('')
-  const [chat,    setChat]   = useState<{ sender: string; text: string } | null>(null)
-  const [fading,  setFading] = useState(false)
+  type ChatItem = { id: number; sender: string; text: string; fading: boolean }
+  const [chats,   setChats]  = useState<ChatItem[]>([])
+  const nextId = useRef(0)
 
   useEffect(() => {
     window.toast.onStatus(setMessage)
     window.toast.onProgress(setProgress)
     window.toast.onError(setError)
-    window.toast.onChat((sender, text) => { setChat({ sender, text }); setFading(false) })
+    window.toast.onChat((sender, text) => {
+      const id = nextId.current++
+      setChats(prev => [...prev.slice(-7), { id, sender, text, fading: false }])
+      setTimeout(() => setChats(prev => prev.map(c => c.id === id ? { ...c, fading: true } : c)), 5000)
+      setTimeout(() => setChats(prev => prev.filter(c => c.id !== id)), 5700)
+    })
     window.toast.get_name().then(setAppName).catch(() => {})
     const id = setInterval(() => setFrameIdx(i => (i + 1) % 4), 350)
     return () => clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    if (!chat) return
-    const fade = setTimeout(() => setFading(true), 5000)
-    const close = setTimeout(() => window.toast.close(), 5700)
-    return () => { clearTimeout(fade); clearTimeout(close) }
-  }, [chat])
-
-  if (chat) return (
-    <div
-      onClick={() => { window.toast.openMain(); window.toast.close() }}
-      style={{
-        display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        padding: '12px 20px', background: BG, borderRadius: 10,
-        width: '100%', height: '100%', position: 'relative', cursor: 'pointer',
-        opacity: fading ? 0 : 1,
-        transition: 'opacity 0.7s ease',
-      }}
-    >
-      <button
-        onClick={e => { e.stopPropagation(); window.toast.close() }}
-        style={{ position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#585b70', fontSize: 14, lineHeight: 1, padding: '2px 4px' }}
-      >✕</button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ color: ACCENT, fontSize: 24, lineHeight: 1, flexShrink: 0 }}>💬</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: ACCENT, fontSize: 11, fontWeight: 'bold', marginBottom: 3 }}>{chat.sender}</div>
-          <div style={{ color: '#CDD6F4', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.text}</div>
+  if (chats.length > 0) return (
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%', gap: 6, padding: '0 0 6px 0' }}>
+      {chats.map(chat => (
+        <div
+          key={chat.id}
+          onClick={() => { window.toast.openMain(); window.toast.close() }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '10px 16px', background: BG, borderRadius: 10,
+            cursor: 'pointer', position: 'relative', flexShrink: 0,
+            opacity: chat.fading ? 0 : 1, transition: 'opacity 0.7s ease',
+          }}
+        >
+          <button
+            onClick={e => { e.stopPropagation(); setChats(prev => prev.filter(c => c.id !== chat.id)) }}
+            style={{ position: 'absolute', top: 6, right: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#585b70', fontSize: 12, padding: '2px 4px' }}
+          >✕</button>
+          <span style={{ color: ACCENT, fontSize: 20, lineHeight: 1, flexShrink: 0 }}>💬</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: ACCENT, fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>{chat.sender}</div>
+            <div style={{ color: '#CDD6F4', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.text}</div>
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   )
 
