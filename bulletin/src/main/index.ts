@@ -22,6 +22,7 @@ import {
   delete_message,
   has_unread,
   add_reader,
+  subscribe_chat,
   type AppInfo,
 } from './services/store'
 import { run_update_check } from '@shared/update'
@@ -407,25 +408,17 @@ app.whenReady().then(async () => {
     void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
   })
 
-  // 창 숨김 상태일 때 새 채팅 폴링
-  let _last_msg_time = 0
-  log_event(`chat poll interval: ${_db_check_ms}ms`)
-  setInterval(async () => {
-    if (!win || win.isVisible() || !_identity) return
-    try {
-      const msgs = await list_messages()
-      if (msgs.length === 0) return
-      const latest = msgs[msgs.length - 1]
-      if (latest.createdAt > _last_msg_time && latest.userId !== _identity.deviceId) {
-        _last_msg_time = latest.createdAt
-        const profile = (await list_users()).find(u => u.deviceId === latest.userId)
-        const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
-        show_chat_notification(sender, latest.text)
-      } else if (_last_msg_time === 0) {
-        _last_msg_time = latest.createdAt
-      }
-    } catch { /* ignore */ }
-  }, _db_check_ms)
+  // Supabase Realtime 구독 — 새 채팅 수신
+  subscribe_chat(async (msg) => {
+    if (!_identity || msg.userId === _identity.deviceId) return
+    if (!win || !win.isVisible()) {
+      const profile = (await list_users()).find(u => u.deviceId === msg.userId)
+      const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
+      show_chat_notification(sender, msg.text)
+    } else {
+      win.webContents.send('chat:refresh')
+    }
+  })
 
   app.on('activate', () => {
     if (win) win.show()

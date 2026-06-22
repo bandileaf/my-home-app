@@ -61,8 +61,8 @@ export function ChatPage({ identity, my_profile, get_profile, refresh_users, onl
     refresh_users()
     load()
     get_bridge()?.add_reader_chat?.().then(load).catch(() => {})
-    const timer = setInterval(load, 3000)
-    return () => { clearInterval(timer); initialized_ref.current = false }
+    get_bridge()?.onChatRefresh?.(() => { load(); get_bridge()?.add_reader_chat?.().catch(() => {}) })
+    return () => { initialized_ref.current = false }
   }, [])
 
   useEffect(() => {

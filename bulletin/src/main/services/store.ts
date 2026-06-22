@@ -285,6 +285,27 @@ export async function add_reader(userId: string): Promise<void> {
   )
 }
 
+export function subscribe_chat(cb: (msg: ChatMessage) => void): () => void {
+  const channel = db()
+    .channel('chat-realtime')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+      (payload) => {
+        const row = payload.new as Record<string, unknown>
+        cb({
+          id: row.id as string,
+          userId: row.user_id as string,
+          text: row.text as string,
+          createdAt: new Date(row.created_at as string).getTime(),
+          readBy: (row.read_by as string[]) ?? [],
+        })
+      }
+    )
+    .subscribe()
+  return () => { void db().removeChannel(channel) }
+}
+
 export async function set_user_offline(macAddresses: string[], deviceId: string): Promise<void> {
   let id: string | null = null
 
