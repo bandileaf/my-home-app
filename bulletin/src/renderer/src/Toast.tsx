@@ -6,8 +6,10 @@ declare global {
       onStatus:   (cb: (msg: string) => void) => void
       onProgress: (cb: (pct: number) => void) => void
       onError:    (cb: (msg: string) => void) => void
+      onChat:     (cb: (sender: string, text: string) => void) => void
       get_name:   () => Promise<string>
       openLog:    () => void
+      openMain:   () => void
       close:      () => void
     }
   }
@@ -23,15 +25,40 @@ export default function Toast() {
   const [error,    setError]    = useState('')
   const [frameIdx, setFrameIdx] = useState(0)
   const [appName,  setAppName]  = useState('')
+  const [chat,     setChat]     = useState<{ sender: string; text: string } | null>(null)
 
   useEffect(() => {
     window.toast.onStatus(setMessage)
     window.toast.onProgress(setProgress)
     window.toast.onError(setError)
+    window.toast.onChat((sender, text) => setChat({ sender, text }))
     window.toast.get_name().then(setAppName).catch(() => {})
     const id = setInterval(() => setFrameIdx(i => (i + 1) % 4), 350)
     return () => clearInterval(id)
   }, [])
+
+  if (chat) return (
+    <div
+      onClick={() => { window.toast.openMain(); window.toast.close() }}
+      style={{
+        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        padding: '12px 20px', background: BG, borderRadius: 10,
+        width: '100%', height: '100%', position: 'relative', cursor: 'pointer',
+      }}
+    >
+      <button
+        onClick={e => { e.stopPropagation(); window.toast.close() }}
+        style={{ position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#585b70', fontSize: 14, lineHeight: 1, padding: '2px 4px' }}
+      >✕</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ color: ACCENT, fontSize: 24, lineHeight: 1, flexShrink: 0 }}>💬</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: ACCENT, fontSize: 11, fontWeight: 'bold', marginBottom: 3 }}>{chat.sender}</div>
+          <div style={{ color: '#CDD6F4', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.text}</div>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div style={{

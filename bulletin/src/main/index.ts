@@ -310,8 +310,14 @@ app.whenReady().then(async () => {
 
   // 제어서버는 settings 유무 무관하게 항상 시작
   const toast = create_toast_window()
-  ipcMain.on('toast:close',    () => toast.hide())
-  ipcMain.on('toast:open-log', () => { if (_log_path) void shell.openPath(_log_path) })
+  ipcMain.on('toast:close',     () => toast.hide())
+  ipcMain.on('toast:open-log',  () => { if (_log_path) void shell.openPath(_log_path) })
+  ipcMain.on('toast:open-main', () => { win?.show(); win?.focus(); toast.hide() })
+
+  function show_chat_notification(sender: string, text: string): void {
+    toast.webContents.send('toast:chat', sender, text)
+    if (!toast.isVisible()) toast.show()
+  }
 
   const update_callbacks = {
     set_status:   (msg: string) => { toast.webContents.send('toast:status', msg); if (!toast.isVisible()) toast.show() },
@@ -388,7 +394,28 @@ app.whenReady().then(async () => {
   win.webContents.once('did-finish-load', () => {
     log_event('win: did-finish-load')
     void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks)
+    // 테스트: 시작 즉시 알림 발생
+    setTimeout(() => show_chat_notification('HI', 'HI'), 1000)
   })
+
+  // 창 숨김 상태일 때 새 채팅 폴링
+  let _last_msg_time = 0
+  setInterval(async () => {
+    if (!win || win.isVisible() || !_identity) return
+    try {
+      const msgs = await list_messages()
+      if (msgs.length === 0) return
+      const latest = msgs[msgs.length - 1]
+      if (latest.createdAt > _last_msg_time && latest.userId !== _identity.deviceId) {
+        _last_msg_time = latest.createdAt
+        const profile = (await list_users()).find(u => u.deviceId === latest.userId)
+        const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
+        show_chat_notification(sender, latest.text)
+      } else if (_last_msg_time === 0) {
+        _last_msg_time = latest.createdAt
+      }
+    } catch { /* ignore */ }
+  }, 5000)
 
   app.on('activate', () => {
     if (win) win.show()
