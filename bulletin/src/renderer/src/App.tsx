@@ -47,6 +47,7 @@ export function App(): JSX.Element {
     get_bridge()?.get_alias?.().then(set_alias).catch(() => {})
     get_bridge()?.get_avatar?.().then(set_avatar).catch(() => {})
     get_bridge()?.admin_is_enabled?.().then(set_is_admin).catch(() => {})
+    get_bridge()?.onOpenChat?.(() => set_page('messenger'))
   }, [])
 
   async function handle_profile_save(new_alias: string | null, new_avatar: string | null): Promise<void> {

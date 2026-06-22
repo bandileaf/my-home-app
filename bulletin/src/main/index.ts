@@ -315,14 +315,14 @@ app.whenReady().then(async () => {
   const toast = create_toast_window()
   ipcMain.on('toast:close',     () => { if (_chat_hide_timer) { clearTimeout(_chat_hide_timer); _chat_hide_timer = null } toast.hide() })
   ipcMain.on('toast:open-log',  () => { if (_log_path) void shell.openPath(_log_path) })
-  ipcMain.on('toast:open-main', () => { win?.show(); win?.focus(); toast.hide() })
+  ipcMain.on('toast:open-main', () => { win?.show(); win?.focus(); win?.webContents.send('window:open-chat'); toast.hide() })
 
   let _chat_hide_timer: ReturnType<typeof setTimeout> | null = null
   function show_chat_notification(sender: string, text: string): void {
     toast.webContents.send('toast:chat', sender, text)
     if (!toast.isVisible()) toast.show()
     if (_chat_hide_timer) clearTimeout(_chat_hide_timer)
-    _chat_hide_timer = setTimeout(() => { _chat_hide_timer = null; toast.hide() }, 5700)
+    _chat_hide_timer = setTimeout(() => { _chat_hide_timer = null; toast.hide() }, 7700)
   }
 
   const update_callbacks = {

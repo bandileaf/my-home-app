@@ -36,8 +36,8 @@ export default function Toast() {
     window.toast.onChat((sender, text) => {
       const id = nextId.current++
       setChats(prev => [...prev.slice(-7), { id, sender, text, fading: false }])
-      setTimeout(() => setChats(prev => prev.map(c => c.id === id ? { ...c, fading: true } : c)), 5000)
-      setTimeout(() => setChats(prev => prev.filter(c => c.id !== id)), 5700)
+      setTimeout(() => setChats(prev => prev.map(c => c.id === id ? { ...c, fading: true } : c)), 7000)
+      setTimeout(() => setChats(prev => prev.filter(c => c.id !== id)), 7700)
     })
     window.toast.get_name().then(setAppName).catch(() => {})
     const id = setInterval(() => setFrameIdx(i => (i + 1) % 4), 350)
