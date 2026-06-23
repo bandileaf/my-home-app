@@ -258,8 +258,8 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     try { return await list_schedules() }
     catch (e) { log_error('schedule:list', e); return [] }
   })
-  ipcMain.handle('schedule:create', async (_e, userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, memo: string | null, color: string) => {
-    try { await create_schedule(userId, title, date, endDate, allDay, startTime, endTime, repeatWeekly, memo, color) }
+  ipcMain.handle('schedule:create', async (_e, userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, repeatMonthly: boolean, memo: string | null, color: string) => {
+    try { await create_schedule(userId, title, date, endDate, allDay, startTime, endTime, repeatWeekly, repeatMonthly, memo, color) }
     catch (e) { log_error('schedule:create', e) }
   })
   ipcMain.handle('schedule:delete', async (_e, id: string) => {
