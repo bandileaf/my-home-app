@@ -343,3 +343,59 @@ export async function set_user_offline(macAddresses: string[], deviceId: string)
   if (!id) return
   await db().from('users').update({ is_online: false, last_seen: Date.now() }).eq('id', id)
 }
+
+export interface Schedule {
+  id: string
+  userId: string
+  title: string
+  date: string
+  endDate: string | null
+  allDay: boolean
+  startTime: string | null
+  endTime: string | null
+  repeatWeekly: boolean
+  memo: string | null
+  createdAt: number
+}
+
+export async function list_schedules(): Promise<Schedule[]> {
+  const { data, error } = await db().from('schedules').select('*').order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    title: row.title as string,
+    date: row.date as string,
+    endDate: row.end_date as string | null,
+    allDay: row.all_day as boolean,
+    startTime: row.start_time as string | null,
+    endTime: row.end_time as string | null,
+    repeatWeekly: row.repeat_weekly as boolean,
+    memo: row.memo as string | null,
+    createdAt: row.created_at as number,
+  }))
+}
+
+export async function create_schedule(
+  userId: string,
+  title: string,
+  date: string,
+  endDate: string | null,
+  allDay: boolean,
+  startTime: string | null,
+  endTime: string | null,
+  repeatWeekly: boolean,
+  memo: string | null,
+): Promise<void> {
+  const { error } = await db().from('schedules').insert({
+    user_id: userId, title, date, end_date: endDate,
+    all_day: allDay, start_time: startTime, end_time: endTime,
+    repeat_weekly: repeatWeekly, memo, created_at: Date.now(),
+  })
+  if (error) throw error
+}
+
+export async function delete_schedule(id: string, userId: string): Promise<void> {
+  const { error } = await db().from('schedules').delete().eq('id', id).eq('user_id', userId)
+  if (error) throw error
+}

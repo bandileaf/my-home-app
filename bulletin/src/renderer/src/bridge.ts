@@ -51,6 +51,20 @@ export interface ChatMessage {
   readBy: string[]
 }
 
+export interface Schedule {
+  id: string
+  userId: string
+  title: string
+  date: string
+  endDate: string | null
+  allDay: boolean
+  startTime: string | null
+  endTime: string | null
+  repeatWeekly: boolean
+  memo: string | null
+  createdAt: number
+}
+
 export interface ClientInfo {
   ip: string
   deviceId: string
@@ -90,6 +104,9 @@ export interface AppBridge {
   onChatRefresh?: (cb: () => void) => void
   onNoticeRefresh?: (cb: () => void) => void
   onScanIp?: (cb: (ip: string) => void) => void
+  list_schedules?: () => Promise<Schedule[]>
+  create_schedule?: (userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, memo: string | null) => Promise<void>
+  delete_schedule?: (id: string) => Promise<void>
   admin_local_ip?: () => Promise<string | null>
   admin_is_enabled?: () => Promise<boolean>
   admin_get_settings?: () => Promise<string>

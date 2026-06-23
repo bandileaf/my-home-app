@@ -41,7 +41,11 @@ export function Sidebar({ active, identity, alias, avatar, is_admin, on_profile_
         >
           <MessageCircle size={TAB_ICON_SIZE} strokeWidth={1.5} />
         </div>
-        <div className="tab tab-calendar disabled">
+        <div
+          className={`tab tab-calendar ${active === 'calendar' ? 'active' : ''}`}
+          onClick={() => on_section_change('calendar')}
+          style={{ cursor: 'pointer' }}
+        >
           <Calendar size={TAB_ICON_SIZE} strokeWidth={1.5} />
         </div>
         <div className="tab-spacer" />

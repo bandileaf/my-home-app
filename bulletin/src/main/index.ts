@@ -25,6 +25,9 @@ import {
   add_reader,
   subscribe_chat,
   subscribe_notices,
+  list_schedules,
+  create_schedule,
+  delete_schedule,
   type AppInfo,
 } from './services/store'
 import { run_update_check } from '@shared/update'
@@ -250,6 +253,18 @@ function register_ipc(identity: Identity, settingsPath: string): void {
   ipcMain.handle('chat:add_reader', async () => {
     try { await add_reader(_my_user_id!) }
     catch (e) { log_error('chat:add_reader', e) }
+  })
+  ipcMain.handle('schedule:list', async () => {
+    try { return await list_schedules() }
+    catch (e) { log_error('schedule:list', e); return [] }
+  })
+  ipcMain.handle('schedule:create', async (_e, userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, memo: string | null) => {
+    try { await create_schedule(userId, title, date, endDate, allDay, startTime, endTime, repeatWeekly, memo) }
+    catch (e) { log_error('schedule:create', e) }
+  })
+  ipcMain.handle('schedule:delete', async (_e, id: string) => {
+    try { await delete_schedule(id, _my_user_id!) }
+    catch (e) { log_error('schedule:delete', e) }
   })
   ipcMain.handle('admin:local_ip', () => get_local_ip())
   ipcMain.handle('admin:is_enabled', () => _is_admin)

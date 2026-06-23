@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useIdentity } from './hooks/useIdentity'
 import { useNotices } from './hooks/useNotices'
 import { useUsers } from './hooks/useUsers'
+import { useSchedules } from './hooks/useSchedules'
 import { Sidebar } from './components/Sidebar'
 import { NoticePage } from './components/NoticePage'
 import { ChatPage } from './components/ChatPage'
+import { CalendarPage } from './components/CalendarPage'
 import { AdminPage } from './components/AdminPage'
 import { NoSettingsPage } from './components/NoSettingsPage'
 import { DisabledPage } from './components/DisabledPage'
@@ -23,13 +25,14 @@ function to_witty_message(error: string): string {
   return '뭔가 잘못됐어요 😅 — 관리자를 호출하세요!'
 }
 
-const PAGES = ['notices', 'messenger'] as const
+const PAGES = ['notices', 'messenger', 'calendar'] as const
 type Page = typeof PAGES[number] | 'admin'
 
 export function App(): JSX.Element {
   const identity = useIdentity()
   const { notices, error, reload: reload_notices, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
   const { get_profile, refresh_users, online_users } = useUsers()
+  const { schedules, create: create_schedule, remove: remove_schedule } = useSchedules()
   const [has_settings, set_has_settings] = useState(true)
   const [is_disabled,  set_is_disabled]  = useState(false)
   const [appName,      set_appName]      = useState('')
@@ -84,7 +87,7 @@ export function App(): JSX.Element {
 
       <div className="body-row">
         <Sidebar
-          active={page === 'messenger' ? 'messenger' : page === 'admin' ? 'admin' : 'notices'}
+          active={page === 'messenger' ? 'messenger' : page === 'admin' ? 'admin' : page === 'calendar' ? 'calendar' : 'notices'}
           identity={identity}
           appName={appName}
           alias={alias}
@@ -94,6 +97,7 @@ export function App(): JSX.Element {
           on_section_change={(section) => {
             if (section === 'admin') set_page('admin')
             else if (section === 'messenger') set_page('messenger')
+            else if (section === 'calendar') set_page('calendar')
             else set_page('notices')
           }}
         />
@@ -125,6 +129,16 @@ export function App(): JSX.Element {
                 get_profile={get_profile}
                 refresh_users={refresh_users}
                 online_users={online_users}
+              />
+            )}
+
+            {page === 'calendar' && (
+              <CalendarPage
+                identity={identity}
+                schedules={schedules}
+                get_profile={get_profile}
+                on_create={create_schedule}
+                on_delete={remove_schedule}
               />
             )}
 
