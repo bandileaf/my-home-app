@@ -201,7 +201,10 @@ function register_ipc(identity: Identity, settingsPath: string): void {
       log_event(`profile saved alias=${alias ?? 'null'} avatar=${avatar ? `${Math.round(avatar.length / 1024)}KB` : 'null'}`)
     } catch (e) { log_error('user:save_profile', e) }
   })
+  let _notice_list_count = 0
   ipcMain.handle('notice:list', async () => {
+    _notice_list_count++
+    log_event(`ipc: notice:list #${_notice_list_count}`)
     try { return await list_notices() }
     catch (e) { log_error('notice:list', e); return [] }
   })
@@ -221,7 +224,10 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     try { await cast_vote(noticeId, _my_user_id!, vote) }
     catch (e) { log_error('notice:vote', e) }
   })
+  let _user_list_count = 0
   ipcMain.handle('user:list', async () => {
+    _user_list_count++
+    log_event(`ipc: user:list #${_user_list_count}`)
     try { return await list_users() }
     catch (e) { log_error('user:list', e); return [] }
   })
@@ -424,21 +430,25 @@ app.whenReady().then(async () => {
 
   // Supabase Realtime 구독 — 새 채팅 즉시 수신
   subscribe_chat(async (msg) => {
+    log_event(`realtime: chat msg=${msg.id} from=${msg.userId} my=${_my_user_id ?? 'null'} win_visible=${win?.isVisible() ?? false}`)
     if (!_my_user_id || msg.userId === _my_user_id) return
     if (!win || !win.isVisible()) {
       const profile = (await list_users()).find(u => u.id === msg.userId)
       const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
       show_chat_notification(sender, msg.text)
     } else {
+      log_event('realtime: → chat:refresh 전송')
       win.webContents.send('chat:refresh')
     }
   })
 
   // 알림장 Realtime 구독
   subscribe_notices(() => {
+    log_event(`realtime: notice 변경 감지 win_visible=${win?.isVisible() ?? false}`)
     if (!win || !win.isVisible()) {
       show_chat_notification('알림장', '새로운 알림장이 있습니다')
     } else {
+      log_event('realtime: → notice:refresh 전송')
       win.webContents.send('notice:refresh')
     }
   })
@@ -446,9 +456,11 @@ app.whenReady().then(async () => {
   // 폴링 fallback — Realtime 누락 대비 (chat + notice)
   let _last_chat_time = 0
   let _last_notice_time = 0
+  let _poll_count = 0
   log_event(`poll fallback interval: ${_db_check_ms}ms`)
   setInterval(async () => {
     if (!_my_user_id) return
+    _poll_count++
     try {
       // chat 체크
       const msgs = await list_messages()
@@ -456,13 +468,16 @@ app.whenReady().then(async () => {
         const latest = msgs[msgs.length - 1]
         if (_last_chat_time === 0) {
           _last_chat_time = latest.createdAt
+          log_event(`poll#${_poll_count}: chat 초기화 latest=${new Date(latest.createdAt).toISOString()}`)
         } else if (latest.createdAt > _last_chat_time && latest.userId !== _my_user_id) {
           _last_chat_time = latest.createdAt
+          log_event(`poll#${_poll_count}: 새 chat from=${latest.userId} win_visible=${win?.isVisible() ?? false}`)
           if (!win || !win.isVisible()) {
             const profile = (await list_users()).find(u => u.id === latest.userId)
             const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
             show_chat_notification(sender, latest.text)
           } else {
+            log_event(`poll#${_poll_count}: → chat:refresh 전송`)
             win.webContents.send('chat:refresh')
           }
         } else {
@@ -475,18 +490,21 @@ app.whenReady().then(async () => {
         const latest_n = notices[0] // list_notices는 최신순
         if (_last_notice_time === 0) {
           _last_notice_time = latest_n.createdAt
+          log_event(`poll#${_poll_count}: notice 초기화 latest=${new Date(latest_n.createdAt).toISOString()}`)
         } else if (latest_n.createdAt > _last_notice_time && latest_n.userId !== _my_user_id) {
           _last_notice_time = latest_n.createdAt
+          log_event(`poll#${_poll_count}: 새 notice from=${latest_n.userId} win_visible=${win?.isVisible() ?? false}`)
           if (!win || !win.isVisible()) {
             show_chat_notification('알림장', '새로운 알림장이 있습니다')
           } else {
+            log_event(`poll#${_poll_count}: → notice:refresh 전송`)
             win.webContents.send('notice:refresh')
           }
         } else {
           _last_notice_time = Math.max(_last_notice_time, latest_n.createdAt)
         }
       }
-    } catch { /* ignore */ }
+    } catch (e) { log_event(`poll#${_poll_count}: 오류 ${String(e)}`) }
   }, _db_check_ms)
 
   app.on('activate', () => {
