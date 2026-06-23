@@ -50,9 +50,9 @@ export function AdminPage(): JSX.Element {
     return false
   }
 
-  async function restart_and_wait(key: string, ip: string): Promise<void> {
+  async function restart_and_wait(key: string, ip: string, path = '/restart'): Promise<void> {
     set_b(key, 'loading')
-    const result = await get_bridge()?.admin_command?.(ip, '/restart', {}) ?? { ok: false }
+    const result = await get_bridge()?.admin_command?.(ip, path, {}) ?? { ok: false }
     if (!result.ok) { set_b(key, 'error'); return }
     const back = await wait_for_status(ip)
     set_b(key, back ? 'ok' : 'error')
@@ -119,13 +119,6 @@ export function AdminPage(): JSX.Element {
     }
   }
 
-  async function cmd_all(path: string): Promise<void> {
-    const key = 'all' + path
-    set_b(key, 'loading')
-    await Promise.all(clients.map(c => run_cmd(c.ip + path, c.ip, path, {})))
-    set_b(key, 'ok')
-  }
-
   const has_settings = settings_text.trim().length > 0
 
   function handle_tab(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
@@ -162,7 +155,7 @@ export function AdminPage(): JSX.Element {
             <button className="admin-btn" disabled={btn['all/restart'] === 'loading'} onClick={() => void Promise.all(clients.map(c => restart_and_wait('all/restart', c.ip)))}>
               <BtnIcon state={btn['all/restart'] ?? 'idle'} idle={<RotateCcw size={14} />} /> 전체 재시작
             </button>
-            <button className="admin-btn" disabled={btn['all/update'] === 'loading'} onClick={() => void cmd_all('/update')}>
+            <button className="admin-btn" disabled={btn['all/update'] === 'loading'} onClick={() => void Promise.all(clients.map(c => restart_and_wait('all/update', c.ip, '/update')))}>
               <BtnIcon state={btn['all/update'] ?? 'idle'} idle={<Download size={14} />} /> 전체 업데이트
             </button>
           </div>
@@ -206,7 +199,7 @@ export function AdminPage(): JSX.Element {
                     <button className="admin-btn" disabled={btn[c.ip + '/restart'] === 'loading'} onClick={() => void restart_and_wait(c.ip + '/restart', c.ip)}>
                       <BtnIcon state={btn[c.ip + '/restart'] ?? 'idle'} idle={<RotateCcw size={13} />} /> 재시작
                     </button>
-                    <button className="admin-btn" disabled={btn[c.ip + '/update'] === 'loading'} onClick={() => void run_cmd(c.ip + '/update', c.ip, '/update', {})}>
+                    <button className="admin-btn" disabled={btn[c.ip + '/update'] === 'loading'} onClick={() => void restart_and_wait(c.ip + '/update', c.ip, '/update')}>
                       <BtnIcon state={btn[c.ip + '/update'] ?? 'idle'} idle={<Download size={13} />} /> 업데이트
                     </button>
                     <button className={toggle_cls} disabled={toggle_state === 'loading'} onClick={() => void toggle_disable(c.ip, is_disabled)}>
