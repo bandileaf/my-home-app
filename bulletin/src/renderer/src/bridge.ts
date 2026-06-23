@@ -62,6 +62,7 @@ export interface Schedule {
   endTime: string | null
   repeatWeekly: boolean
   memo: string | null
+  color: string
   createdAt: number
 }
 
@@ -105,7 +106,7 @@ export interface AppBridge {
   onNoticeRefresh?: (cb: () => void) => void
   onScanIp?: (cb: (ip: string) => void) => void
   list_schedules?: () => Promise<Schedule[]>
-  create_schedule?: (userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, memo: string | null) => Promise<void>
+  create_schedule?: (userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, memo: string | null, color: string) => Promise<void>
   delete_schedule?: (id: string) => Promise<void>
   admin_local_ip?: () => Promise<string | null>
   admin_is_enabled?: () => Promise<boolean>

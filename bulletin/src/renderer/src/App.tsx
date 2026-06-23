@@ -33,6 +33,7 @@ export function App(): JSX.Element {
   const { notices, error, reload: reload_notices, post_notice, reply_notice, edit_notice, vote_notice } = useNotices()
   const { get_profile, refresh_users, online_users } = useUsers()
   const { schedules, create: create_schedule, remove: remove_schedule } = useSchedules()
+
   const [has_settings, set_has_settings] = useState(true)
   const [is_disabled,  set_is_disabled]  = useState(false)
   const [appName,      set_appName]      = useState('')

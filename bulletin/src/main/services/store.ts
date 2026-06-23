@@ -355,6 +355,7 @@ export interface Schedule {
   endTime: string | null
   repeatWeekly: boolean
   memo: string | null
+  color: string
   createdAt: number
 }
 
@@ -372,6 +373,7 @@ export async function list_schedules(): Promise<Schedule[]> {
     endTime: row.end_time as string | null,
     repeatWeekly: row.repeat_weekly as boolean,
     memo: row.memo as string | null,
+    color: (row.color as string | null) ?? '#a78bfa',
     createdAt: row.created_at as number,
   }))
 }
@@ -386,11 +388,12 @@ export async function create_schedule(
   endTime: string | null,
   repeatWeekly: boolean,
   memo: string | null,
+  color: string,
 ): Promise<void> {
   const { error } = await db().from('schedules').insert({
     user_id: userId, title, date, end_date: endDate,
     all_day: allDay, start_time: startTime, end_time: endTime,
-    repeat_weekly: repeatWeekly, memo, created_at: Date.now(),
+    repeat_weekly: repeatWeekly, memo, color, created_at: Date.now(),
   })
   if (error) throw error
 }

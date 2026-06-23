@@ -30,8 +30,8 @@ const api = {
   onNoticeRefresh: (cb: () => void): void => { ipcRenderer.on('notice:refresh', () => cb()) },
   onScanIp: (cb: (ip: string) => void): void => { ipcRenderer.on('admin:scan_ip', (_e, ip: string) => cb(ip)) },
   list_schedules: (): Promise<unknown[]> => ipcRenderer.invoke('schedule:list'),
-  create_schedule: (userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, memo: string | null): Promise<void> =>
-    ipcRenderer.invoke('schedule:create', userId, title, date, endDate, allDay, startTime, endTime, repeatWeekly, memo),
+  create_schedule: (userId: string, title: string, date: string, endDate: string | null, allDay: boolean, startTime: string | null, endTime: string | null, repeatWeekly: boolean, memo: string | null, color: string): Promise<void> =>
+    ipcRenderer.invoke('schedule:create', userId, title, date, endDate, allDay, startTime, endTime, repeatWeekly, memo, color),
   delete_schedule: (id: string): Promise<void> => ipcRenderer.invoke('schedule:delete', id),
   app_has_settings:  (): Promise<boolean>      => ipcRenderer.invoke('app:has_settings'),
   app_disabled:      (): Promise<boolean>      => ipcRenderer.invoke('app:disabled'),
