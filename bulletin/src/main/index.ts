@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, Tray } from 'electron'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { basename, dirname, join } from 'path'
+import { release, arch } from 'os'
 import { parse as parse_jsonc } from 'jsonc-parser'
 import { load_identity, type Identity } from './services/identity'
 import {
@@ -309,6 +310,7 @@ app.whenReady().then(async () => {
   const settingsPath = join(baseDir, 'settings.json')
   init_log_path(settingsPath)
   log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}`)
+  log_event(`os: Windows ${release()} arch=${arch()} portable_file=${process.env.PORTABLE_EXECUTABLE_FILE ?? '(none)'} portable_dir=${process.env.PORTABLE_EXECUTABLE_DIR ?? '(none)'}`)
   const identity = load_identity()
   _identity = identity
   log_event(`identity: deviceId=${identity.deviceId} hostname=${identity.hostname} mac=[${identity.macAddresses.join(', ')}] ip=${identity.ip ?? 'null'}`)
