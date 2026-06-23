@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RefreshCw, RotateCcw, Download, Upload, FolderInput, PauseCircle, PlayCircle, FileText } from 'lucide-react'
 import type { ClientInfo, CommandResult } from '../bridge'
 import { get_bridge } from '../bridge'
@@ -6,6 +6,11 @@ import { get_bridge } from '../bridge'
 export function AdminPage(): JSX.Element {
   const [clients, set_clients] = useState<ClientInfo[]>([])
   const [scanning, set_scanning] = useState(false)
+  const [local_ip, set_local_ip] = useState<string | null>(null)
+
+  useEffect(() => {
+    get_bridge()?.admin_local_ip?.().then(ip => set_local_ip(ip ?? null)).catch(() => {})
+  }, [])
   const [status, set_status] = useState<Record<string, string>>({})
   const [settings_text, set_settings_text] = useState('')
   const [settings_from, set_settings_from] = useState<string | null>(null)
@@ -96,6 +101,9 @@ export function AdminPage(): JSX.Element {
     <div className="page admin-page">
       <div className="page-head">
         <h2>관리페이지</h2>
+        {local_ip && (
+          <span className="admin-subnet">{local_ip.split('.').slice(0, 3).join('.')}.x</span>
+        )}
         <button className="admin-scan-btn" onClick={scan} disabled={scanning}>
           <RefreshCw size={16} className={scanning ? 'spin' : ''} />
           {scanning ? '스캔 중...' : '네트워크 스캔'}

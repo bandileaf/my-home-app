@@ -30,6 +30,7 @@ const api = {
   onNoticeRefresh: (cb: () => void): void => { ipcRenderer.on('notice:refresh', () => cb()) },
   app_has_settings:  (): Promise<boolean>      => ipcRenderer.invoke('app:has_settings'),
   app_disabled:      (): Promise<boolean>      => ipcRenderer.invoke('app:disabled'),
+  admin_local_ip:    (): Promise<string | null> => ipcRenderer.invoke('admin:local_ip'),
   admin_is_enabled:  (): Promise<boolean>      => ipcRenderer.invoke('admin:is_enabled'),
   admin_get_settings: (): Promise<string>      => ipcRenderer.invoke('admin:get_settings'),
   admin_scan:        (): Promise<unknown[]>    => ipcRenderer.invoke('admin:scan'),

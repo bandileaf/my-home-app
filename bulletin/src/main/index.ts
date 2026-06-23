@@ -28,7 +28,7 @@ import {
 } from './services/store'
 import { run_update_check } from '@shared/update'
 import { start_control_server } from './services/control'
-import { scan_subnet, send_command, fetch_client_settings, fetch_client_log } from './services/admin'
+import { scan_subnet, send_command, fetch_client_settings, fetch_client_log, get_local_ip } from './services/admin'
 
 function app_dir(): string {
   if (app.isPackaged) {
@@ -244,6 +244,7 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     try { await add_reader(identity.deviceId) }
     catch (e) { log_error('chat:add_reader', e) }
   })
+  ipcMain.handle('admin:local_ip', () => get_local_ip())
   ipcMain.handle('admin:is_enabled', () => _is_admin)
   ipcMain.handle('admin:get_settings', () => {
     try { return readFileSync(settingsPath, 'utf-8') } catch { return '{}' }

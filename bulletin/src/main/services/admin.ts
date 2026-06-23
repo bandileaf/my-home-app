@@ -16,7 +16,7 @@ export interface CommandResult {
   error?: string
 }
 
-function get_local_ip(): string | null {
+export function get_local_ip(): string | null {
   const nets = networkInterfaces()
   for (const ifaces of Object.values(nets)) {
     for (const iface of ifaces ?? []) {

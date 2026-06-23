@@ -859,6 +859,7 @@ body {
   cursor: pointer;
 }
 .admin-scan-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.admin-subnet { font-size: 13px; color: var(--text-muted); font-family: monospace; margin-right: 4px; }
 
 .admin-toolbar {
   display: flex;

@@ -87,6 +87,7 @@ export interface AppBridge {
   onOpenChat?: (cb: () => void) => void
   onChatRefresh?: (cb: () => void) => void
   onNoticeRefresh?: (cb: () => void) => void
+  admin_local_ip?: () => Promise<string | null>
   admin_is_enabled?: () => Promise<boolean>
   admin_get_settings?: () => Promise<string>
   admin_scan?: () => Promise<ClientInfo[]>
