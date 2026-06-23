@@ -28,6 +28,7 @@ const api = {
   onOpenChat:     (cb: () => void): void => { ipcRenderer.on('window:open-chat', () => cb()) },
   onChatRefresh:   (cb: () => void): void => { ipcRenderer.on('chat:refresh',   () => cb()) },
   onNoticeRefresh: (cb: () => void): void => { ipcRenderer.on('notice:refresh', () => cb()) },
+  onScanIp: (cb: (ip: string) => void): void => { ipcRenderer.on('admin:scan_ip', (_e, ip: string) => cb(ip)) },
   app_has_settings:  (): Promise<boolean>      => ipcRenderer.invoke('app:has_settings'),
   app_disabled:      (): Promise<boolean>      => ipcRenderer.invoke('app:disabled'),
   admin_local_ip:    (): Promise<string | null> => ipcRenderer.invoke('admin:local_ip'),

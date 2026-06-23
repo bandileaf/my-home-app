@@ -252,7 +252,7 @@ function register_ipc(identity: Identity, settingsPath: string): void {
   ipcMain.handle('admin:scan', async () => {
     try {
       log_event('admin:scan 시작')
-      const result = await scan_subnet()
+      const result = await scan_subnet((ip) => win?.webContents.send('admin:scan_ip', ip))
       log_event(`admin:scan 완료 — ${result.length}개 발견: ${result.map(c => `${c.hostname}(${c.ip})`).join(', ')}`)
       return result
     }

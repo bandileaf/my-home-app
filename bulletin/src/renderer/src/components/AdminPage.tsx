@@ -10,6 +10,7 @@ export function AdminPage(): JSX.Element {
 
   useEffect(() => {
     get_bridge()?.admin_local_ip?.().then(ip => set_local_ip(ip ?? null)).catch(() => {})
+    get_bridge()?.onScanIp?.((ip) => set_local_ip(ip))
   }, [])
   const [status, set_status] = useState<Record<string, string>>({})
   const [settings_text, set_settings_text] = useState('')

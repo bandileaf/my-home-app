@@ -53,7 +53,7 @@ function fetch_status(ip: string): Promise<ClientInfo | null> {
   })
 }
 
-export async function scan_subnet(): Promise<ClientInfo[]> {
+export async function scan_subnet(on_progress?: (ip: string) => void): Promise<ClientInfo[]> {
   const local = get_local_ip()
   if (!local) return []
   const prefix = local.split('.').slice(0, 3).join('.')
@@ -62,6 +62,7 @@ export async function scan_subnet(): Promise<ClientInfo[]> {
   const BATCH = 50
   const reachable: string[] = []
   for (let i = 0; i < ips.length; i += BATCH) {
+    on_progress?.(ips[i])
     const results = await Promise.all(
       ips.slice(i, i + BATCH).map(ip => probe_tcp(ip, 61799, 800).then(ok => ok ? ip : null))
     )
