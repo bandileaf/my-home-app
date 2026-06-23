@@ -81,69 +81,16 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 모든 bulletin 인스턴스가 시작 시 자동으로 HTTP 서버를 띄운다.
 관리자 패널에서 원격 제어에 사용한다.
 
-### GET /status
-
-기기 상태 반환.
-
-```json
-{
-  "deviceId": "e0274c21-...",
-  "hostname": "BOOK-RUDI",
-  "version": "1.0.0",
-  "has_settings": true,
-  "disabled": false
-}
-```
-
-### GET /settings
-
-`settings.json` 전체 내용 반환. 파일이 없으면 `{}`.
-
-### GET /log
-
-앱 로그 파일 내용 반환 (텍스트).
-
-### POST /settings
-
-`settings.json` 교체. Body: 새 설정 JSON 객체.  
-- 최초 수신(settings 없던 기기): 앱 자동 재시작  
-- 기존 settings 갱신: 재시작 없이 저장만
-
-```json
-{ "ok": true }
-```
-
-### POST /restart
-
-앱 재시작. 응답 수신 후 약 500ms 뒤 재시작.
-
-```json
-{ "ok": true }
-```
-
-### POST /update
-
-`hub.tag` 삭제 후 재시작 → 업데이트 즉시 강제 실행.
-
-```json
-{ "ok": true }
-```
-
-### POST /disable
-
-`hub.disabled: true` 저장. 관리자 기기에는 적용 불가.
-
-```json
-{ "ok": true }
-```
-
-### POST /enable
-
-`hub.disabled` 제거.
-
-```json
-{ "ok": true }
-```
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| GET | `/status` | deviceId, hostname, version, has_settings, disabled 반환 |
+| GET | `/settings` | settings.json 반환 (없으면 `{}`) |
+| GET | `/log` | 로그 파일 반환 |
+| POST | `/settings` | settings.json 교체 (최초 수신 시 자동 재시작) |
+| POST | `/restart` | 앱 재시작 |
+| POST | `/update` | hub.tag 삭제 후 재시작 → 강제 업데이트 |
+| POST | `/disable` | hub.disabled=true 저장 (관리자 기기 제외) |
+| POST | `/enable` | hub.disabled 제거 |
 
 ---
 
