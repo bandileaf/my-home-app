@@ -86,7 +86,7 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 | GET | `/status` | deviceId, hostname, version, has_settings, disabled 반환 |
 | GET | `/settings` | settings.json 반환 (없으면 `{}`) |
 | GET | `/log` | 로그 파일 반환 |
-| POST | `/settings` | settings.json 교체 (최초 수신 시 자동 재시작) |
+| POST | `/settings` | settings.json 교체 (재시작 없음) |
 | POST | `/restart` | 앱 재시작 |
 | POST | `/update` | hub.tag 삭제 후 재시작 → 강제 업데이트 |
 | POST | `/disable` | hub.disabled=true 저장 (관리자 기기 제외) |

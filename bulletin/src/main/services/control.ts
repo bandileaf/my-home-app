@@ -12,7 +12,6 @@ export interface ControlContext {
   is_disabled: () => boolean
   is_admin: () => boolean
   on_update: () => void
-  on_settings_received: () => void
   log: (msg: string) => void
 }
 
@@ -63,16 +62,9 @@ export function start_control_server(ctx: ControlContext): void {
       if (method === 'POST' && url === '/settings') {
         const body = await read_body(req)
         const parsed = JSON.parse(body)
-        let existed = false
-        try { readFileSync(ctx.settingsPath, 'utf-8'); existed = true } catch { /* no settings yet */ }
         writeFileSync(ctx.settingsPath, JSON.stringify(parsed, null, 2), 'utf-8')
         send_json(res, 200, { ok: true })
-        if (!existed) {
-          ctx.log('control: first settings received, restarting...')
-          setTimeout(() => ctx.on_settings_received(), 500)
-        } else {
-          ctx.log('control: settings updated (no restart)')
-        }
+        ctx.log('control: settings saved (no restart)')
         return
       }
       if (method === 'POST' && url === '/disable') {

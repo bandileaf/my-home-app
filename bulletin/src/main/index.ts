@@ -349,10 +349,6 @@ app.whenReady().then(async () => {
     is_disabled: () => _disabled,
     is_admin: () => _is_admin,
     on_update: () => void run_update_check({ baseDir, settingsPath, appKey: 'hub.bulletin.zip' }, update_callbacks),
-    on_settings_received: () => {
-      log_event('control: settings received → restarting')
-      setTimeout(() => { app.relaunch(); app.quit() }, 500)
-    },
     log: log_event,
   })
 
