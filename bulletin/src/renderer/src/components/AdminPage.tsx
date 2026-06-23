@@ -26,7 +26,6 @@ export function AdminPage(): JSX.Element {
   const [log_from, set_log_from] = useState<string | null>(null)
 
   useEffect(() => {
-    get_bridge()?.admin_local_ip?.().then(ip => set_local_ip(ip ?? null)).catch(() => {})
     get_bridge()?.onScanIp?.((ip) => set_local_ip(ip))
   }, [])
 
@@ -59,6 +58,7 @@ export function AdminPage(): JSX.Element {
 
   async function scan(): Promise<void> {
     set_scanning(true)
+    set_local_ip(null)
     set_clients([])
     set_btn({})
     set_local_disabled({})
@@ -70,6 +70,7 @@ export function AdminPage(): JSX.Element {
     const found = await get_bridge()?.admin_scan?.() ?? []
     set_clients(found)
     set_scanning(false)
+    set_local_ip(null)
   }
 
   async function toggle_disable(ip: string, currently_disabled: boolean): Promise<void> {
@@ -139,10 +140,8 @@ export function AdminPage(): JSX.Element {
       <div className="page-head">
         <h2>관리페이지</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {local_ip && (
-            <span className="admin-subnet">
-              {scanning ? local_ip : `${local_ip.split('.').slice(0, 3).join('.')}.x`}
-            </span>
+          {scanning && local_ip && (
+            <span className="admin-subnet">{local_ip}</span>
           )}
           <button className="admin-scan-btn" onClick={scan} disabled={scanning}>
             <RefreshCw size={16} className={scanning ? 'spin' : ''} />
