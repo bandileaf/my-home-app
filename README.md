@@ -81,13 +81,69 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 모든 bulletin 인스턴스가 시작 시 자동으로 HTTP 서버를 띄운다.
 관리자 패널에서 원격 제어에 사용한다.
 
-| 엔드포인트 | 설명 |
-|-----------|------|
-| `GET /status` | 기기 정보 반환 (deviceId, hostname, version) |
-| `GET /settings` | settings.json 내용 반환 (없으면 `{}`) |
-| `POST /settings` | settings.json 교체 후 앱 자동 재시작 |
-| `POST /restart` | 앱 재시작 |
-| `POST /update` | 업데이트 즉시 강제 실행 |
+### GET /status
+
+기기 상태 반환.
+
+```json
+{
+  "deviceId": "e0274c21-...",
+  "hostname": "BOOK-RUDI",
+  "version": "1.0.0",
+  "has_settings": true,
+  "disabled": false
+}
+```
+
+### GET /settings
+
+`settings.json` 전체 내용 반환. 파일이 없으면 `{}`.
+
+### GET /log
+
+앱 로그 파일 내용 반환 (텍스트).
+
+### POST /settings
+
+`settings.json` 교체. Body: 새 설정 JSON 객체.  
+- 최초 수신(settings 없던 기기): 앱 자동 재시작  
+- 기존 settings 갱신: 재시작 없이 저장만
+
+```json
+{ "ok": true }
+```
+
+### POST /restart
+
+앱 재시작. 응답 수신 후 약 500ms 뒤 재시작.
+
+```json
+{ "ok": true }
+```
+
+### POST /update
+
+`hub.tag` 삭제 후 재시작 → 업데이트 즉시 강제 실행.
+
+```json
+{ "ok": true }
+```
+
+### POST /disable
+
+`hub.disabled: true` 저장. 관리자 기기에는 적용 불가.
+
+```json
+{ "ok": true }
+```
+
+### POST /enable
+
+`hub.disabled` 제거.
+
+```json
+{ "ok": true }
+```
 
 ---
 
@@ -96,10 +152,14 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 로컬 `settings.json`에 `"hub.app.bulletin.admin": true` 를 추가하면
 사이드바에 Shield 아이콘이 나타난다.
 
-- **네트워크 스캔**: 로컬 서브넷에서 포트 61799 응답 기기를 검색
+- **네트워크 스캔**: 로컬 서브넷(포트 61799)에서 기기 검색. 스캔 중 현재 탐색 IP 실시간 표시
+- **재시작**: 명령 전송 → `/status` 폴링(600ms 간격, 최대 15초) → 복귀 확인 후 완료 표시
+- **업데이트 강제**: hub.tag 삭제 후 재시작 → 최신 버전 자동 다운로드
+- **정지 / 해제**: hub.disabled 토글 (정지 시 자동 재시작 포함)
 - **가져오기**: 선택 기기의 settings.json을 에디터로 불러옴
-- **내보내기**: 에디터 내용을 선택 기기에 전송 (앱 자동 재시작)
-- **재시작 / 업데이트 강제**: 개별 또는 전체 일괄 실행
+- **내보내기**: 에디터 내용을 선택 기기에 전송
+- **로그 보기**: 선택 기기의 로그 파일 표시
+- **전체 재시작 / 전체 업데이트**: 스캔된 모든 기기에 일괄 실행
 
 ---
 
