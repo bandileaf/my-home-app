@@ -40,6 +40,24 @@ export function AdminPage(): JSX.Element {
     return result.ok
   }
 
+  async function wait_for_status(ip: string, timeout_ms = 15000): Promise<boolean> {
+    const deadline = Date.now() + timeout_ms
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 600))
+      const result = await get_bridge()?.admin_command?.(ip, '/status') ?? { ok: false }
+      if (result.ok) return true
+    }
+    return false
+  }
+
+  async function restart_and_wait(key: string, ip: string): Promise<void> {
+    set_b(key, 'loading')
+    const result = await get_bridge()?.admin_command?.(ip, '/restart', {}) ?? { ok: false }
+    if (!result.ok) { set_b(key, 'error'); return }
+    const back = await wait_for_status(ip)
+    set_b(key, back ? 'ok' : 'error')
+  }
+
   async function scan(): Promise<void> {
     set_scanning(true)
     set_clients([])
@@ -64,7 +82,7 @@ export function AdminPage(): JSX.Element {
       const now_disabled = !currently_disabled
       set_local_disabled(d => ({ ...d, [ip]: now_disabled }))
       set_b(key, 'ok')
-      if (now_disabled) void run_cmd(ip + '/restart', ip, '/restart', {})
+      if (now_disabled) void restart_and_wait(ip + '/restart', ip)
     } else {
       set_b(key, 'error')
     }
@@ -141,7 +159,7 @@ export function AdminPage(): JSX.Element {
         <>
           <div className="admin-toolbar">
             <span className="admin-found">{clients.length}개 발견</span>
-            <button className="admin-btn" disabled={btn['all/restart'] === 'loading'} onClick={() => void cmd_all('/restart')}>
+            <button className="admin-btn" disabled={btn['all/restart'] === 'loading'} onClick={() => void Promise.all(clients.map(c => restart_and_wait('all/restart', c.ip)))}>
               <BtnIcon state={btn['all/restart'] ?? 'idle'} idle={<RotateCcw size={14} />} /> 전체 재시작
             </button>
             <button className="admin-btn" disabled={btn['all/update'] === 'loading'} onClick={() => void cmd_all('/update')}>
@@ -185,7 +203,7 @@ export function AdminPage(): JSX.Element {
                     {c.has_settings && !is_disabled && <span className="admin-state admin-state-ok">정상 동작</span>}
                   </div>
                   <div className="admin-client-actions">
-                    <button className="admin-btn" disabled={btn[c.ip + '/restart'] === 'loading'} onClick={() => void run_cmd(c.ip + '/restart', c.ip, '/restart', {})}>
+                    <button className="admin-btn" disabled={btn[c.ip + '/restart'] === 'loading'} onClick={() => void restart_and_wait(c.ip + '/restart', c.ip)}>
                       <BtnIcon state={btn[c.ip + '/restart'] ?? 'idle'} idle={<RotateCcw size={13} />} /> 재시작
                     </button>
                     <button className="admin-btn" disabled={btn[c.ip + '/update'] === 'loading'} onClick={() => void run_cmd(c.ip + '/update', c.ip, '/update', {})}>
