@@ -145,7 +145,7 @@ export async function upsert_user(
   ip: string | null,
   deviceId: string,
   version: string | null = null,
-): Promise<{ appInfo: AppInfo; alias: string | null }> {
+): Promise<{ appInfo: AppInfo; alias: string | null; userId: string }> {
   const now = Date.now()
 
   let existing: UserRow | null = null
@@ -171,36 +171,37 @@ export async function upsert_user(
     await db().from('users').update({
       hostname, ip, is_online: true, last_seen: now, app_info: newInfo,
     }).eq('id', existing.id as string)
-    return { appInfo: newInfo, alias: existing.alias as string | null }
+    return { appInfo: newInfo, alias: existing.alias as string | null, userId: existing.id as string }
   } else {
     const appInfo: AppInfo = version != null ? { version } : {}
-    const { error } = await db().from('users').insert({
+    const { data, error } = await db().from('users').insert({
       hostname, mac_addresses: macAddresses, ip, device_id: deviceId,
       is_online: true, app_info: appInfo, last_seen: now, created_at: now,
-    })
+    }).select('id').single()
     if (error) throw error
-    return { appInfo, alias: null }
+    return { appInfo, alias: null, userId: (data as { id: string }).id }
   }
 }
 
-export async function update_app_info(deviceId: string, appInfo: AppInfo): Promise<void> {
-  await db().from('users').update({ app_info: appInfo }).eq('device_id', deviceId)
+export async function update_app_info(userId: string, appInfo: AppInfo): Promise<void> {
+  await db().from('users').update({ app_info: appInfo }).eq('id', userId)
 }
 
-export async function save_user_alias(deviceId: string, alias: string | null): Promise<void> {
-  await db().from('users').update({ alias }).eq('device_id', deviceId)
+export async function save_user_alias(userId: string, alias: string | null): Promise<void> {
+  await db().from('users').update({ alias }).eq('id', userId)
 }
 
-export async function get_user_avatar(deviceId: string): Promise<string | null> {
-  const { data } = await db().from('users').select('avatar').eq('device_id', deviceId).maybeSingle()
+export async function get_user_avatar(userId: string): Promise<string | null> {
+  const { data } = await db().from('users').select('avatar').eq('id', userId).maybeSingle()
   return (data?.avatar as string | null) ?? null
 }
 
-export async function save_user_avatar(deviceId: string, avatar: string | null): Promise<void> {
-  await db().from('users').update({ avatar }).eq('device_id', deviceId)
+export async function save_user_avatar(userId: string, avatar: string | null): Promise<void> {
+  await db().from('users').update({ avatar }).eq('id', userId)
 }
 
 export interface UserProfile {
+  id: string
   deviceId: string
   hostname: string
   alias: string | null
@@ -209,9 +210,10 @@ export interface UserProfile {
 }
 
 export async function list_users(): Promise<UserProfile[]> {
-  const { data, error } = await db().from('users').select('device_id, hostname, alias, avatar, is_online')
+  const { data, error } = await db().from('users').select('id, device_id, hostname, alias, avatar, is_online')
   if (error) throw error
   return (data ?? []).map((row) => ({
+    id: row.id as string,
     deviceId: row.device_id as string,
     hostname: row.hostname as string,
     alias: row.alias as string | null,

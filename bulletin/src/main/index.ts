@@ -185,18 +185,18 @@ function register_ipc(identity: Identity, settingsPath: string): void {
   ipcMain.handle('app:has_settings', () => existsSync(settingsPath))
   ipcMain.handle('app:disabled',     () => _disabled)
   ipcMain.handle('app:name',     (): string => app_display_name())
-  ipcMain.handle('identity:get', (): Identity => identity)
+  ipcMain.handle('identity:get', (): Identity & { userId: string | null } => ({ ...identity, userId: _my_user_id }))
   ipcMain.handle('user:alias',  (): string | null => _alias)
   ipcMain.handle('user:avatar', async (): Promise<string | null> => {
-    try { return await get_user_avatar(_identity!.deviceId) }
+    try { return await get_user_avatar(_my_user_id!) }
     catch (e) { log_error('user:avatar', e); return null }
   })
   ipcMain.handle('user:save_profile', async (_e, alias: string | null, avatar: string | null) => {
     _alias = alias
     try {
       await Promise.all([
-        save_user_alias(_identity!.deviceId, alias),
-        save_user_avatar(_identity!.deviceId, avatar),
+        save_user_alias(_my_user_id!, alias),
+        save_user_avatar(_my_user_id!, avatar),
       ])
       log_event(`profile saved alias=${alias ?? 'null'} avatar=${avatar ? `${Math.round(avatar.length / 1024)}KB` : 'null'}`)
     } catch (e) { log_error('user:save_profile', e) }
@@ -206,11 +206,11 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     catch (e) { log_error('notice:list', e); return [] }
   })
   ipcMain.handle('notice:create', async (_event, text: string, kind: string) => {
-    try { return await create_notice(identity.deviceId, text, (kind as 'sticker' | 'reply_request' | 'vote') ?? 'sticker') }
+    try { return await create_notice(_my_user_id!, text, (kind as 'sticker' | 'reply_request' | 'vote') ?? 'sticker') }
     catch (e) { log_error('notice:create', e); return null }
   })
   ipcMain.handle('notice:reply', async (_event, noticeId: string, text: string) => {
-    try { await create_reply(noticeId, identity.deviceId, text) }
+    try { await create_reply(noticeId, _my_user_id!, text) }
     catch (e) { log_error('notice:reply', e) }
   })
   ipcMain.handle('notice:update', async (_event, noticeId: string, text: string) => {
@@ -218,7 +218,7 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     catch (e) { log_error('notice:update', e) }
   })
   ipcMain.handle('notice:vote', async (_event, noticeId: string, vote: 'yes' | 'no') => {
-    try { await cast_vote(noticeId, identity.deviceId, vote) }
+    try { await cast_vote(noticeId, _my_user_id!, vote) }
     catch (e) { log_error('notice:vote', e) }
   })
   ipcMain.handle('user:list', async () => {
@@ -230,19 +230,19 @@ function register_ipc(identity: Identity, settingsPath: string): void {
     catch (e) { log_error('chat:list', e); return [] }
   })
   ipcMain.handle('chat:send', async (_event, text: string) => {
-    try { await send_message(identity.deviceId, text) }
+    try { await send_message(_my_user_id!, text) }
     catch (e) { log_error('chat:send', e) }
   })
   ipcMain.handle('chat:delete', async (_event, id: string) => {
-    try { await delete_message(id, identity.deviceId) }
+    try { await delete_message(id, _my_user_id!) }
     catch (e) { log_error('chat:delete', e) }
   })
   ipcMain.handle('chat:has_unread', async () => {
-    try { return await has_unread(identity.deviceId) }
+    try { return await has_unread(_my_user_id!) }
     catch (e) { log_error('chat:has_unread', e); return false }
   })
   ipcMain.handle('chat:add_reader', async () => {
-    try { await add_reader(identity.deviceId) }
+    try { await add_reader(_my_user_id!) }
     catch (e) { log_error('chat:add_reader', e) }
   })
   ipcMain.handle('admin:local_ip', () => get_local_ip())
@@ -295,6 +295,7 @@ app.on('second-instance', (_event, argv, cwd) => {
 })
 
 let _identity: ReturnType<typeof load_identity> | null = null
+let _my_user_id: string | null = null
 let _appInfo: AppInfo = {}
 let _alias: string | null = null
 let _offline_done = false
@@ -407,7 +408,8 @@ app.whenReady().then(async () => {
     const result = await upsert_user(identity.hostname, identity.macAddresses, identity.ip, identity.deviceId, _hub_tag)
     _appInfo = result.appInfo
     _alias = result.alias
-    log_event(`user upsert 완료. app_info=${JSON.stringify(_appInfo)} alias=${_alias ?? 'null'}`)
+    _my_user_id = result.userId
+    log_event(`user upsert 완료. userId=${_my_user_id} app_info=${JSON.stringify(_appInfo)} alias=${_alias ?? 'null'}`)
   } catch (e) {
     log_event(`user upsert failed: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -422,9 +424,9 @@ app.whenReady().then(async () => {
 
   // Supabase Realtime 구독 — 새 채팅 즉시 수신
   subscribe_chat(async (msg) => {
-    if (!_identity || msg.userId === _identity.deviceId) return
+    if (!_my_user_id || msg.userId === _my_user_id) return
     if (!win || !win.isVisible()) {
-      const profile = (await list_users()).find(u => u.deviceId === msg.userId)
+      const profile = (await list_users()).find(u => u.id === msg.userId)
       const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
       show_chat_notification(sender, msg.text)
     } else {
@@ -446,7 +448,7 @@ app.whenReady().then(async () => {
   let _last_notice_time = 0
   log_event(`poll fallback interval: ${_db_check_ms}ms`)
   setInterval(async () => {
-    if (!_identity) return
+    if (!_my_user_id) return
     try {
       // chat 체크
       const msgs = await list_messages()
@@ -454,10 +456,10 @@ app.whenReady().then(async () => {
         const latest = msgs[msgs.length - 1]
         if (_last_chat_time === 0) {
           _last_chat_time = latest.createdAt
-        } else if (latest.createdAt > _last_chat_time && latest.userId !== _identity.deviceId) {
+        } else if (latest.createdAt > _last_chat_time && latest.userId !== _my_user_id) {
           _last_chat_time = latest.createdAt
           if (!win || !win.isVisible()) {
-            const profile = (await list_users()).find(u => u.deviceId === latest.userId)
+            const profile = (await list_users()).find(u => u.id === latest.userId)
             const sender = profile?.alias ?? profile?.hostname ?? '알 수 없음'
             show_chat_notification(sender, latest.text)
           } else {
@@ -473,7 +475,7 @@ app.whenReady().then(async () => {
         const latest_n = notices[0] // list_notices는 최신순
         if (_last_notice_time === 0) {
           _last_notice_time = latest_n.createdAt
-        } else if (latest_n.createdAt > _last_notice_time && latest_n.userId !== _identity.deviceId) {
+        } else if (latest_n.createdAt > _last_notice_time && latest_n.userId !== _my_user_id) {
           _last_notice_time = latest_n.createdAt
           if (!win || !win.isVisible()) {
             show_chat_notification('알림장', '새로운 알림장이 있습니다')
@@ -504,7 +506,7 @@ app.on('before-quit', (event) => {
   const bounds = win?.getBounds()
   if (bounds) _appInfo = { ..._appInfo, width: bounds.width, height: bounds.height }
   void Promise.all([
-    update_app_info(_identity.deviceId, _appInfo),
+    _my_user_id ? update_app_info(_my_user_id, _appInfo) : Promise.resolve(),
     set_user_offline(_identity.macAddresses, _identity.deviceId),
   ]).finally(() => {
     log_event(`user: set offline, app_info saved ${JSON.stringify(_appInfo)}`)

@@ -10,18 +10,18 @@ export function initials_of(profile: UserProfile | null | undefined): string {
   return display_name_of(profile).slice(0, 2).toUpperCase()
 }
 
-export function useUsers(): { get_profile: (deviceId: string) => UserProfile | null; refresh_users: () => void; users_count: number; online_users: UserProfile[] } {
+export function useUsers(): { get_profile: (id: string) => UserProfile | null; refresh_users: () => void; users_count: number; online_users: UserProfile[] } {
   const [map, set_map] = useState<Map<string, UserProfile>>(new Map())
 
   const load = useCallback(() => {
     get_bridge()?.list_users?.()
-      .then((list) => set_map(new Map(list.map((u) => [u.deviceId, u]))))
+      .then((list) => set_map(new Map(list.map((u) => [u.id, u]))))
       .catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const get_profile = useCallback((deviceId: string) => map.get(deviceId) ?? null, [map])
+  const get_profile = useCallback((id: string) => map.get(id) ?? null, [map])
   const online_users = Array.from(map.values()).filter(u => u.isOnline)
 
   return { get_profile, refresh_users: load, users_count: map.size, online_users }

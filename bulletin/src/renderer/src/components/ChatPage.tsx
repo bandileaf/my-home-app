@@ -6,7 +6,7 @@ import { initials_of } from '../hooks/useUsers'
 
 interface ChatPageProps {
   identity: Identity | null
-  get_profile: (deviceId: string) => UserProfile | null
+  get_profile: (id: string) => UserProfile | null
   refresh_users: () => void
   online_users: UserProfile[]
 }
@@ -50,7 +50,7 @@ export function ChatPage({ identity, get_profile, refresh_users, online_users }:
   const bottom_ref = useRef<HTMLDivElement>(null)
   const initialized_ref = useRef(false)
   const prev_count_ref = useRef(0)
-  const my_id = identity?.deviceId
+  const my_id = identity?.userId ?? undefined
 
   function load(): void {
     get_bridge()?.list_chat?.().then(set_messages).catch(() => {})
@@ -96,7 +96,7 @@ export function ChatPage({ identity, get_profile, refresh_users, online_users }:
       <div className="chat-header">
         <div className="chat-online-avatars">
           {online_users.map((u, i) => (
-            <div key={u.deviceId} style={{ marginLeft: i === 0 ? 0 : -16, zIndex: online_users.length - i }}>
+            <div key={u.id} style={{ marginLeft: i === 0 ? 0 : -16, zIndex: online_users.length - i }}>
               <Avatar profile={u} size={36} />
             </div>
           ))}

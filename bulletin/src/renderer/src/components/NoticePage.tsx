@@ -10,7 +10,7 @@ interface NoticePageProps {
   on_reply: (noticeId: string, text: string) => void
   on_edit: (noticeId: string, text: string) => void
   on_vote: (noticeId: string, vote: 'yes' | 'no') => void
-  get_profile: (deviceId: string) => UserProfile | null
+  get_profile: (id: string) => UserProfile | null
 }
 
 const KIND_OPTIONS: { key: NoticeKind; label: string }[] = [
@@ -124,7 +124,7 @@ export function NoticePage({ identity, notices, on_post, on_reply, on_edit, on_v
               key={notice.id}
               notice={notice}
               myIdentity={identity}
-              my_profile={identity ? get_profile(identity.deviceId) : null}
+              my_profile={identity?.userId ? get_profile(identity.userId) : null}
               get_profile={get_profile}
               on_reply={on_reply}
               on_edit={on_edit}

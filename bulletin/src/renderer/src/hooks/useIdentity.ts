@@ -5,7 +5,8 @@ const BROWSER_PREVIEW_IDENTITY: Identity = {
   deviceId: 'preview',
   hostname: 'PREVIEW-PC',
   macAddresses: [],
-  ip: null
+  ip: null,
+  userId: 'preview',
 }
 
 // identity 는 main 프로세스가 hostname/MAC 을 읽어 결정한다 — 이 훅은 그 결과를

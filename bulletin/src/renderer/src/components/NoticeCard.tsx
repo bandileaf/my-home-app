@@ -7,7 +7,7 @@ interface NoticeCardProps {
   notice: Notice
   myIdentity: Identity | null
   my_profile: UserProfile | null
-  get_profile: (deviceId: string) => UserProfile | null
+  get_profile: (id: string) => UserProfile | null
   on_reply: (noticeId: string, text: string) => void
   on_edit: (noticeId: string, text: string) => void
   on_vote: (noticeId: string, vote: 'yes' | 'no') => void
@@ -28,8 +28,8 @@ function Avatar({ profile, size = 40 }: { profile: UserProfile | null; size?: nu
 }
 
 export function NoticeCard({ notice, myIdentity, my_profile, get_profile, on_reply, on_edit, on_vote }: NoticeCardProps): JSX.Element {
-  const is_mine = myIdentity?.deviceId === notice.userId
-  const my_vote = notice.votes.find((v) => v.userId === myIdentity?.deviceId)?.vote ?? null
+  const is_mine = myIdentity?.userId === notice.userId
+  const my_vote = notice.votes.find((v) => v.userId === myIdentity?.userId)?.vote ?? null
   const yes_count = notice.votes.filter((v) => v.vote === 'yes').length
   const no_count  = notice.votes.filter((v) => v.vote === 'no').length
 

@@ -6,6 +6,7 @@ export interface Identity {
   hostname: string
   macAddresses: string[]
   ip: string | null
+  userId: string | null
 }
 
 export interface Reply {
@@ -34,6 +35,7 @@ export interface Notice {
 }
 
 export interface UserProfile {
+  id: string
   deviceId: string
   hostname: string
   alias: string | null
