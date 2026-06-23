@@ -309,8 +309,17 @@ app.whenReady().then(async () => {
   const baseDir = app_dir()
   const settingsPath = join(baseDir, 'settings.json')
   init_log_path(settingsPath)
-  const restart_reason = process.argv.find(a => a.startsWith('--reason='))?.slice('--reason='.length) ?? null
-  log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}${restart_reason ? ` restart-reason=${restart_reason}` : ''}`)
+  const argv = process.argv
+  const reason_flag = argv.find(a => a.startsWith('--reason='))?.slice('--reason='.length) ?? null
+  const startup_reason =
+    argv.includes('--autostart')                          ? 'PC 부팅 자동 실행' :
+    argv.includes('--post-update')                        ? '업데이트 완료 재시작' :
+    reason_flag === 'remote-restart'                      ? '원격 재시작' :
+    reason_flag === 'remote-update'                       ? '원격 업데이트 재시작' :
+    argv.includes('--post-restart')                       ? '재시작' :
+                                                            '수동 실행'
+  log_event(`startup-reason: ${startup_reason}`)
+  log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(argv)}`)
   log_event(`os: Windows ${release()} arch=${arch()} portable_file=${process.env.PORTABLE_EXECUTABLE_FILE ?? '(none)'} portable_dir=${process.env.PORTABLE_EXECUTABLE_DIR ?? '(none)'}`)
   const identity = load_identity()
   _identity = identity
@@ -375,7 +384,7 @@ app.whenReady().then(async () => {
     _hub_tag = typeof raw['hub.tag'] === 'string' ? (raw['hub.tag'] as string) : null
     const autostart = raw['hub.app.bulletin.autostart'] === true
     const exePath = process.env.PORTABLE_EXECUTABLE_FILE ?? app.getPath('exe')
-    app.setLoginItemSettings({ openAtLogin: autostart, path: exePath })
+    app.setLoginItemSettings({ openAtLogin: autostart, path: exePath, args: ['--autostart'] })
     log_event(`autostart: ${autostart}`)
 
     _disabled = raw['hub.disabled'] === true && !_is_admin
