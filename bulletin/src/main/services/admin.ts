@@ -43,7 +43,7 @@ function fetch_status(ip: string): Promise<ClientInfo | null> {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(body) as Omit<ClientInfo, 'ip'>
-          resolve({ ip, has_settings: true, disabled: false, ...parsed })
+          resolve({ ...parsed, ip })
         }
         catch { resolve(null) }
       })

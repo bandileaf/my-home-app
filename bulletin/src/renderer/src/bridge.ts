@@ -38,6 +38,7 @@ export interface UserProfile {
   hostname: string
   alias: string | null
   avatar: string | null
+  isOnline?: boolean
 }
 
 export interface ChatMessage {

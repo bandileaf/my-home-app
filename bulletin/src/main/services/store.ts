@@ -29,6 +29,7 @@ export interface AppInfo {
   width?: number
   height?: number
   theme?: string
+  version?: string
 }
 
 let _client: SupabaseClient | null = null
@@ -142,7 +143,8 @@ export async function upsert_user(
   hostname: string,
   macAddresses: string[],
   ip: string | null,
-  deviceId: string
+  deviceId: string,
+  version: string | null = null,
 ): Promise<{ appInfo: AppInfo; alias: string | null }> {
   const now = Date.now()
 
@@ -164,17 +166,20 @@ export async function upsert_user(
   }
 
   if (existing) {
+    const prevInfo = (existing.app_info as AppInfo) ?? {}
+    const newInfo: AppInfo = version != null ? { ...prevInfo, version } : prevInfo
     await db().from('users').update({
-      hostname, ip, is_online: true, last_seen: now,
+      hostname, ip, is_online: true, last_seen: now, app_info: newInfo,
     }).eq('id', existing.id as string)
-    return { appInfo: (existing.app_info as AppInfo) ?? {}, alias: existing.alias as string | null }
+    return { appInfo: newInfo, alias: existing.alias as string | null }
   } else {
+    const appInfo: AppInfo = version != null ? { version } : {}
     const { error } = await db().from('users').insert({
       hostname, mac_addresses: macAddresses, ip, device_id: deviceId,
-      is_online: true, app_info: {}, last_seen: now, created_at: now,
+      is_online: true, app_info: appInfo, last_seen: now, created_at: now,
     })
     if (error) throw error
-    return { appInfo: {}, alias: null }
+    return { appInfo, alias: null }
   }
 }
 

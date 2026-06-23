@@ -58,9 +58,7 @@ export function App(): JSX.Element {
     refresh_users()
   }
 
-  const close_window    = (): void => get_bridge()?.window_close?.()
   const minimize_window = (): void => get_bridge()?.window_minimize?.()
-  const my_profile = identity ? get_profile(identity.deviceId) : null
 
   const waiting_screen = !has_settings ? <NoSettingsPage /> : is_disabled ? <DisabledPage /> : null
   if (waiting_screen) return (
@@ -124,7 +122,6 @@ export function App(): JSX.Element {
             {page === 'messenger' && (
               <ChatPage
                 identity={identity}
-                my_profile={my_profile}
                 get_profile={get_profile}
                 refresh_users={refresh_users}
                 online_users={online_users}

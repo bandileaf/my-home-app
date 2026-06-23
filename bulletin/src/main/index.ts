@@ -299,6 +299,7 @@ let _offline_done = false
 let _disabled = false
 let _is_admin = false
 let _db_check_ms = 5000
+let _hub_tag: string | null = null
 
 app.whenReady().then(async () => {
   if (!got_lock) return
@@ -371,6 +372,7 @@ app.whenReady().then(async () => {
       ? (raw['hub.bulletin.poll-min'] as number)
       : 10
     _db_check_ms = Math.max(5000, Math.round(dbCheckMin * 60 * 1000))
+    _hub_tag = typeof raw['hub.tag'] === 'string' ? (raw['hub.tag'] as string) : null
     const autostart = raw['hub.app.bulletin.autostart'] === true
     const exePath = process.env.PORTABLE_EXECUTABLE_FILE ?? app.getPath('exe')
     app.setLoginItemSettings({ openAtLogin: autostart, path: exePath })
@@ -393,7 +395,7 @@ app.whenReady().then(async () => {
   }
 
   try {
-    const result = await upsert_user(identity.hostname, identity.macAddresses, identity.ip, identity.deviceId)
+    const result = await upsert_user(identity.hostname, identity.macAddresses, identity.ip, identity.deviceId, _hub_tag)
     _appInfo = result.appInfo
     _alias = result.alias
     log_event(`user upsert 완료. app_info=${JSON.stringify(_appInfo)} alias=${_alias ?? 'null'}`)
