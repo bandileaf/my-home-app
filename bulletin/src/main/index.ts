@@ -180,7 +180,7 @@ function log_error(label: string, e: unknown): void {
 
 function register_ipc(identity: Identity, settingsPath: string): void {
   ipcMain.on('window:close',       () => win?.hide())
-  ipcMain.on('window:minimize',    () => win?.minimize())
+  ipcMain.on('window:minimize',    () => win?.hide())
   ipcMain.handle('app:has_settings', () => existsSync(settingsPath))
   ipcMain.handle('app:disabled',     () => _disabled)
   ipcMain.handle('app:name',     (): string => app_display_name())
