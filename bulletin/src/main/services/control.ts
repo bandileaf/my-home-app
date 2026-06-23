@@ -15,10 +15,10 @@ export interface ControlContext {
   log: (msg: string) => void
 }
 
-function relaunch(ctx: ControlContext): void {
+function relaunch(ctx: ControlContext, reason: string): void {
   const execPath = process.env.PORTABLE_EXECUTABLE_FILE ?? undefined
-  ctx.log(`control: relaunch execPath=${execPath ?? '(default)'}`)
-  app.relaunch({ ...(execPath ? { execPath } : {}), args: process.argv.slice(1).concat(['--post-restart']) })
+  ctx.log(`control: relaunch reason=${reason} execPath=${execPath ?? '(default)'}`)
+  app.relaunch({ ...(execPath ? { execPath } : {}), args: process.argv.slice(1).concat([`--post-restart`, `--reason=${reason}`]) })
 }
 
 function read_body(req: IncomingMessage): Promise<string> {
@@ -99,7 +99,7 @@ export function start_control_server(ctx: ControlContext): void {
       if (method === 'POST' && url === '/restart') {
         send_json(res, 200, { ok: true })
         ctx.log('control: restart requested remotely')
-        setTimeout(() => { relaunch(ctx); app.quit() }, 500)
+        setTimeout(() => { relaunch(ctx, 'remote-restart'); app.quit() }, 500)
         return
       }
       if (method === 'POST' && url === '/update') {
@@ -110,7 +110,7 @@ export function start_control_server(ctx: ControlContext): void {
         } catch { /* settings 없으면 그냥 재시작 */ }
         send_json(res, 200, { ok: true })
         ctx.log('control: update triggered — hub.tag cleared, restarting...')
-        setTimeout(() => { relaunch(ctx); app.quit() }, 500)
+        setTimeout(() => { relaunch(ctx, 'remote-update'); app.quit() }, 500)
         return
       }
       send_json(res, 404, { error: 'not found' })

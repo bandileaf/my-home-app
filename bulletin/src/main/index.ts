@@ -309,7 +309,8 @@ app.whenReady().then(async () => {
   const baseDir = app_dir()
   const settingsPath = join(baseDir, 'settings.json')
   init_log_path(settingsPath)
-  log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}`)
+  const restart_reason = process.argv.find(a => a.startsWith('--reason='))?.slice('--reason='.length) ?? null
+  log_event(`app ready. packaged=${app.isPackaged} appDir=${baseDir} argv=${JSON.stringify(process.argv)}${restart_reason ? ` restart-reason=${restart_reason}` : ''}`)
   log_event(`os: Windows ${release()} arch=${arch()} portable_file=${process.env.PORTABLE_EXECUTABLE_FILE ?? '(none)'} portable_dir=${process.env.PORTABLE_EXECUTABLE_DIR ?? '(none)'}`)
   const identity = load_identity()
   _identity = identity
