@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, RotateCcw, Download, Upload, FolderInput, PauseCircle, PlayCircle, FileText, Loader2, Check, X } from 'lucide-react'
+import { RefreshCw, RotateCcw, Download, Upload, FolderInput, PauseCircle, PlayCircle, FileText, Loader2, Check, X, Copy } from 'lucide-react'
 import type { ClientInfo } from '../bridge'
 import { get_bridge } from '../bridge'
 
@@ -20,7 +20,8 @@ export function AdminPage(): JSX.Element {
   const [local_disabled, set_local_disabled] = useState<Record<string, boolean>>({})
   const [settings_text, set_settings_text] = useState('')
   const [settings_from, set_settings_from] = useState<string | null>(null)
-  const [settings_loaded, set_settings_loaded] = useState(false)
+  const [settings_ip, set_settings_ip] = useState<string | null>(null)
+  const [copied, set_copied] = useState(false)
   const [log_text, set_log_text] = useState<string | null>(null)
   const [log_from, set_log_from] = useState<string | null>(null)
 
@@ -33,11 +34,8 @@ export function AdminPage(): JSX.Element {
     set_btn(b => ({ ...b, [key]: state }))
   }
 
-  async function run_cmd(key: string, ip: string, path: string, body?: unknown): Promise<boolean> {
-    set_b(key, 'loading')
-    const result = await get_bridge()?.admin_command?.(ip, path, body) ?? { ok: false }
-    set_b(key, result.ok ? 'ok' : 'error')
-    return result.ok
+  function reset_settings(): void {
+    set_settings_ip(null)
   }
 
   async function wait_for_status(ip: string, timeout_ms = 15000): Promise<boolean> {
@@ -51,6 +49,7 @@ export function AdminPage(): JSX.Element {
   }
 
   async function restart_and_wait(key: string, ip: string, path = '/restart'): Promise<void> {
+    reset_settings()
     set_b(key, 'loading')
     const result = await get_bridge()?.admin_command?.(ip, path, {}) ?? { ok: false }
     if (!result.ok) { set_b(key, 'error'); return }
@@ -63,9 +62,9 @@ export function AdminPage(): JSX.Element {
     set_clients([])
     set_btn({})
     set_local_disabled({})
-    set_settings_loaded(false)
     set_settings_text('')
     set_settings_from(null)
+    set_settings_ip(null)
     set_log_text(null)
     set_log_from(null)
     const found = await get_bridge()?.admin_scan?.() ?? []
@@ -74,6 +73,7 @@ export function AdminPage(): JSX.Element {
   }
 
   async function toggle_disable(ip: string, currently_disabled: boolean): Promise<void> {
+    reset_settings()
     const key = ip + '/toggle'
     const path = currently_disabled ? '/enable' : '/disable'
     set_b(key, 'loading')
@@ -89,6 +89,7 @@ export function AdminPage(): JSX.Element {
   }
 
   async function fetch_log(ip: string, hostname: string): Promise<void> {
+    reset_settings()
     const key = ip + '/log'
     set_b(key, 'loading')
     const text = await get_bridge()?.admin_fetch_log?.(ip) ?? null
@@ -98,28 +99,30 @@ export function AdminPage(): JSX.Element {
     set_b(key, 'ok')
   }
 
-  async function import_settings(ip: string, hostname: string): Promise<void> {
-    const key = ip + '/import'
+  async function get_settings(ip: string, hostname: string): Promise<void> {
+    const key = ip + '/settings-get'
     set_b(key, 'loading')
     const text = await get_bridge()?.admin_fetch_settings?.(ip) ?? null
     if (text === null) { set_b(key, 'error'); return }
     try { set_settings_text(JSON.stringify(JSON.parse(text), null, 2)) }
     catch { set_settings_text(text) }
     set_settings_from(hostname)
-    set_settings_loaded(true)
+    set_settings_ip(ip)
     set_b(key, 'ok')
   }
 
-  async function export_settings(ip: string): Promise<void> {
+  async function save_settings(ip: string): Promise<void> {
+    const key = ip + '/settings-get'
     try {
       const parsed = JSON.parse(settings_text)
-      await run_cmd(ip + '/settings', ip, '/settings', parsed)
+      set_b(key, 'loading')
+      const result = await get_bridge()?.admin_command?.(ip, '/settings', parsed) ?? { ok: false }
+      set_b(key, result.ok ? 'ok' : 'error')
+      if (result.ok) set_settings_ip(null)
     } catch {
-      set_b(ip + '/settings', 'error')
+      set_b(key, 'error')
     }
   }
-
-  const has_settings = settings_text.trim().length > 0
 
   function handle_tab(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
     if (e.key !== 'Tab') return
@@ -164,6 +167,9 @@ export function AdminPage(): JSX.Element {
             {clients.map(c => {
               const is_disabled = local_disabled[c.ip] ?? c.disabled
               const toggle_state = btn[c.ip + '/toggle'] ?? 'idle'
+              const is_settings_loaded = settings_ip === c.ip
+              const settings_key = c.ip + '/settings-get'
+              const settings_state = btn[settings_key] ?? 'idle'
 
               let toggle_icon: React.ReactNode
               let toggle_label: string
@@ -208,17 +214,23 @@ export function AdminPage(): JSX.Element {
                     <button className="admin-btn" disabled={btn[c.ip + '/log'] === 'loading'} onClick={() => void fetch_log(c.ip, c.hostname)}>
                       <BtnIcon state={btn[c.ip + '/log'] ?? 'idle'} idle={<FileText size={13} />} /> 로그
                     </button>
-                    <button className="admin-btn" disabled={btn[c.ip + '/import'] === 'loading'} onClick={() => void import_settings(c.ip, c.hostname)}>
-                      <BtnIcon state={btn[c.ip + '/import'] ?? 'idle'} idle={<FolderInput size={13} />} /> 가져오기
-                    </button>
-                    <button
-                      className="admin-btn admin-btn-export"
-                      disabled={!has_settings || btn[c.ip + '/settings'] === 'loading'}
-                      title={has_settings ? '' : '먼저 가져오기로 설정을 불러오세요'}
-                      onClick={() => void export_settings(c.ip)}
-                    >
-                      <BtnIcon state={btn[c.ip + '/settings'] ?? 'idle'} idle={<Upload size={13} />} /> 내보내기
-                    </button>
+                    {is_settings_loaded ? (
+                      <button
+                        className="admin-btn admin-btn-export"
+                        disabled={settings_state === 'loading'}
+                        onClick={() => void save_settings(c.ip)}
+                      >
+                        <BtnIcon state={settings_state} idle={<Upload size={13} />} /> 설정저장
+                      </button>
+                    ) : (
+                      <button
+                        className="admin-btn"
+                        disabled={settings_state === 'loading'}
+                        onClick={() => void get_settings(c.ip, c.hostname)}
+                      >
+                        <BtnIcon state={settings_state} idle={<FolderInput size={13} />} /> 설정얻기
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -227,10 +239,17 @@ export function AdminPage(): JSX.Element {
         </>
       )}
 
-      {settings_loaded && (
+      {settings_text.trim().length > 0 && (
         <div className="admin-settings-panel">
           <div className="admin-settings-label">
-            {settings_from ? `${settings_from} 에서 가져온 설정` : '로컬 설정'}
+            {settings_from ? `${settings_from} 설정` : '설정'}
+            <button className="admin-copy-btn" onClick={() => {
+              void navigator.clipboard.writeText(settings_text)
+              set_copied(true)
+              setTimeout(() => set_copied(false), 1500)
+            }}>
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+            </button>
           </div>
           <textarea
             className="admin-settings-editor"

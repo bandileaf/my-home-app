@@ -860,6 +860,8 @@ body {
 }
 .admin-scan-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .admin-subnet { font-size: 13px; color: var(--text-muted); font-family: monospace; margin-right: 4px; }
+.admin-copy-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; margin-left: 6px; }
+.admin-copy-btn:hover { color: var(--accent); }
 
 .admin-toolbar {
   display: flex;
