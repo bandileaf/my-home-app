@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, X, Trash2, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Trash2, Check } from 'lucide-react'
 import type { Identity, Schedule, UserProfile } from '../bridge'
 import { display_name_of, initials_of } from '../hooks/useUsers'
 
@@ -141,9 +141,6 @@ export function CalendarPage({ identity, schedules, get_profile, on_create, on_d
           <span className="cal-month-label">{year}년 {MONTHS_KO[month]}</span>
           <button className="cal-nav-btn" onClick={next_month}><ChevronRight size={17} /></button>
           <div style={{ flex: 1 }} />
-          <button className="cal-add-btn" onClick={() => open_compose(selected)}>
-            <Plus size={14} /> 추가
-          </button>
         </div>
 
         <div className="cal-dow-row">
