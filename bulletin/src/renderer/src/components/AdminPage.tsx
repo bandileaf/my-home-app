@@ -138,15 +138,17 @@ export function AdminPage(): JSX.Element {
     <div className="page admin-page">
       <div className="page-head">
         <h2>관리페이지</h2>
-        {local_ip && (
-          <span className="admin-subnet">
-            {scanning ? local_ip : `${local_ip.split('.').slice(0, 3).join('.')}.x`}
-          </span>
-        )}
-        <button className="admin-scan-btn" onClick={scan} disabled={scanning}>
-          <RefreshCw size={16} className={scanning ? 'spin' : ''} />
-          {scanning ? '스캔 중...' : '네트워크 스캔'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {local_ip && (
+            <span className="admin-subnet">
+              {scanning ? local_ip : `${local_ip.split('.').slice(0, 3).join('.')}.x`}
+            </span>
+          )}
+          <button className="admin-scan-btn" onClick={scan} disabled={scanning}>
+            <RefreshCw size={16} className={scanning ? 'spin' : ''} />
+            {scanning ? '스캔 중...' : '네트워크 스캔'}
+          </button>
+        </div>
       </div>
 
       {clients.length === 0 && !scanning && (
