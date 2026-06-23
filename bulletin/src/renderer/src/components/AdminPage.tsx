@@ -139,7 +139,9 @@ export function AdminPage(): JSX.Element {
       <div className="page-head">
         <h2>관리페이지</h2>
         {local_ip && (
-          <span className="admin-subnet">{local_ip.split('.').slice(0, 3).join('.')}.x</span>
+          <span className="admin-subnet">
+            {scanning ? local_ip : `${local_ip.split('.').slice(0, 3).join('.')}.x`}
+          </span>
         )}
         <button className="admin-scan-btn" onClick={scan} disabled={scanning}>
           <RefreshCw size={16} className={scanning ? 'spin' : ''} />
