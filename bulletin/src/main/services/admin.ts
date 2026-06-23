@@ -63,7 +63,7 @@ export async function scan_subnet(): Promise<ClientInfo[]> {
   const reachable: string[] = []
   for (let i = 0; i < ips.length; i += BATCH) {
     const results = await Promise.all(
-      ips.slice(i, i + BATCH).map(ip => probe_tcp(ip, 61799, 300).then(ok => ok ? ip : null))
+      ips.slice(i, i + BATCH).map(ip => probe_tcp(ip, 61799, 800).then(ok => ok ? ip : null))
     )
     reachable.push(...results.filter((ip): ip is string => ip !== null))
   }
