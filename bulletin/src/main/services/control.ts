@@ -39,6 +39,8 @@ function send_json(res: ServerResponse, status: number, data: unknown): void {
 export function start_control_server(ctx: ControlContext): void {
   const server = createServer(async (req, res) => {
     const { method, url } = req
+    const from = req.socket.remoteAddress ?? '?'
+    ctx.log(`control: ${method} ${url} from=${from}`)
     try {
       if (method === 'GET' && url === '/status') {
         send_json(res, 200, {
@@ -113,8 +115,10 @@ export function start_control_server(ctx: ControlContext): void {
         setTimeout(() => { relaunch(ctx, 'remote-update'); app.quit() }, 500)
         return
       }
+      ctx.log(`control: 404 ${method} ${url}`)
       send_json(res, 404, { error: 'not found' })
     } catch (e) {
+      ctx.log(`control: error ${method} ${url} — ${String(e)}`)
       send_json(res, 500, { error: String(e) })
     }
   })

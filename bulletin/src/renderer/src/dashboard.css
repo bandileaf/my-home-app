@@ -1049,7 +1049,7 @@ body {
 .cal-cell:hover { background: var(--hover); }
 .cal-cell-empty { pointer-events: none; background: color-mix(in srgb, var(--surface) 40%, transparent); }
 .cal-cell-selected:not(.cal-cell-today) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.cal-cell-today .cal-day-num { background: var(--accent); color: #fff !important; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.cal-cell-today { background: color-mix(in srgb, var(--accent) 14%, transparent) !important; }
 .cal-day-num { font-size: 12px; color: var(--text); line-height: 1; min-width: 22px; text-align: center; flex: 1; }
 .cal-cell-sun .cal-day-num { color: #ef4444; }
 .cal-cell-sat .cal-day-num { color: #3b82f6; }
