@@ -16,8 +16,6 @@ FamilyHub: a home hub for sharing all the software a family needs. `media` is th
 ```
 my-home-app/
 ├── settings.json         ← local config (gitignored — contains Supabase credentials)
-├── shared/
-│   └── update.ts         ← shared self-update logic used by both apps
 ├── media/                ← utility app (Electron + React → family_media.exe)
 │   ├── src/
 │   │   ├── main/
@@ -28,14 +26,19 @@ my-home-app/
 │   │       └── panels/   ← EditorPanel, MusicSearchPanel, YoutubeSearchPanel, ConvertPanel
 │   ├── electron-builder.yml
 │   └── package.json
-├── bulletin/             ← family notice board (Electron + React → family_bulletin.exe)
-│   ├── src/
-│   │   ├── main/
-│   │   │   └── services/ ← identity.ts, store.ts, control.ts, admin.ts
-│   │   ├── preload/      ← index.ts + toast.ts
-│   │   └── renderer/
-│   │       └── components/ ← NoticePage, ChatPage, AdminPage, NoSettingsPage, Sidebar, NavRound, Dots
-│   ├── electron-builder.yml
+├── bulletin/             ← family notice board (Tauri v2, Rust + React → family_bulletin.exe)
+│   ├── index.html        ← 진입점 HTML
+│   ├── src-ui/           ← React 프론트엔드
+│   │   ├── main.tsx      ← label='main'→App, label='toast'→ToastApp
+│   │   ├── App.tsx
+│   │   ├── Toast.tsx     ← 토스트 알림 창 (동적 생성/삭제)
+│   │   ├── hooks/        ← useNotices, useChat, useSchedules, useUsers
+│   │   └── components/   ← NoticePage, ChatPage, CalendarPage, AdminPage, Sidebar 등
+│   ├── src-tauri/        ← Rust 백엔드
+│   │   └── src/
+│   │       ├── lib.rs    ← AppState, 명령 등록, 폴링, 제어 서버
+│   │       ├── core/     ← system, db, http, notify, scheduler, update, window
+│   │       └── modules/  ← notice, chat, calendar, user, admin
 │   └── package.json
 └── .github/
     └── workflows/release.yml  ← auto build + release on tag push
@@ -51,7 +54,8 @@ my-home-app/
 
 ## How Self-Update Works
 
-Each app updates **independently** using `shared/update.ts`.
+- **media**: `shared/update.ts`
+- **bulletin**: `bulletin/src-tauri/src/core/update.rs` (Rust)
 
 ```
 app starts
@@ -61,25 +65,26 @@ app starts
   4. hub.tag 와 다르면 → hub.<appKey>.zip 다운로드
      (bulletin: hub.bulletin.zip / media: hub.media.zip)
   5. 압축 해제 → <exe>_update.bat 실행
-     (예: family_bulletin_update.bat)
   6. 배치: 앱 종료 → exe 교체 → 재시작
   7. hub.tag 갱신
 ```
 
 ## bulletin: Control Server (port 61799)
 
-`bulletin/src/main/services/control.ts` — 모든 클라이언트가 시작 시 자동으로 HTTP 서버 실행.
+`bulletin/src-tauri/src/lib.rs` — 모든 클라이언트가 시작 시 자동으로 HTTP 서버 실행.
 
-- `GET /status` → `{ deviceId, hostname, version }`
-- `GET /settings` → settings.json 내용 (없으면 `{}`)
-- `POST /settings` → settings.json 교체 후 `app.relaunch()`
+- `GET /status` → `{ deviceId, hostname, version, has_settings, disabled }`
+- `GET /settings` → settings.json 내용
+- `GET /log` → 로그 파일 내용
+- `POST /settings` → settings.json 교체 후 `settings_changed` 이벤트 emit
 - `POST /restart` → 앱 재시작
-- `POST /update` → 업데이트 강제 실행
+- `POST /update` → hub.tag 초기화 후 재시작
+- `POST /disable` / `POST /enable` → 비활성화/활성화
 
 ## bulletin: Admin Panel
 
 `hub.app.bulletin.admin: true` (로컬 settings.json에만) → Shield 아이콘 표시.
-`bulletin/src/main/services/admin.ts` — 서브넷 스캔 + 원격 명령 전송.
+`bulletin/src-tauri/src/modules/admin.rs` — 서브넷 스캔 + 원격 명령 전송.
 
 ## bulletin: Bootstrap (No settings.json)
 
@@ -91,22 +96,24 @@ app starts
 
 - settings.json 있음: 시작 시 창 숨김 (트레이 상주)
 - X 버튼: 창 숨김 (종료 아님)
-- 트레이 클릭 / 더블클릭: 창 표시
+- 트레이 클릭: 창 표시
 - 종료: 트레이 우클릭 메뉴 → 종료
 
 ## Dev Commands
 
 ```bash
 cd bulletin
-npm run dev:web    # http://localhost:5174
-npm run typecheck
-npm run build:win
+npm run dev          # Tauri dev (http://localhost:1420)
+npm run build:exe    # exe만 빌드 → release/ 복사
 
 cd media
-npm run dev:web    # http://localhost:5173
+npm run dev:web      # http://localhost:5173
 npm run typecheck
 npm run build:win
 ```
+
+> **bulletin 빌드 주의**: 반드시 `npm run build:exe`를 쓸 것.
+> `cargo build --release` 직접 실행 시 프론트엔드가 embed되지 않아 앱이 localhost에 연결을 시도한다.
 
 ## UI Icons
 
