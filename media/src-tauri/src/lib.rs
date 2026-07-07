@@ -242,7 +242,7 @@ fn watch_file(path: String, app: AppHandle, state: AS<'_>) {
     state.file_watch.lock().unwrap().insert(path.clone(), Arc::clone(&cancel));
 
     let path_clone = path.clone();
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let mut last_modified = std::fs::metadata(&path_clone)
             .and_then(|m| m.modified()).ok();
         loop {
@@ -353,7 +353,7 @@ fn youtube_download(url: String, audio_format: String, app: AppHandle, state: AS
     let app2 = app.clone();
     let app3 = app.clone();
 
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let u1 = url.clone();
         let u2 = url.clone();
         let u3 = url.clone();
@@ -384,7 +384,7 @@ fn youtube_download_video(url: String, app: AppHandle, state: AS<'_>) {
     let app2 = app.clone();
     let app3 = app.clone();
 
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let u1 = url.clone();
         let u2 = url.clone();
         let u3 = url.clone();
@@ -436,7 +436,7 @@ fn youtube_open_url(url: String) {
 #[tauri::command]
 fn convert_scan_folder(dir: String, target_ext: String, app: AppHandle, state: AS<'_>) {
     let mp3val = mp3val_path(&state);
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         conv::scan_folder(
             std::path::Path::new(&dir),
             &target_ext,
@@ -466,7 +466,7 @@ fn convert_start(
     let app2 = app.clone();
     let app3 = app.clone();
 
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let s0 = src_path.clone();
         let s1 = src_path.clone();
         let s2 = src_path.clone();
@@ -511,6 +511,14 @@ pub fn run() {
     let app_dir       = system::app_dir();
     let log_path      = system::log_path(&app_dir);
     let settings_path = system::settings_path(&app_dir);
+
+    // Catch panics and write to log before the process dies
+    {
+        let lp = log_path.clone();
+        std::panic::set_hook(Box::new(move |info| {
+            system::log(&lp, &format!("PANIC: {}", info));
+        }));
+    }
 
     let initial_bins_status: Vec<BinStatusEntry> = bins::BINS.iter().map(|b| BinStatusEntry {
         name:    b.name.to_string(),
@@ -589,7 +597,7 @@ pub fn run() {
             let state2 = state.clone();
 
             // Auto-start bins installation in background
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 let bins_dir = bins::bins_dir(&state2.app_dir);
                 let h = handle.clone();
                 let s = state2.clone();
@@ -623,5 +631,7 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error running tauri app");
+        .unwrap_or_else(|e| {
+            system::log(&log_path, &format!("fatal: {}", e));
+        });
 }
