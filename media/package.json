@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tsc && vite build",
-    "build:exe": "tauri build --no-bundle && copy src-tauri\\target\\release\\family_media.exe release\\",
+    "build:exe": "md ..\\release 2>nul & del /q ..\\release\\family_media.exe 2>nul & tauri build --no-bundle && copy src-tauri\\target\\release\\family_media.exe ..\\release\\",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
