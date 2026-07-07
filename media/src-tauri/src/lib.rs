@@ -118,13 +118,15 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
         .filter(|d| !std::path::Path::new(d).exists())
         .cloned().collect();
 
+    // Clear entries so search starts fresh; new dirs become searchable as each one completes
+    state.entries.write().await.clear();
+
     let state_clone = Arc::clone(&state);
     let app_clone   = app.clone();
 
     // Run scan in background (blocking thread)
     let handle = tokio::task::spawn_blocking(move || {
-        let mut all_entries: Vec<FileEntry> = vec![];
-        let mut total_scanned = 0u64;
+        let mut total_scanned  = 0u64;
         let mut total_excluded = 0u64;
 
         for root in &dirs {
@@ -143,8 +145,8 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
                 let in_dir: Vec<FileEntry> = saved.into_iter()
                     .filter(|e| indexer::is_under_dir(root, &e.full_path))
                     .collect();
-                total_scanned  += in_dir.len() as u64;
-                all_entries.extend(in_dir);
+                total_scanned += in_dir.len() as u64;
+                state_clone.entries.blocking_write().extend(in_dir);
                 continue;
             }
 
@@ -157,7 +159,7 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
             total_scanned  += scanned;
             total_excluded += excluded;
 
-            // persist to DB
+            // Persist to DB
             {
                 let g = state_clone.db.lock().unwrap();
                 if let Some(c) = g.as_ref() {
@@ -166,21 +168,21 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
                     let _ = db::checkpoint_dir(c, root, &excl_sig);
                 }
             }
-            all_entries.extend(dir_entries);
+            // Make this dir's files searchable immediately
+            state_clone.entries.blocking_write().extend(dir_entries);
         }
 
-        let summary = IndexSummary {
+        let indexed = state_clone.entries.blocking_read().len() as u64;
+        IndexSummary {
             scanned:    total_scanned,
-            indexed:    all_entries.len() as u64,
+            indexed,
             excluded:   total_excluded,
             has_target: !dirs.is_empty(),
             missing,
-        };
-        (all_entries, summary)
+        }
     });
 
-    let (entries, summary) = handle.await.map_err(|e| e.to_string())?;
-    *state.entries.write().await = entries;
+    let summary = handle.await.map_err(|e| e.to_string())?;
     *state.last_summary.write().await = Some(summary.clone());
     state.scanning.store(false, Ordering::SeqCst);
 
@@ -614,16 +616,33 @@ pub fn run() {
 
                 *state2.bins_ready.lock().unwrap() = Some(result);
 
-                // Auto-index after bins ready, if settings exist
+                // Restore previous session's index from DB
                 if state2.settings_path.exists() {
                     let settings = system::read_settings(&state2.settings_path);
-                    let ms = system::load_music_settings(&settings);
-                    let db_path = system::db_path(&state2.app_dir, &settings);
-                    let mut guard = state2.db.lock().unwrap();
-                    if guard.is_none() {
-                        if let Ok(conn) = db::open_db(&db_path) {
-                            *guard = Some(conn);
+                    let ms       = system::load_music_settings(&settings);
+                    let db_path  = system::db_path(&state2.app_dir, &settings);
+
+                    // Scope the MutexGuard so it's dropped before any await
+                    let (entries, summary) = {
+                        let mut guard = state2.db.lock().unwrap();
+                        if guard.is_none() {
+                            if let Ok(conn) = db::open_db(&db_path) {
+                                *guard = Some(conn);
+                            }
                         }
+                        if let Some(conn) = guard.as_ref() {
+                            (db::load_entries(conn), db::load_summary(conn))
+                        } else {
+                            (vec![], None)
+                        }
+                        // guard dropped here
+                    };
+
+                    *state2.entries.write().await      = entries;
+                    *state2.current_dirs.write().await = ms.search_directories;
+                    *state2.current_excl.write().await = ms.exclude;
+                    if let Some(s) = summary {
+                        *state2.last_summary.write().await = Some(s);
                     }
                 }
             });
