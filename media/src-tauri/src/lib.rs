@@ -14,6 +14,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::RwLock;
+use notify::{EventKind, RecursiveMode, Watcher};
+use notify::event::{ModifyKind, RenameMode};
 
 // ── AppState ──────────────────────────────────────────────────────────────────
 
@@ -34,8 +36,10 @@ pub struct AppState {
     pub dl_audio:     Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub dl_video:     Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub cvt_cancel:   Mutex<HashMap<String, Arc<AtomicBool>>>,
-    // file watch
+    // file watch (individual files for settings editor etc.)
     pub file_watch:   Mutex<HashMap<String, Arc<AtomicBool>>>,
+    // directory watcher (notify-based, kept alive as long as watcher is active)
+    pub dir_watcher:  Mutex<Option<notify::RecommendedWatcher>>,
 }
 
 impl AppState {
@@ -50,6 +54,68 @@ type AS<'r> = State<'r, Arc<AppState>>;
 
 fn with_db<T, F: FnOnce(&rusqlite::Connection) -> T>(state: &AppState, f: F) -> Option<T> {
     state.db.lock().ok().and_then(|g| g.as_ref().map(f))
+}
+
+fn start_dir_watch(
+    dirs:    Vec<String>,
+    exclude: globset::GlobSet,
+    state:   Arc<AppState>,
+    app:     AppHandle,
+) {
+    // Drop previous watcher before creating a new one
+    *state.dir_watcher.lock().unwrap() = None;
+    if dirs.is_empty() { return; }
+
+    let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
+    let mut watcher = match notify::RecommendedWatcher::new(tx, notify::Config::default()) {
+        Ok(w)  => w,
+        Err(_) => return,
+    };
+    for dir in &dirs {
+        let _ = watcher.watch(std::path::Path::new(dir), RecursiveMode::Recursive);
+    }
+    *state.dir_watcher.lock().unwrap() = Some(watcher);
+
+    std::thread::spawn(move || {
+        for res in rx {
+            let Ok(event) = res else { continue };
+
+            let is_add = matches!(&event.kind,
+                EventKind::Create(_) |
+                EventKind::Modify(ModifyKind::Name(RenameMode::To))
+            );
+            let is_remove = matches!(&event.kind,
+                EventKind::Remove(_) |
+                EventKind::Modify(ModifyKind::Name(RenameMode::From))
+            );
+
+            for path in &event.paths {
+                if is_add {
+                    if !path.is_file() { continue; }
+                    let rel = dirs.iter()
+                        .find_map(|d| path.strip_prefix(d).ok())
+                        .map(|r| indexer::to_posix(&r.to_string_lossy()))
+                        .unwrap_or_default();
+                    if exclude.is_match(&rel) { continue; }
+
+                    if let Some(entry) = indexer::entry_from_path(path) {
+                        { let g = state.db.lock().unwrap(); if let Some(c) = g.as_ref() { let _ = db::upsert_entry(c, &entry); } }
+                        let mut entries = state.entries.blocking_write();
+                        match entries.iter_mut().find(|e| e.full_path == entry.full_path) {
+                            Some(e) => *e = entry.clone(),
+                            None    => entries.push(entry.clone()),
+                        }
+                        let _ = app.emit("index:changed", serde_json::json!({ "added": entry.full_path }));
+                    }
+                } else if is_remove {
+                    let path_str = path.to_string_lossy().to_string();
+                    { let g = state.db.lock().unwrap(); if let Some(c) = g.as_ref() { let _ = db::delete_entry(c, &path_str); } }
+                    state.entries.blocking_write().retain(|e| e.full_path != path_str);
+                    let _ = app.emit("index:changed", serde_json::json!({ "removed": path_str }));
+                }
+            }
+        }
+    });
 }
 
 // ── commands: settings ────────────────────────────────────────────────────────
@@ -94,8 +160,8 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
     let settings = system::read_settings(&state.settings_path);
     let ms = system::load_music_settings(&settings);
 
-    *state.current_dirs.write().await  = ms.search_directories.clone();
-    *state.current_excl.write().await  = ms.exclude.clone();
+    *state.current_dirs.write().await = ms.search_directories.clone();
+    *state.current_excl.write().await = ms.exclude.clone();
 
     let db_path = system::db_path(&state.app_dir, &settings);
     {
@@ -105,26 +171,21 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
         }
     }
 
-    let dirs     = ms.search_directories.clone();
-    let excludes = ms.exclude.clone();
-    let exclude  = indexer::build_excluder(&excludes);
-    let excl_sig = {
-        let mut v = excludes.clone();
-        v.sort();
-        v.join("|")
-    };
+    let dirs    = ms.search_directories.clone();
+    let excl    = ms.exclude.clone();
+    let exclude = indexer::build_excluder(&excl);
 
     let missing: Vec<String> = dirs.iter()
         .filter(|d| !std::path::Path::new(d).exists())
         .cloned().collect();
 
-    // Clear entries so search starts fresh; new dirs become searchable as each one completes
+    // Clear in-memory entries; dirs become searchable one-by-one as they complete
     state.entries.write().await.clear();
 
     let state_clone = Arc::clone(&state);
     let app_clone   = app.clone();
+    let excl_clone  = exclude.clone();
 
-    // Run scan in background (blocking thread)
     let handle = tokio::task::spawn_blocking(move || {
         let mut total_scanned  = 0u64;
         let mut total_excluded = 0u64;
@@ -132,62 +193,58 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
         for root in &dirs {
             if !std::path::Path::new(root).exists() { continue; }
 
-            let already_done = {
+            // Load existing path→mtime map for incremental comparison
+            let existing = {
                 let g = state_clone.db.lock().unwrap();
-                g.as_ref().map(|c| db::is_dir_done(c, root, &excl_sig)).unwrap_or(false)
+                g.as_ref().map(|c| db::load_modified_for_dir(c, root)).unwrap_or_default()
             };
 
-            if already_done {
-                let saved: Vec<FileEntry> = {
-                    let g = state_clone.db.lock().unwrap();
-                    g.as_ref().map(|c| db::load_entries(c)).unwrap_or_default()
-                };
-                let in_dir: Vec<FileEntry> = saved.into_iter()
-                    .filter(|e| indexer::is_under_dir(root, &e.full_path))
-                    .collect();
-                total_scanned += in_dir.len() as u64;
-                state_clone.entries.blocking_write().extend(in_dir);
-                continue;
-            }
+            let mut new_entries:   Vec<FileEntry> = vec![];
+            let mut deleted_paths: Vec<String>    = vec![];
 
-            let mut dir_entries: Vec<FileEntry> = vec![];
             let on_progress = {
                 let app = app_clone.clone();
                 move |p: IndexProgress| { let _ = app.emit("index:progress", &p); }
             };
-            let (scanned, excluded) = indexer::scan_dir(root, &exclude, &on_progress, &mut dir_entries);
+
+            let (scanned, excluded) = indexer::scan_dir_incremental(
+                root, &excl_clone, &on_progress,
+                &existing, &mut new_entries, &mut deleted_paths,
+            );
             total_scanned  += scanned;
             total_excluded += excluded;
 
-            // Persist to DB
+            // Persist only changes to DB
             {
                 let g = state_clone.db.lock().unwrap();
                 if let Some(c) = g.as_ref() {
-                    let _ = db::delete_entries_for_dir(c, root);
-                    let _ = db::upsert_entries(c, &dir_entries);
-                    let _ = db::checkpoint_dir(c, root, &excl_sig);
+                    if !new_entries.is_empty()   { let _ = db::upsert_entries(c, &new_entries); }
+                    if !deleted_paths.is_empty() { let _ = db::delete_entries_batch(c, &deleted_paths); }
                 }
             }
-            // Make this dir's files searchable immediately
+
+            // Load final state for this dir from DB and make it searchable
+            let dir_entries = {
+                let g = state_clone.db.lock().unwrap();
+                g.as_ref().map(|c| db::load_entries_for_dir(c, root)).unwrap_or_default()
+            };
             state_clone.entries.blocking_write().extend(dir_entries);
         }
 
         let indexed = state_clone.entries.blocking_read().len() as u64;
-        IndexSummary {
-            scanned:    total_scanned,
-            indexed,
-            excluded:   total_excluded,
-            has_target: !dirs.is_empty(),
-            missing,
-        }
+        IndexSummary { scanned: total_scanned, indexed, excluded: total_excluded, has_target: !dirs.is_empty(), missing }
     });
 
     let summary = handle.await.map_err(|e| e.to_string())?;
     *state.last_summary.write().await = Some(summary.clone());
     state.scanning.store(false, Ordering::SeqCst);
 
-    // Save summary to DB
     with_db(&state, |c| { let _ = db::save_summary(c, &summary); });
+
+    // (Re)start directory watcher for live file add/remove detection
+    let watch_dirs = state.current_dirs.read().await.clone();
+    let watch_excl = state.current_excl.read().await.clone();
+    start_dir_watch(watch_dirs, indexer::build_excluder(&watch_excl), Arc::clone(&state), app.clone());
 
     let _ = app.emit("index:done", &summary);
     Ok(summary)
@@ -544,6 +601,7 @@ pub fn run() {
         dl_video:      Mutex::new(HashMap::new()),
         cvt_cancel:    Mutex::new(HashMap::new()),
         file_watch:    Mutex::new(HashMap::new()),
+        dir_watcher:   Mutex::new(None),
     });
 
     system::log(&log_path, "family_media starting");
@@ -638,12 +696,19 @@ pub fn run() {
                         // guard dropped here
                     };
 
+                    let dirs = ms.search_directories;
+                    let excl = ms.exclude;
+
                     *state2.entries.write().await      = entries;
-                    *state2.current_dirs.write().await = ms.search_directories;
-                    *state2.current_excl.write().await = ms.exclude;
+                    *state2.current_dirs.write().await = dirs.clone();
+                    *state2.current_excl.write().await = excl.clone();
                     if let Some(s) = summary {
                         *state2.last_summary.write().await = Some(s);
                     }
+
+                    // Start watching dirs so live add/remove is detected without re-indexing
+                    let excluder = indexer::build_excluder(&excl);
+                    start_dir_watch(dirs, excluder, state2.clone(), handle.clone());
                 }
             });
 
