@@ -16,16 +16,18 @@ FamilyHub: a home hub for sharing all the software a family needs. `media` is th
 ```
 my-home-app/
 ├── settings.json         ← local config (gitignored — contains Supabase credentials)
-├── media/                ← utility app (Electron + React → family_media.exe)
-│   ├── src/
-│   │   ├── main/
-│   │   │   └── services/ ← db.ts, indexer.ts, search.ts, settings.ts, youtube.ts, bins.ts
-│   │   ├── preload/
-│   │   └── renderer/
-│   │       ├── shell/    ← ActivityBar, MenuBar, TabBar, StatusBar, PlayerBar
-│   │       └── panels/   ← EditorPanel, MusicSearchPanel, YoutubeSearchPanel, ConvertPanel
-│   ├── electron-builder.yml
+├── media/                ← utility app (Tauri v2, Rust + React → family_media.exe)
+│   ├── index.html        ← 진입점 HTML
+│   ├── src-ui/           ← React 프론트엔드
+│   │   ├── main.tsx, App.tsx, bridge.ts
+│   │   ├── shell/        ← ActivityBar, MenuBar, TabBar, StatusBar, PlayerBar
+│   │   └── panels/       ← EditorPanel, MusicSearchPanel, YoutubeSearchPanel, ConvertPanel
+│   ├── src-tauri/        ← Rust 백엔드
+│   │   └── src/
+│   │       ├── lib.rs    ← AppState, 모든 명령
+│   │       └── core/     ← system, db, indexer, search, bins, youtube, convert
 │   └── package.json
+├── media_backup/         ← 구 Electron 소스 보존
 ├── bulletin/             ← family notice board (Tauri v2, Rust + React → family_bulletin.exe)
 │   ├── index.html        ← 진입점 HTML
 │   ├── src-ui/           ← React 프론트엔드
@@ -54,7 +56,7 @@ my-home-app/
 
 ## How Self-Update Works
 
-- **media**: `shared/update.ts`
+- **media**: `media/src-tauri/src/core/update.rs` (미구현 — TODO)
 - **bulletin**: `bulletin/src-tauri/src/core/update.rs` (Rust)
 
 ```
@@ -107,12 +109,12 @@ npm run dev          # Tauri dev (http://localhost:1420)
 npm run build:exe    # exe만 빌드 → release/ 복사
 
 cd media
-npm run dev:web      # http://localhost:5173
-npm run typecheck
-npm run build:win
+npm run dev          # Tauri dev (http://localhost:1420)
+npm run build:exe    # exe만 빌드 → release/ 복사
+npx tsc --noEmit    # TypeScript 체크
 ```
 
-> **bulletin 빌드 주의**: 반드시 `npm run build:exe`를 쓸 것.
+> **빌드 주의 (bulletin & media 공통)**: 반드시 `npm run build:exe`를 쓸 것.
 > `cargo build --release` 직접 실행 시 프론트엔드가 embed되지 않아 앱이 localhost에 연결을 시도한다.
 
 ## UI Icons
