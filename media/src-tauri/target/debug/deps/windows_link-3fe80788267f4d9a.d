@@ -1,0 +1,8 @@
+D:\Workspace\my_home_app\media\src-tauri\target\debug\deps\windows_link-3fe80788267f4d9a.d: C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md
+
+D:\Workspace\my_home_app\media\src-tauri\target\debug\deps\libwindows_link-3fe80788267f4d9a.rlib: C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md
+
+D:\Workspace\my_home_app\media\src-tauri\target\debug\deps\libwindows_link-3fe80788267f4d9a.rmeta: C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md
+
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\lib.rs:
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\windows-link-0.2.1\src\../readme.md:

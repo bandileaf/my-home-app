@@ -1,0 +1,10 @@
+D:\Workspace\my_home_app\media\src-tauri\target\debug\deps\tauri_plugin_dialog-4d2e08c2d7d1fd41.d: C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\lib.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\desktop.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\commands.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\error.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\models.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\init-iife.js
+
+D:\Workspace\my_home_app\media\src-tauri\target\debug\deps\libtauri_plugin_dialog-4d2e08c2d7d1fd41.rmeta: C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\lib.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\desktop.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\commands.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\error.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\models.rs C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\init-iife.js
+
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\lib.rs:
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\desktop.rs:
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\commands.rs:
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\error.rs:
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\models.rs:
+C:\DEV\cargo-v1.87.0\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-dialog-2.7.1\src\init-iife.js:
