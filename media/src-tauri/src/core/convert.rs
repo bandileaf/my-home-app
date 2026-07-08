@@ -6,6 +6,16 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use walkdir::WalkDir;
 
+fn new_cmd(exe: &Path) -> Command {
+    let mut cmd = Command::new(exe);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ScanItem {
     pub path:         String,
@@ -17,29 +27,23 @@ pub struct ScanItem {
     pub is_bak:       Option<bool>,
 }
 
-pub fn target_extensions(ext: &str) -> Vec<String> {
-    match ext {
-        "mp3"  => vec!["mp3".into()],
-        "m4a"  => vec!["m4a".into()],
-        "flac" => vec!["flac".into()],
-        "wav"  => vec!["wav".into()],
-        "mp4"  => vec!["mp4".into()],
-        "mkv"  => vec!["mkv".into()],
-        "webm" => vec!["webm".into()],
-        _      => vec![ext.to_string()],
-    }
-}
+// All audio/video formats we can convert from
+const CONVERTIBLE_EXTS: &[&str] = &[
+    "mp3", "m4a", "flac", "wav", "ogg", "aac", "opus", "wma",
+    "mp4", "mkv", "webm", "avi", "mov",
+];
 
-pub async fn scan_folder<F>(
+pub async fn scan_folder<F, P>(
     dir: &Path,
     target_ext: &str,
     mp3val: Option<&Path>,
     on_item: F,
+    on_progress: P,
 ) where
     F: Fn(ScanItem) + Send + Sync + 'static,
+    P: Fn(usize, usize) + Send + Sync + 'static,  // (current, total)
 {
-    let exts: Vec<String> = target_extensions(target_ext)
-        .into_iter().map(|s| s.to_lowercase()).collect();
+    let target = target_ext.to_lowercase();
 
     let entries: Vec<PathBuf> = WalkDir::new(dir)
         .follow_links(false)
@@ -49,7 +53,11 @@ pub async fn scan_folder<F>(
         .map(|e| e.path().to_path_buf())
         .collect();
 
-    for path in entries.iter() {
+    let total = entries.len();
+    on_progress(0, total);
+
+    for (i, path) in entries.iter().enumerate() {
+        on_progress(i + 1, total);
         let ext = path.extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
@@ -65,42 +73,56 @@ pub async fn scan_folder<F>(
             continue;
         }
 
-        if !exts.iter().any(|e| e == &ext) { continue; }
+        if !CONVERTIBLE_EXTS.contains(&ext.as_str()) { continue; }
 
         let path_str = path.to_string_lossy().into_owned();
 
-        // Check mp3 for ID3 tag issues when target_ext is mp3
-        let (needs_fix, fix_message) = if target_ext == "mp3" {
-            if let Some(mp3val_path) = mp3val {
-                check_mp3(mp3val_path, path).await
-            } else {
-                (false, None)
+        if ext == target {
+            // Already in target format — only show if it's a damaged mp3 (needs fix)
+            if target == "mp3" {
+                if let Some(mp3val_path) = mp3val {
+                    let (needs_fix, fix_message) = check_mp3(mp3val_path, path).await;
+                    if needs_fix {
+                        on_item(ScanItem {
+                            path: path_str,
+                            needs_fix:   Some(true),
+                            fix_message: fix_message,
+                            is_bak:      None,
+                        });
+                    }
+                    // not damaged → skip (already correct format)
+                }
+                // mp3val not available → skip mp3 files, can't check them
             }
+            // other formats already in target format → skip
         } else {
-            (false, None)
-        };
-
-        on_item(ScanItem {
-            path: path_str,
-            needs_fix:   if needs_fix { Some(true) } else { None },
-            fix_message: fix_message,
-            is_bak:      None,
-        });
+            // Different format → needs conversion
+            on_item(ScanItem {
+                path:        path_str,
+                needs_fix:   None,
+                fix_message: None,
+                is_bak:      None,
+            });
+        }
     }
 }
 
 async fn check_mp3(mp3val: &Path, path: &Path) -> (bool, Option<String>) {
-    let out = tokio::process::Command::new(mp3val)
-        .arg(path)
-        .output()
-        .await;
-
+    let out = new_cmd(mp3val).arg(path).output().await;
     match out {
         Ok(o) => {
             let text = String::from_utf8_lossy(&o.stdout).into_owned()
                 + &String::from_utf8_lossy(&o.stderr);
-            let needs_fix = text.contains("WARNING") || text.contains("ERROR") || text.contains("FIXED");
-            let msg = if needs_fix { Some(text.lines().find(|l| l.contains("WARNING") || l.contains("ERROR")).unwrap_or("").to_string()) } else { None };
+            // Tag-related "supported" lines are informational, not real damage
+            // e.g. "no supported ID3 tag found", "ID3v2 tag not supported by mp3val"
+            let issues: Vec<&str> = text.lines()
+                .filter(|l| {
+                    (l.contains("WARNING") || l.contains("ERROR") || l.contains("FIXED"))
+                    && !l.to_lowercase().contains("supported")
+                })
+                .collect();
+            let needs_fix = !issues.is_empty();
+            let msg = issues.first().map(|l| l.trim().to_string());
             (needs_fix, msg)
         }
         Err(_) => (false, None),
@@ -121,12 +143,22 @@ pub async fn convert<F>(
 ) where
     F: Fn(f64) + Send + 'static,
 {
-    // First fix mp3 if needed
+    let src_ext = src_path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    // Fix in-place if needed
     if needs_fix {
         if let Some(mp3v) = mp3val {
-            let _ = tokio::process::Command::new(mp3v)
+            let _ = new_cmd(mp3v)
                 .arg("-f").arg(src_path)
                 .output().await;
+        }
+        // If already in target format, fix-in-place is all we need
+        if src_ext == target_fmt {
+            on_done(src_path.to_string_lossy().into_owned());
+            return;
         }
     }
 
@@ -136,7 +168,7 @@ pub async fn convert<F>(
     // Use ffmpeg to convert
     let duration_secs = get_duration(ffmpeg, src_path).await.unwrap_or(0.0);
 
-    let mut child = match Command::new(ffmpeg)
+    let mut child = match new_cmd(ffmpeg)
         .args([
             "-i", &src_path.to_string_lossy(),
             "-y",
@@ -181,7 +213,7 @@ pub async fn convert<F>(
 
 async fn get_duration(ffmpeg: &Path, path: &Path) -> Option<f64> {
     // ffprobe would be better but ffmpeg can also print it
-    let out = Command::new(ffmpeg)
+    let out = new_cmd(ffmpeg)
         .args(["-i", &path.to_string_lossy()])
         .stderr(Stdio::piped())
         .output()

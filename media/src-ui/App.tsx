@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useReducer, useRef, useState } fr
 import { ActivityBar } from './shell/ActivityBar'
 import { MenuBar } from './shell/MenuBar'
 import { TabBar } from './shell/TabBar'
-import { StatusBar, type IndexStatus } from './shell/StatusBar'
+import { StatusBar, type IndexStatus, type ConvertScan } from './shell/StatusBar'
 import { PlayerProvider } from './shell/PlayerBar'
 import { icon_registry, default_icon_visibility } from './shell/iconRegistry'
 import { File } from 'lucide-react'
@@ -45,6 +45,7 @@ export function App(): JSX.Element {
   const [indexStatus, set_indexStatus] = useState<IndexStatus>(
     musicEnabled ? { phase: 'pending' } : { phase: 'disabled' }
   )
+  const [convertScan, set_convertScan] = useState<ConvertScan | null>(null)
 
   // DB or localStorage 에서 UI 상태 로드 (async 초기화)
   const initialized = useRef(false)
@@ -134,10 +135,13 @@ export function App(): JSX.Element {
     const unsubscribeProgress = bridge?.on_index_progress?.((progress) =>
       set_indexStatus({ phase: 'scanning', ...progress })
     )
-    // 백그라운드 스캔 완료 → 최종 파일 수로 status 갱신
     const unsubscribeDone = bridge?.on_index_done?.((summary) =>
       set_indexStatus({ phase: 'done', ...summary })
     )
+    const unsubscribeConvertScan = bridge?.on_convert_scan_progress?.((d) => {
+      if (d.current >= d.total) set_convertScan(null)
+      else set_convertScan({ current: d.current, total: d.total })
+    })
 
     const status = bridge?.settings_status
     if (!status) {
@@ -170,6 +174,7 @@ export function App(): JSX.Element {
     return () => {
       unsubscribeProgress?.()
       unsubscribeDone?.()
+      unsubscribeConvertScan?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -556,7 +561,7 @@ export function App(): JSX.Element {
           </div>
         </div>
       </div>
-      <StatusBar status={indexStatus} />
+      <StatusBar status={indexStatus} convertScan={convertScan} />
     </div>
     </PlayerProvider>
   )

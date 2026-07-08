@@ -44,7 +44,11 @@ pub fn default_settings_text() -> &'static str {
   "musicSearch.exclude": {
     "**/*.jpg": true,
     "**/*.png": true
-  }
+  },
+  "musicSearch.downloadDirectory": "",
+  "musicSearch.ytdlpPath": "",
+  "musicSearch.ffmpegPath": "",
+  "musicSearch.mp3valPath": ""
 }
 "#
 }

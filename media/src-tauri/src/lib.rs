@@ -1,6 +1,6 @@
 mod core;
 
-use core::bins::{self, BinState, BinStatusEntry};
+use core::bins::{self, BinStatusEntry};
 use core::convert as conv;
 use core::db;
 use core::indexer::{self, FileEntry, IndexProgress, IndexSummary};
@@ -105,12 +105,14 @@ fn start_dir_watch(
                             Some(e) => *e = entry.clone(),
                             None    => entries.push(entry.clone()),
                         }
+                        state.log(&format!("watch +add: {}", entry.full_path));
                         let _ = app.emit("index:changed", serde_json::json!({ "added": entry.full_path }));
                     }
                 } else if is_remove {
                     let path_str = path.to_string_lossy().to_string();
                     { let g = state.db.lock().unwrap(); if let Some(c) = g.as_ref() { let _ = db::delete_entry(c, &path_str); } }
                     state.entries.blocking_write().retain(|e| e.full_path != path_str);
+                    state.log(&format!("watch -del: {}", path_str));
                     let _ = app.emit("index:changed", serde_json::json!({ "removed": path_str }));
                 }
             }
@@ -181,6 +183,7 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
 
     // Clear in-memory entries; dirs become searchable one-by-one as they complete
     state.entries.write().await.clear();
+    state.log(&format!("indexing: start ({} dir(s))", dirs.len()));
 
     let state_clone = Arc::clone(&state);
     let app_clone   = app.clone();
@@ -191,7 +194,10 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
         let mut total_excluded = 0u64;
 
         for root in &dirs {
-            if !std::path::Path::new(root).exists() { continue; }
+            if !std::path::Path::new(root).exists() {
+                state_clone.log(&format!("indexing: skip (not found) {}", root));
+                continue;
+            }
 
             // Load existing path→mtime map for incremental comparison
             let existing = {
@@ -214,6 +220,11 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
             total_scanned  += scanned;
             total_excluded += excluded;
 
+            state_clone.log(&format!(
+                "indexing: {} → scanned {}, +{} added, -{} removed, {} excluded",
+                root, scanned, new_entries.len(), deleted_paths.len(), excluded
+            ));
+
             // Persist only changes to DB
             {
                 let g = state_clone.db.lock().unwrap();
@@ -232,6 +243,7 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
         }
 
         let indexed = state_clone.entries.blocking_read().len() as u64;
+        state_clone.log(&format!("indexing: done, {} total files", indexed));
         IndexSummary { scanned: total_scanned, indexed, excluded: total_excluded, has_target: !dirs.is_empty(), missing }
     });
 
@@ -282,10 +294,16 @@ fn close_window(app: AppHandle) {
 
 // ── commands: file ops ────────────────────────────────────────────────────────
 
+#[cfg(windows)]
+fn spawn_no_window(program: &str, args: &[&str]) {
+    use std::os::windows::process::CommandExt;
+    let _ = std::process::Command::new(program).args(args).creation_flags(0x08000000).spawn();
+}
+
 #[tauri::command]
 fn reveal_file(full_path: String) {
-    #[cfg(target_os = "windows")]
-    { let _ = std::process::Command::new("explorer").args(["/select,", &full_path]).spawn(); }
+    #[cfg(windows)]
+    spawn_no_window("explorer", &["/select,", &full_path]);
 }
 
 #[tauri::command]
@@ -355,18 +373,26 @@ async fn ensure_bins(app: AppHandle, state: AS<'_>) -> Result<HashMap<String, St
     }
 
     let bins_dir = bins::bins_dir(&state.app_dir);
+    let settings_for_bins = system::read_settings(&state.settings_path);
+    {
+        let statuses = bins::initial_statuses_from_settings(&settings_for_bins);
+        *state.bins_status.lock().unwrap() = statuses;
+    }
+
     let app_clone = app.clone();
     let state_clone = Arc::clone(&state);
 
-    let result = bins::ensure_bins(&bins_dir, move |name, state_val, pct| {
-        // Update status
+    let state_clone2 = Arc::clone(&state);
+    let result = bins::ensure_bins(&bins_dir, &settings_for_bins, move |name, state_val, pct, err| {
         let mut statuses = state_clone.bins_status.lock().unwrap();
         if let Some(entry) = statuses.iter_mut().find(|e| e.name == name) {
             entry.state   = state_val.clone();
             entry.percent = pct;
         }
-        // Emit events
-        let _ = app_clone.emit("bins:status", serde_json::json!({ "name": name, "state": state_val }));
+        if let Some(ref e) = err {
+            state_clone2.log(&format!("bins: {} failed: {}", name, e));
+        }
+        let _ = app_clone.emit("bins:status", serde_json::json!({ "name": name, "state": state_val, "error": err }));
         if pct > 0 {
             let _ = app_clone.emit("bins:progress", serde_json::json!({ "name": name, "percent": pct }));
         }
@@ -378,16 +404,25 @@ async fn ensure_bins(app: AppHandle, state: AS<'_>) -> Result<HashMap<String, St
 
 // ── commands: youtube ─────────────────────────────────────────────────────────
 
+fn path_from_settings_or_bins(state: &AppState, key: &str, exe: &str) -> Option<PathBuf> {
+    let settings = system::read_settings(&state.settings_path);
+    if let Some(p) = settings[key].as_str() {
+        let pb = PathBuf::from(p);
+        if pb.exists() { return Some(pb); }
+    }
+    bins::bin_path(&state.app_dir, exe)
+}
+
 fn ytdlp_path(state: &AppState) -> Option<PathBuf> {
-    bins::bin_path(&state.app_dir, "yt-dlp.exe")
+    path_from_settings_or_bins(state, "musicSearch.ytdlpPath", "yt-dlp.exe")
 }
 
 fn ffmpeg_path(state: &AppState) -> Option<PathBuf> {
-    bins::bin_path(&state.app_dir, "ffmpeg.exe")
+    path_from_settings_or_bins(state, "musicSearch.ffmpegPath", "ffmpeg.exe")
 }
 
 fn mp3val_path(state: &AppState) -> Option<PathBuf> {
-    bins::bin_path(&state.app_dir, "mp3val.exe")
+    path_from_settings_or_bins(state, "musicSearch.mp3valPath", "mp3val.exe")
 }
 
 fn download_dir(state: &AppState) -> PathBuf {
@@ -480,14 +515,14 @@ fn youtube_cancel_video(url: String, state: AS<'_>) {
 
 #[tauri::command]
 fn youtube_open_folder(file_path: String) {
-    #[cfg(target_os = "windows")]
-    { let _ = std::process::Command::new("explorer").args(["/select,", &file_path]).spawn(); }
+    #[cfg(windows)]
+    spawn_no_window("explorer", &["/select,", &file_path]);
 }
 
 #[tauri::command]
 fn youtube_open_url(url: String) {
-    #[cfg(target_os = "windows")]
-    { let _ = std::process::Command::new("cmd").args(["/c", "start", "", &url]).spawn(); }
+    #[cfg(windows)]
+    spawn_no_window("cmd", &["/c", "start", "", &url]);
 }
 
 // ── commands: convert ─────────────────────────────────────────────────────────
@@ -496,11 +531,13 @@ fn youtube_open_url(url: String) {
 fn convert_scan_folder(dir: String, target_ext: String, app: AppHandle, state: AS<'_>) {
     let mp3val = mp3val_path(&state);
     tauri::async_runtime::spawn(async move {
+        let app2 = app.clone();
         conv::scan_folder(
             std::path::Path::new(&dir),
             &target_ext,
             mp3val.as_deref(),
             move |item| { let _ = app.emit("convert:scan_item", &item); },
+            move |cur, total| { let _ = app2.emit("convert:scan_progress", serde_json::json!({ "current": cur, "total": total })); },
         ).await;
     });
 }
@@ -579,11 +616,11 @@ pub fn run() {
         }));
     }
 
-    let initial_bins_status: Vec<BinStatusEntry> = bins::BINS.iter().map(|b| BinStatusEntry {
-        name:    b.name.to_string(),
-        state:   BinState::Pending,
-        percent: 0,
-    }).collect();
+    let initial_bins_status = if settings_path.exists() {
+        bins::initial_statuses_from_settings(&system::read_settings(&settings_path))
+    } else {
+        vec![]
+    };
 
     let state = Arc::new(AppState {
         app_dir:       app_dir.clone(),
@@ -604,7 +641,7 @@ pub fn run() {
         dir_watcher:   Mutex::new(None),
     });
 
-    system::log(&log_path, "family_media starting");
+    system::log(&log_path, "*************** family_media starting ***************");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -656,19 +693,69 @@ pub fn run() {
             let handle = app.handle().clone();
             let state2 = state.clone();
 
+            // Restore / save window size via DB app_state table
+            if let Some(win) = app.get_webview_window("main") {
+                let db_path = system::db_path(&state2.app_dir, &system::read_settings(&state2.settings_path));
+                if let Ok(conn) = db::open_db(&db_path) {
+                    if let Some(raw) = db::get_state(&conn, "windowSize") {
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+                            if let (Some(w), Some(h)) = (v["width"].as_u64(), v["height"].as_u64()) {
+                                let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+                                state2.log(&format!("window: restored {}x{}", w, h));
+                            }
+                        }
+                    }
+                }
+                let state3 = state2.clone();
+                let win2 = win.clone();
+                win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        if let Ok(size) = win2.inner_size() {
+                            if size.width > 200 && size.height > 200 {
+                                let val = serde_json::json!({ "width": size.width, "height": size.height }).to_string();
+                                let guard = state3.db.lock().unwrap();
+                                if let Some(conn) = guard.as_ref() {
+                                    let _ = db::set_state(conn, "windowSize", &val);
+                                    state3.log(&format!("window: saved {}x{}", size.width, size.height));
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
             // Auto-start bins installation in background
             tauri::async_runtime::spawn(async move {
                 let bins_dir = bins::bins_dir(&state2.app_dir);
                 let h = handle.clone();
                 let s = state2.clone();
 
-                let result = bins::ensure_bins(&bins_dir, move |name, st, pct| {
+                // Read settings to pass to ensure_bins
+                let settings_for_bins = system::read_settings(&state2.settings_path);
+
+                // (Re)initialize statuses from current settings
+                {
+                    let statuses = bins::initial_statuses_from_settings(&settings_for_bins);
+                    *state2.bins_status.lock().unwrap() = statuses;
+                }
+
+                let s2 = state2.clone();
+                let result = bins::ensure_bins(&bins_dir, &settings_for_bins, move |name, st, pct, err| {
                     let mut statuses = s.bins_status.lock().unwrap();
                     if let Some(e) = statuses.iter_mut().find(|e| e.name == name) {
                         e.state   = st.clone();
                         e.percent = pct;
                     }
-                    let _ = h.emit("bins:status",   serde_json::json!({ "name": name, "state": st }));
+                    match &st {
+                        bins::BinState::Downloading if pct == 0 =>
+                            s2.log(&format!("bins: downloading {} ({})", name, err.as_deref().unwrap_or("?"))),
+                        bins::BinState::Installed =>
+                            s2.log(&format!("bins: {} ({})", name, err.as_deref().unwrap_or("installed"))),
+                        bins::BinState::Failed =>
+                            s2.log(&format!("bins: {} failed: {}", name, err.as_deref().unwrap_or("unknown"))),
+                        _ => {}
+                    }
+                    let _ = h.emit("bins:status",   serde_json::json!({ "name": name, "state": st, "error": err }));
                     let _ = h.emit("bins:progress", serde_json::json!({ "name": name, "percent": pct }));
                 }).await;
 
@@ -698,6 +785,7 @@ pub fn run() {
 
                     let dirs = ms.search_directories;
                     let excl = ms.exclude;
+                    let n    = entries.len();
 
                     *state2.entries.write().await      = entries;
                     *state2.current_dirs.write().await = dirs.clone();
@@ -705,6 +793,8 @@ pub fn run() {
                     if let Some(s) = summary {
                         *state2.last_summary.write().await = Some(s);
                     }
+
+                    state2.log(&format!("restore: {} entries from DB, watching {} dir(s)", n, dirs.len()));
 
                     // Start watching dirs so live add/remove is detected without re-indexing
                     let excluder = indexer::build_excluder(&excl);

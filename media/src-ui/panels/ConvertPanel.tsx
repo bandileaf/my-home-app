@@ -121,7 +121,7 @@ export function ConvertPanel(): JSX.Element {
   const [deleteOriginal, set_delete_original] = useState(false)
   const [items, set_items] = useState<ConvertItem[]>([])
   const [busy, set_busy] = useState(false)
-  const [scanProgress, set_scan_progress] = useState<{ current: number; total: number } | null>(null)
+  const [scanning, set_scanning] = useState(false)
   const bridge = get_bridge()
 
   useEffect(() => {
@@ -201,11 +201,18 @@ export function ConvertPanel(): JSX.Element {
     })
     set_busy(false)
     set_items([])
-    set_scan_progress(null)
-    bridge?.convert_scan_folder?.(folder, targetFmt).catch(() => {})
+    set_scanning(true)
+    bridge?.convert_scan_folder?.(folder, targetFmt).catch(() => set_scanning(false))
   }
 
   useEffect(() => { scan() }, [folder, targetFmt])
+
+  useEffect(() => {
+    const off = bridge?.on_convert_scan_progress?.((d) => {
+      if (d.current >= d.total) set_scanning(false)
+    })
+    return () => { off?.() }
+  }, [])
 
   useEffect(() => {
     const off = bridge?.on_convert_scan_item?.((r) => {
@@ -225,13 +232,6 @@ export function ConvertPanel(): JSX.Element {
     return () => { off?.() }
   }, [])
 
-  useEffect(() => {
-    const off = bridge?.on_convert_scan_progress?.((d) => {
-      if (d.current >= d.total) set_scan_progress(null)
-      else set_scan_progress(d)
-    })
-    return () => { off?.() }
-  }, [])
 
   function remove_item(srcPath: string): void {
     set_items(prev => prev.filter(i => i.srcPath !== srcPath))
@@ -273,11 +273,6 @@ export function ConvertPanel(): JSX.Element {
         </span>
         {folder && (
           <div className="cv-toolbar-right">
-            {scanProgress && (
-              <span className="cv-scan-progress">
-                {Math.round(scanProgress.current / scanProgress.total * 100)}% / 100%
-              </span>
-            )}
             <select
               className="cv-fmt-select"
               value={targetFmt}
@@ -292,7 +287,7 @@ export function ConvertPanel(): JSX.Element {
                 일괄 적용
               </button>
             )}
-            <button className="cv-icon-btn" title="새로고침" onClick={scan} disabled={busy}>
+            <button className="cv-icon-btn" title="새로고침" onClick={scan} disabled={busy || scanning}>
               <RefreshCw size={13} strokeWidth={1.5} />
             </button>
             <label className="cv-delete-label">

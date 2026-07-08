@@ -6,6 +6,16 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
+fn new_cmd(exe: &Path) -> Command {
+    let mut cmd = Command::new(exe);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YoutubeResult {
     pub id:         String,
@@ -28,7 +38,7 @@ pub struct YoutubeProgress {
 
 pub async fn search(ytdlp: &Path, query: &str) -> Result<Vec<YoutubeResult>, String> {
     let search_url = format!("ytsearch10:{}", query);
-    let out = Command::new(ytdlp)
+    let out = new_cmd(ytdlp)
         .args([
             &search_url,
             "--flat-playlist",
@@ -94,7 +104,7 @@ pub async fn download<F>(
     let fmt = if audio_format.is_empty() { "mp3" } else { audio_format };
     let out_tmpl = output_dir.join("%(title)s.%(ext)s");
 
-    let mut child = match Command::new(ytdlp)
+    let mut child = match new_cmd(ytdlp)
         .args([
             url,
             "-x",
@@ -104,7 +114,7 @@ pub async fn download<F>(
             "--progress",
             "--no-check-certificate",
         ])
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
     {
@@ -112,8 +122,8 @@ pub async fn download<F>(
         Err(e) => { on_error(e.to_string()); return; }
     };
 
-    let stdout = child.stdout.take().unwrap();
-    let mut lines = BufReader::new(stdout).lines();
+    let stderr = child.stderr.take().unwrap();
+    let mut lines = BufReader::new(stderr).lines();
     let mut dest_path = String::new();
 
     while let Ok(Some(line)) = lines.next_line().await {
@@ -150,7 +160,7 @@ pub async fn download_video<F>(
 {
     let out_tmpl = output_dir.join("%(title)s.%(ext)s");
 
-    let mut child = match Command::new(ytdlp)
+    let mut child = match new_cmd(ytdlp)
         .args([
             url,
             "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
@@ -159,7 +169,7 @@ pub async fn download_video<F>(
             "--progress",
             "--no-check-certificate",
         ])
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
     {
@@ -167,8 +177,8 @@ pub async fn download_video<F>(
         Err(e) => { on_error(e.to_string()); return; }
     };
 
-    let stdout = child.stdout.take().unwrap();
-    let mut lines = BufReader::new(stdout).lines();
+    let stderr = child.stderr.take().unwrap();
+    let mut lines = BufReader::new(stderr).lines();
     let mut dest_path = String::new();
 
     while let Ok(Some(line)) = lines.next_line().await {
