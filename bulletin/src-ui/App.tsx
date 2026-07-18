@@ -59,6 +59,11 @@ export function App() {
     return () => { unsub.then(f => f()) }
   }, [check_state, refresh_users])
 
+  useEffect(() => {
+    const unsub = listen<Page>('navigate', (e) => { set_page_state(e.payload) })
+    return () => { unsub.then(f => f()) }
+  }, [])
+
   const get_profile = useCallback((id: string) => {
     return users.find(u => u.id === id) ?? null
   }, [users])

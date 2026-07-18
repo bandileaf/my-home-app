@@ -22,6 +22,16 @@ pub async fn http_get_text(url: &str, timeout_ms: u64) -> Result<String, String>
         .text().await.map_err(|e| e.to_string())
 }
 
+pub async fn http_get_bytes(url: &str, timeout_ms: u64) -> Result<Vec<u8>, String> {
+    let client = Client::builder()
+        .timeout(Duration::from_millis(timeout_ms))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() { return Err(format!("HTTP {}", resp.status())); }
+    Ok(resp.bytes().await.map_err(|e| e.to_string())?.to_vec())
+}
+
 pub async fn http_post_json(url: &str, body: Value, timeout_ms: u64) -> Result<Value, String> {
     let client = Client::builder()
         .timeout(Duration::from_millis(timeout_ms))

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import type { SearchHit } from '../bridge'
 
 interface PlayerCtx {
@@ -19,10 +20,6 @@ export function usePlayer(): PlayerCtx {
   return useContext(PlayerContext)
 }
 
-function to_file_url(path: string): string {
-  return 'file:///' + path.replace(/\\/g, '/')
-}
-
 export function PlayerProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [file, set_file] = useState<SearchHit | null>(null)
@@ -31,7 +28,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): JSX
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !file) return
-    audio.src = to_file_url(file.fullPath)
+    audio.src = convertFileSrc(file.fullPath)
     audio.load()
     void audio.play()
   }, [file?.fullPath])

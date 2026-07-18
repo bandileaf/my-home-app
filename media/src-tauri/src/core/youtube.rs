@@ -113,8 +113,9 @@ pub async fn download<F>(
             "--newline",
             "--progress",
             "--no-check-certificate",
+            "--print", "after_move:filepath",
         ])
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
     {
@@ -122,9 +123,10 @@ pub async fn download<F>(
         Err(e) => { on_error(e.to_string()); return; }
     };
 
+    let dest_path_task = spawn_dest_path_reader(child.stdout.take().unwrap());
+
     let stderr = child.stderr.take().unwrap();
     let mut lines = BufReader::new(stderr).lines();
-    let mut dest_path = String::new();
 
     while let Ok(Some(line)) = lines.next_line().await {
         if cancel.load(Ordering::Relaxed) {
@@ -132,13 +134,12 @@ pub async fn download<F>(
             return;
         }
         parse_progress(&line, url, &on_progress);
-        if let Some(path) = parse_dest(&line) {
-            dest_path = path;
-        }
     }
 
     let status = child.wait().await;
     if cancel.load(Ordering::Relaxed) { return; }
+
+    let dest_path = dest_path_task.await.unwrap_or_default();
 
     if status.map(|s| s.success()).unwrap_or(false) {
         on_done(dest_path);
@@ -168,8 +169,9 @@ pub async fn download_video<F>(
             "--newline",
             "--progress",
             "--no-check-certificate",
+            "--print", "after_move:filepath",
         ])
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
     {
@@ -177,9 +179,10 @@ pub async fn download_video<F>(
         Err(e) => { on_error(e.to_string()); return; }
     };
 
+    let dest_path_task = spawn_dest_path_reader(child.stdout.take().unwrap());
+
     let stderr = child.stderr.take().unwrap();
     let mut lines = BufReader::new(stderr).lines();
-    let mut dest_path = String::new();
 
     while let Ok(Some(line)) = lines.next_line().await {
         if cancel.load(Ordering::Relaxed) {
@@ -187,13 +190,12 @@ pub async fn download_video<F>(
             return;
         }
         parse_progress(&line, url, &on_progress);
-        if let Some(path) = parse_dest(&line) {
-            dest_path = path;
-        }
     }
 
     let status = child.wait().await;
     if cancel.load(Ordering::Relaxed) { return; }
+
+    let dest_path = dest_path_task.await.unwrap_or_default();
 
     if status.map(|s| s.success()).unwrap_or(false) {
         on_done(dest_path);
@@ -211,14 +213,21 @@ fn parse_progress(line: &str, _url: &str, on_progress: &impl Fn(f64, String, Str
     on_progress(percent, speed, eta);
 }
 
-fn parse_dest(line: &str) -> Option<String> {
-    // [ExtractAudio] Destination: C:\...\file.mp3
-    // [download] Destination: C:\...\file.mp4
-    if line.contains("Destination:") {
-        line.split("Destination:").nth(1).map(|s| s.trim().to_string())
-    } else {
-        None
-    }
+// yt-dlp의 --print after_move:filepath 출력(stdout)에서 최종 경로를 읽는다.
+// "이미 다운로드됨"으로 스킵되는 경우에도 신뢰성 있게 최종 경로를 얻기 위해
+// stderr의 "Destination:" 문자열을 긁는 대신 이 방식을 사용한다.
+fn spawn_dest_path_reader(stdout: tokio::process::ChildStdout) -> tokio::task::JoinHandle<String> {
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        let mut last = String::new();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                last = trimmed.to_string();
+            }
+        }
+        last
+    })
 }
 
 fn extract_percent(s: &str) -> Option<f64> {

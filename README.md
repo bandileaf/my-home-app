@@ -28,7 +28,7 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 | `hub.supabase.key` | `string` | Supabase anon key — **커밋 금지** |
 | `hub.app.bulletin.admin` | `boolean` | `true` 이면 관리자 패널 활성화 (해당 기기 로컬에만 설정) |
 | `hub.app.bulletin.autostart` | `boolean` | `true` 이면 Windows 시작 시 자동 실행 등록, `false` 이면 해제 |
-| `hub.bulletin.poll-min` | `number` | 채팅 폴링 간격 (분 단위, 기본값 10, 최소 5초) |
+| `hub.bulletin.bg-poll-min` | `number` | 대화방이 닫혀있을 때 백그라운드 알림용 폴링 간격 (분 단위, 기본값 10) |
 
 ### 예시
 

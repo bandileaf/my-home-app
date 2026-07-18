@@ -20,9 +20,12 @@ pub struct Settings {
     pub admin: bool,
     #[serde(rename = "hub.app.bulletin.autostart", default)]
     pub autostart: bool,
+    #[serde(rename = "hub.bulletin.bg-poll-min", default = "default_bg_poll_min")]
+    pub bg_poll_min: u64,
 }
 
 fn bool_true() -> bool { true }
+fn default_bg_poll_min() -> u64 { 10 }
 
 pub fn read_settings(path: &str) -> Option<Settings> {
     let content = fs::read_to_string(path).ok()?;

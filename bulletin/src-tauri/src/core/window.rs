@@ -13,7 +13,7 @@ impl Page {
     pub fn from_str(s: &str) -> Self {
         match s {
             "notices"  => Self::Notices,
-            "chat"     => Self::Chat,
+            "chat" | "messenger" => Self::Chat,
             "calendar" => Self::Calendar,
             "admin"    => Self::Admin,
             _          => Self::Unknown,

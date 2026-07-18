@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { Send, Trash2 } from 'lucide-react'
+import { listen } from '@tauri-apps/api/event'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { Send, Trash2, File as FileIcon } from 'lucide-react'
 import type { UserSession, UserProfile } from '../types'
 import type { useChat } from '../hooks/useChat'
 import { initials_of } from '../utils'
@@ -34,6 +37,66 @@ function same_day(a: number, b: number): boolean {
   return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate()
 }
 
+const FILE_PREFIX = '[[FILE]]'
+
+function format_size(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
+function FileMessage({ senderUserId, meta }: { senderUserId: string; meta: { id: string; name: string; size: number } }){
+  const [status, set_status] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
+
+  async function save(){
+    if (status === 'saving') return
+    set_status('saving')
+    try {
+      await invoke('chat_save_file', { senderUserId, fileId: meta.id, fileName: meta.name })
+      set_status('done')
+      setTimeout(() => set_status('idle'), 3000)
+    } catch {
+      set_status('error')
+      setTimeout(() => set_status('idle'), 3000)
+    }
+  }
+
+  const label = status === 'saving' ? '저장 중...' : status === 'done' ? '다운로드 폴더에 저장됨' : status === 'error' ? '저장 실패' : format_size(meta.size)
+
+  return (
+    <div className="chat-file" onClick={save} role="button">
+      <FileIcon size={22} strokeWidth={1.5} />
+      <div className="chat-file-info">
+        <span className="chat-file-name">{meta.name}</span>
+        <span className="chat-file-meta">{label}</span>
+      </div>
+    </div>
+  )
+}
+
+function MessageText({ text }: { text: string }){
+  const parts = text.split(/(https?:\/\/[^\s]+)/g)
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^https?:\/\//.test(part)
+          ? <a key={i} href={part} className="chat-link" onClick={(e) => { e.preventDefault(); openUrl(part).catch(() => {}) }}>{part}</a>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  )
+}
+
+function MessageBody({ text, senderUserId }: { text: string; senderUserId: string }){
+  if (text.startsWith(FILE_PREFIX)) {
+    try {
+      const meta = JSON.parse(text.slice(FILE_PREFIX.length))
+      return <FileMessage senderUserId={senderUserId} meta={meta} />
+    } catch { /* fall through to plain text */ }
+  }
+  return <MessageText text={text} />
+}
+
 export function ChatPage({ session, get_profile, online_users, hook }: ChatPageProps){
   const [text, set_text] = useState('')
   const scroll_ref = useRef<HTMLDivElement>(null)
@@ -43,8 +106,23 @@ export function ChatPage({ session, get_profile, online_users, hook }: ChatPageP
   const my_id = session?.userId
 
   useEffect(() => {
-    hook.read()
     invoke('chat_enter').catch(() => {})
+    const unsub = listen('refresh', async () => {
+      await hook.refresh()
+      await hook.read()
+    })
+    return () => { unsub.then(f => f()) }
+  }, [])
+
+  useEffect(() => {
+    const unsub = getCurrentWebview().onDragDropEvent((event) => {
+      if (event.payload.type === 'drop') {
+        for (const path of event.payload.paths) {
+          invoke('chat_share_file', { path }).catch(() => {})
+        }
+      }
+    })
+    return () => { unsub.then(f => f()) }
   }, [])
 
   useEffect(() => {
@@ -88,7 +166,7 @@ export function ChatPage({ session, get_profile, online_users, hook }: ChatPageP
           const profile = get_profile(msg.userId)
           const show_date = i === 0 || !same_day(hook.messages[i - 1].createdAt, msg.createdAt)
           const read_count = msg.readBy.length
-          const is_new = !is_mine && my_id && !msg.readBy.includes(my_id)
+          const is_new = is_mine ? read_count === 0 : (!!my_id && !msg.readBy.includes(my_id))
 
           const meta = (
             <div className="chat-meta">
@@ -105,12 +183,12 @@ export function ChatPage({ session, get_profile, online_users, hook }: ChatPageP
                   <>
                     <button className="chat-del-btn" onClick={() => hook.remove(msg.id)}><Trash2 size={14} /></button>
                     {meta}
-                    <div className="chat-bubble chat-bubble-mine">{msg.text}</div>
+                    <div className="chat-bubble chat-bubble-mine"><MessageBody text={msg.text} senderUserId={msg.userId} /></div>
                   </>
                 ) : (
                   <>
                     <Avatar profile={profile} size={32} />
-                    <div className="chat-bubble chat-bubble-other">{msg.text}</div>
+                    <div className="chat-bubble chat-bubble-other"><MessageBody text={msg.text} senderUserId={msg.userId} /></div>
                     {meta}
                   </>
                 )}

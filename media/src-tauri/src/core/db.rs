@@ -52,19 +52,12 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
     ").map_err(|e| e.to_string())
 }
 
-pub fn load_entries_for_dir(conn: &Connection, root_dir: &str) -> Vec<FileEntry> {
-    let mut stmt = match conn.prepare(
-        "SELECT full_path, file_name, dir_path, ext, size_bytes, modified_ms FROM file_entries \
-         WHERE full_path = ?1 OR full_path LIKE ?2 OR full_path LIKE ?3"
-    ) {
-        Ok(s) => s,
-        Err(_) => return vec![],
-    };
-    stmt.query_map(
-        rusqlite::params![root_dir, format!("{}/%" , root_dir), format!("{}\\%", root_dir)],
-        |r| Ok(FileEntry { full_path: r.get(0)?, file_name: r.get(1)?, dir_path: r.get(2)?, ext: r.get(3)?, size_bytes: r.get(4)?, modified_ms: r.get(5)? }),
-    ).map(|rows| rows.flatten().collect::<Vec<_>>())
-     .unwrap_or_default()
+pub fn count_entries_for_dir(conn: &Connection, root_dir: &str) -> u64 {
+    conn.query_row(
+        "SELECT COUNT(*) FROM file_entries WHERE full_path = ?1 OR full_path LIKE ?2 OR full_path LIKE ?3",
+        params![root_dir, format!("{}/%", root_dir), format!("{}\\%", root_dir)],
+        |r| r.get(0)
+    ).unwrap_or(0)
 }
 
 pub fn load_modified_for_dir(conn: &Connection, root_dir: &str) -> std::collections::HashMap<String, i64> {
@@ -93,6 +86,10 @@ pub fn delete_entries_batch(conn: &Connection, paths: &[String]) -> Result<(), S
         }
     }
     tx.commit().map_err(|e| e.to_string())
+}
+
+pub fn count_entries(conn: &Connection) -> u64 {
+    conn.query_row("SELECT COUNT(*) FROM file_entries", [], |r| r.get(0)).unwrap_or(0)
 }
 
 pub fn load_entries(conn: &Connection) -> Vec<FileEntry> {

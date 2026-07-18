@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use tokio::sync::mpsc;
 use tauri::{AppHandle, Emitter, Manager};
@@ -115,7 +116,7 @@ struct WinInfo {
 
 // ── 창 생성 ──────────────────────────────────────────────────────────────────
 
-fn create_window(app: &AppHandle, log_path: &str, label: &str, event: ToastEvent, slot: usize) -> Option<WinInfo> {
+fn create_window(app: &AppHandle, log_path: &str, label: &str, event: ToastEvent, slot: usize, data_dir: &Path) -> Option<WinInfo> {
     let h: f64 = match &event { ToastEvent::Update { .. } => 110.0, _ => 84.0 };
 
     if let Some(pending) = app.try_state::<PendingEvents>() {
@@ -149,6 +150,7 @@ fn create_window(app: &AppHandle, log_path: &str, label: &str, event: ToastEvent
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(true)
+        .data_directory(data_dir.to_path_buf())
         .build()
     {
         Ok(win) => {
@@ -164,7 +166,7 @@ fn create_window(app: &AppHandle, log_path: &str, label: &str, event: ToastEvent
 
 // ── 자율 스케줄러 ─────────────────────────────────────────────────────────────
 
-pub async fn run_scheduler(mut rx: mpsc::Receiver<NotifyCmd>, app: AppHandle, log_path: String) {
+pub async fn run_scheduler(mut rx: mpsc::Receiver<NotifyCmd>, app: AppHandle, log_path: String, data_dir: PathBuf) {
     let mut next_id:      u64            = 1;
     let mut active:       Vec<WinInfo>   = Vec::new();
     let mut update_label: Option<String> = None;
@@ -177,7 +179,7 @@ pub async fn run_scheduler(mut rx: mpsc::Receiver<NotifyCmd>, app: AppHandle, lo
                 active.retain(|w| app.get_webview_window(&w.label).is_some());
                 let label = format!("toast_{}", next_id); next_id += 1;
                 if let Some(info) = create_window(&app, &log_path, &label,
-                    ToastEvent::Chat { id: next_id, sender, text }, active.len())
+                    ToastEvent::Chat { id: next_id, sender, text }, active.len(), &data_dir)
                 {
                     active.push(info);
                 }
@@ -187,7 +189,7 @@ pub async fn run_scheduler(mut rx: mpsc::Receiver<NotifyCmd>, app: AppHandle, lo
                 active.retain(|w| app.get_webview_window(&w.label).is_some());
                 let label = format!("toast_{}", next_id); next_id += 1;
                 if let Some(info) = create_window(&app, &log_path, &label,
-                    ToastEvent::Notice { id: next_id, notice_id, title }, active.len())
+                    ToastEvent::Notice { id: next_id, notice_id, title }, active.len(), &data_dir)
                 {
                     active.push(info);
                 }
@@ -207,7 +209,7 @@ pub async fn run_scheduler(mut rx: mpsc::Receiver<NotifyCmd>, app: AppHandle, lo
                 let label = format!("toast_{}", next_id); next_id += 1;
                 if let Some(info) = create_window(&app, &log_path, &label,
                     ToastEvent::Update { msg: format!("업데이트 확인 중... ({})", version), pct: None, done: false },
-                    active.len())
+                    active.len(), &data_dir)
                 {
                     update_label = Some(label);
                     active.push(info);

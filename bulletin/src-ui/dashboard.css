@@ -735,6 +735,19 @@ body {
 .chat-bubble-mine  { background: var(--accent); color: white; border-bottom-right-radius: 4px; }
 .chat-bubble-other { background: #f0edf9; color: var(--text); border-bottom-left-radius: 4px; }
 
+.chat-link { color: inherit; text-decoration: underline; word-break: break-all; cursor: pointer; }
+
+.chat-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  min-width: 160px;
+}
+.chat-file-info { display: flex; flex-direction: column; min-width: 0; }
+.chat-file-name { font-size: 14px; font-weight: 600; word-break: break-all; }
+.chat-file-meta { font-size: 12px; opacity: 0.75; }
+
 .chat-meta {
   display: flex;
   flex-direction: column;

@@ -10,15 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "family_bulletin",
-        "width": 800,
-        "height": 600,
-        "decorations": false,
-        "visible": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

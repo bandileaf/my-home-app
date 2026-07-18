@@ -1,8 +1,9 @@
 mod core;
 mod modules;
 
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -24,7 +25,7 @@ pub struct AppState {
     pub window: WindowState,
     pub notify: NotifyQueue,
     pub sched: Scheduler,
-    pub chat_poll_gen: Arc<AtomicU64>,
+    pub shared_files: Mutex<HashMap<String, PathBuf>>,
 }
 
 impl AppState {
@@ -99,12 +100,28 @@ async fn list_messages(state: State<'_, Arc<AppState>>) -> Result<Vec<chat::Chat
     chat::list_messages(db).await
 }
 
+async fn push_after_send(state: &Arc<AppState>, user_id: &str, text: &str) {
+    let sender = state.session.lock().await.as_ref()
+        .and_then(|s| s.alias.clone())
+        .unwrap_or_else(|| state.hostname.clone());
+    let guard = state.db.lock().await;
+    if let Some(db) = guard.as_ref() {
+        chat::push_to_others(db, user_id, &sender, text).await;
+    }
+}
+
 #[tauri::command]
 async fn send_message(state: State<'_, Arc<AppState>>, text: String) -> Result<(), String> {
     let user_id = state.get_user_id().await?;
-    let guard = state.db.lock().await;
-    let db = guard.as_ref().ok_or("no db")?;
-    chat::send_message(db, &user_id, &text).await
+    {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        chat::send_message(db, &user_id, &text).await?;
+    }
+    let state2 = state.inner().clone();
+    let (uid2, text2) = (user_id.clone(), text.clone());
+    tauri::async_runtime::spawn(async move { push_after_send(&state2, &uid2, &text2).await; });
+    Ok(())
 }
 
 #[tauri::command]
@@ -121,6 +138,57 @@ async fn mark_read(state: State<'_, Arc<AppState>>) -> Result<(), String> {
     let guard = state.db.lock().await;
     let db = guard.as_ref().ok_or("no db")?;
     chat::mark_read(db, &user_id).await
+}
+
+#[tauri::command]
+async fn chat_share_file(state: State<'_, Arc<AppState>>, path: String) -> Result<(), String> {
+    let user_id = state.get_user_id().await?;
+    let pb = PathBuf::from(&path);
+    let name = pb.file_name().map(|s| s.to_string_lossy().into_owned()).ok_or("invalid path")?;
+    let size = std::fs::metadata(&pb).map_err(|e| e.to_string())?.len();
+    let file_id = uuid::Uuid::new_v4().to_string();
+    state.shared_files.lock().await.insert(file_id.clone(), pb);
+
+    let text = chat::encode_file_message(&chat::FileMeta { id: file_id, name, size });
+    {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        chat::send_message(db, &user_id, &text).await?;
+    }
+    let state2 = state.inner().clone();
+    let (uid2, text2) = (user_id.clone(), text.clone());
+    tauri::async_runtime::spawn(async move { push_after_send(&state2, &uid2, &text2).await; });
+    Ok(())
+}
+
+#[tauri::command]
+async fn chat_save_file(state: State<'_, Arc<AppState>>, sender_user_id: String, file_id: String, file_name: String) -> Result<String, String> {
+    let ip = {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        let row = db.select_one("users", &format!("id=eq.{}&select=ip", sender_user_id)).await?
+            .ok_or("보낸 사람을 찾을 수 없음")?;
+        row["ip"].as_str().ok_or("보낸 사람의 IP를 알 수 없음")?.to_string()
+    };
+
+    let bytes = core::http::http_get_bytes(&format!("http://{}:61799/chat-file/{}", ip, file_id), 15_000).await?;
+
+    let downloads = std::env::var("USERPROFILE").map(|p| format!("{}\\Downloads", p)).map_err(|_| "Downloads 폴더를 찾을 수 없음")?;
+    let stem = std::path::Path::new(&file_name).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| file_name.clone());
+    let ext  = std::path::Path::new(&file_name).extension().map(|s| s.to_string_lossy().into_owned());
+    let mut dest = PathBuf::from(&downloads).join(&file_name);
+    let mut n = 1;
+    while dest.exists() {
+        let candidate = match &ext {
+            Some(e) => format!("{} ({}).{}", stem, n, e),
+            None    => format!("{} ({})", stem, n),
+        };
+        dest = PathBuf::from(&downloads).join(candidate);
+        n += 1;
+    }
+    std::fs::write(&dest, &bytes).map_err(|e| e.to_string())?;
+    state.log(&format!("chat: file saved {}", dest.display()));
+    Ok(dest.to_string_lossy().into_owned())
 }
 
 // ─── commands: calendar ───────────────────────────────────────────────────────
@@ -261,15 +329,12 @@ fn show_window(app: AppHandle, state: State<'_, Arc<AppState>>) {
 #[tauri::command]
 fn set_active_page(state: State<'_, Arc<AppState>>, page: String) {
     state.log(&sep(&format!("ENTER {}", page_label(&page)), '-'));
-    if page != "messenger" {
-        state.chat_poll_gen.fetch_add(1, Ordering::SeqCst);
-    }
     state.window.set_page(Page::from_str(&page));
 }
 
 #[tauri::command]
 fn chat_enter(state: State<'_, Arc<AppState>>, app: AppHandle) {
-    chat::start_poll(state.sched.clone(), state.inner().clone(), app);
+    chat::enter(state.inner().clone(), app);
 }
 
 #[tauri::command]
@@ -368,7 +433,7 @@ async fn run_control(state: Arc<AppState>, app: AppHandle) {
                     state.log(&format!("control: {} {} from={}", method, path, from));
 
                     let resp = handle_control(method, path, body.as_deref(), &state, &app).await;
-                    let _ = stream.write_all(resp.as_bytes()).await;
+                    let _ = stream.write_all(&resp).await;
                 });
             }
             Err(e) => state.log(&format!("control: accept error: {}", e)),
@@ -376,23 +441,48 @@ async fn run_control(state: Arc<AppState>, app: AppHandle) {
     }
 }
 
-fn http_json(status: u16, body: &str) -> String {
+fn http_json(status: u16, body: &str) -> Vec<u8> {
     let reason = if status == 200 { "OK" } else { "Error" };
     format!(
         "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n{}",
         status, reason, body.len(), body
-    )
+    ).into_bytes()
 }
 
-fn http_text(body: &str) -> String {
+fn http_text(body: &str) -> Vec<u8> {
     format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
         body.len(), body
-    )
+    ).into_bytes()
 }
 
-async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Arc<AppState>, app: &AppHandle) -> String {
+fn http_file(bytes: &[u8], filename: &str) -> Vec<u8> {
+    let header = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=\"{}\"\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n",
+        filename, bytes.len()
+    );
+    let mut out = header.into_bytes();
+    out.extend_from_slice(bytes);
+    out
+}
+
+async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Arc<AppState>, app: &AppHandle) -> Vec<u8> {
     let sp = &state.settings_path;
+    if method == "GET" {
+        if let Some(file_id) = path.strip_prefix("/chat-file/") {
+            let guard = state.shared_files.lock().await;
+            return match guard.get(file_id) {
+                Some(p) => {
+                    let name = p.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "file".to_string());
+                    match std::fs::read(p) {
+                        Ok(bytes) => http_file(&bytes, &name),
+                        Err(_)    => http_json(404, "{\"error\":\"file not readable\"}"),
+                    }
+                }
+                None => http_json(404, "{\"error\":\"not found\"}"),
+            };
+        }
+    }
     match (method, path) {
         ("GET", "/status") => {
             let s = system::read_settings(sp);
@@ -455,6 +545,22 @@ async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Ar
             });
             http_json(200, "{\"ok\":true}")
         }
+        ("POST", "/chat") => {
+            let b = match body { Some(b) if !b.is_empty() => b, _ => return http_json(400, r#"{"error":"no body"}"#) };
+            let v: serde_json::Value = match serde_json::from_str(b) {
+                Ok(v)  => v,
+                Err(_) => return http_json(400, r#"{"error":"invalid json"}"#),
+            };
+            let sender = v["sender"].as_str().unwrap_or("알림").to_string();
+            let text   = v["text"].as_str().unwrap_or("").to_string();
+            state.log(&format!("control: chat post sender={} text={}", sender, text));
+            if state.window.should_notify_chat() {
+                state.notify.chat(sender, text);
+            } else {
+                app.emit("refresh", ()).ok();
+            }
+            http_json(200, "{\"ok\":true}")
+        }
         ("POST", "/disable") => {
             if let Ok(c) = std::fs::read_to_string(sp) {
                 if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&c) {
@@ -477,7 +583,7 @@ async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Ar
         }
         // CORS preflight
         ("OPTIONS", _) => {
-            "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nContent-Length: 0\r\n\r\n".to_string()
+            "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nContent-Length: 0\r\n\r\n".to_string().into_bytes()
         }
         // 테스트용: 알림 직접 발생
         ("POST", "/test") => {
@@ -541,7 +647,11 @@ async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Ar
 
 fn start_polling(sched: Scheduler, state: Arc<AppState>, app: AppHandle, last_chat_id: Option<String>, poll_count: u32) {
     let sched2 = sched.clone();
-    sched.after("poll", 60_000, move || async move {
+    let interval = system::read_settings(&state.settings_path)
+        .map(|s| s.bg_poll_min)
+        .unwrap_or(10)
+        .max(1) * 60_000;
+    sched.after("poll", interval, move || async move {
         let count = poll_count + 1;
         let guard = state.db.lock().await;
         let mut next_chat_id = last_chat_id.clone();
@@ -571,12 +681,21 @@ fn start_polling(sched: Scheduler, state: Arc<AppState>, app: AppHandle, last_ch
         drop(guard);
         app.emit("refresh", ()).ok();
 
-        // 재등록 → 10s 루프 유지
+        // 재등록 → hub.bulletin.bg-poll-min 간격 유지
         start_polling(sched2, state, app, next_chat_id, count);
     });
 }
 
 // ─── init ─────────────────────────────────────────────────────────────────────
+
+async fn persist_window_bounds(state: &Arc<AppState>, width: u32, height: u32) {
+    let guard = state.db.lock().await;
+    let session_guard = state.session.lock().await;
+    if let (Some(db), Some(session)) = (guard.as_ref(), session_guard.as_ref()) {
+        let _ = user::save_window_bounds(db, &session.user_id, width, height).await;
+        state.log(&format!("win: bounds saved {}x{}", width, height));
+    }
+}
 
 async fn init_db_and_session(state: Arc<AppState>, app: AppHandle) {
     let settings = match system::read_settings(&state.settings_path) {
@@ -654,6 +773,13 @@ async fn init_db_and_session(state: Arc<AppState>, app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let webview_data_dir = {
+        let exe = std::env::current_exe().unwrap_or_default();
+        let dir = exe.parent().unwrap_or(std::path::Path::new(".")).to_path_buf();
+        let data_dir = dir.join("webview-data");
+        let _ = std::fs::create_dir_all(&data_dir);
+        data_dir
+    };
     let settings_path = {
         let exe = std::env::current_exe().unwrap_or_default();
         let dir = exe.parent().unwrap_or(std::path::Path::new("."));
@@ -709,7 +835,7 @@ pub fn run() {
         window: WindowState::new(),
         notify: notify_queue,
         sched: sched.clone(),
-        chat_poll_gen: Arc::new(AtomicU64::new(0)),
+        shared_files: Mutex::new(HashMap::new()),
     });
 
     tauri::Builder::default()
@@ -730,7 +856,7 @@ pub fn run() {
 
             // notify 스케줄러 (별도 task) — 큐가 비면 대기, 들어오면 자율 동작
             tauri::async_runtime::spawn(notify::run_scheduler(
-                notify_rx, handle.clone(), state.log_path.clone(),
+                notify_rx, handle.clone(), state.log_path.clone(), webview_data_dir.clone(),
             ));
 
             let macs = system::get_mac_addresses();
@@ -763,14 +889,13 @@ pub fn run() {
                             if let Some(state) = app.try_state::<Arc<AppState>>() {
                                 if let Some(w) = app.get_webview_window("main") {
                                     if let Ok(size) = w.inner_size() {
-                                        let guard = state.db.lock().await;
-                                        let session_guard = state.session.lock().await;
-                                        if let (Some(db), Some(session)) = (guard.as_ref(), session_guard.as_ref()) {
-                                            let _ = user::set_offline(db, &session.user_id).await;
-                                            let _ = user::save_window_bounds(db, &session.user_id, size.width, size.height).await;
-                                            state.log(&format!("app: before-quit — bounds saved {}x{}", size.width, size.height));
-                                        }
+                                        persist_window_bounds(&state, size.width, size.height).await;
                                     }
+                                }
+                                let guard = state.db.lock().await;
+                                let session_guard = state.session.lock().await;
+                                if let (Some(db), Some(session)) = (guard.as_ref(), session_guard.as_ref()) {
+                                    let _ = user::set_offline(db, &session.user_id).await;
                                 }
                             }
                             app.exit(0);
@@ -787,6 +912,14 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
+                .title("family_bulletin")
+                .inner_size(800.0, 600.0)
+                .decorations(false)
+                .visible(false)
+                .data_directory(webview_data_dir)
+                .build()?;
+
             // window: X 버튼 → hide (종료 아님)
             if let Some(w) = app.get_webview_window("main") {
                 let w2 = w.clone();
@@ -795,6 +928,12 @@ pub fn run() {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
                         state_win.log(&sep("TO TRAY", '='));
+                        if let Ok(size) = w2.inner_size() {
+                            let state = state_win.clone();
+                            tauri::async_runtime::spawn(async move {
+                                persist_window_bounds(&state, size.width, size.height).await;
+                            });
+                        }
                         let _ = w2.hide();
                         state_win.window.set_visible(false);
                     }
@@ -827,7 +966,7 @@ pub fn run() {
             // notices
             list_notices, create_notice, create_reply, cast_vote, update_notice, delete_notice,
             // chat
-            list_messages, send_message, delete_message, mark_read, chat_enter,
+            list_messages, send_message, delete_message, mark_read, chat_enter, chat_share_file, chat_save_file,
             // calendar
             list_schedules, create_schedule, delete_schedule,
             // users

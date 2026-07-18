@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 
@@ -32,6 +32,7 @@ function close_self(reason: string) {
 function open_main(page: string) {
   invoke('show_window')
   invoke('set_active_page', { page })
+  emit('navigate', page)
   close_self('clicked → open_main ' + page)
 }
 
@@ -94,7 +95,7 @@ export function ToastApp() {
 
   if (event.kind === 'chat') {
     return (
-      <div style={card_style(fading)} onClick={() => open_main('chat')}>
+      <div style={card_style(fading)} onClick={() => open_main('messenger')}>
         <span style={{ color: ACCENT, fontSize: 20, flexShrink: 0 }}>💬</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: ACCENT, fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>{event.sender}</div>

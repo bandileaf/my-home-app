@@ -23,7 +23,6 @@ pub struct AppState {
     pub app_dir:      PathBuf,
     pub log_path:     PathBuf,
     pub settings_path: PathBuf,
-    pub entries:      RwLock<Vec<FileEntry>>,
     pub current_dirs: RwLock<Vec<String>>,
     pub current_excl: RwLock<Vec<String>>,
     pub last_summary: RwLock<Option<IndexSummary>>,
@@ -100,18 +99,12 @@ fn start_dir_watch(
 
                     if let Some(entry) = indexer::entry_from_path(path) {
                         { let g = state.db.lock().unwrap(); if let Some(c) = g.as_ref() { let _ = db::upsert_entry(c, &entry); } }
-                        let mut entries = state.entries.blocking_write();
-                        match entries.iter_mut().find(|e| e.full_path == entry.full_path) {
-                            Some(e) => *e = entry.clone(),
-                            None    => entries.push(entry.clone()),
-                        }
                         state.log(&format!("watch +add: {}", entry.full_path));
                         let _ = app.emit("index:changed", serde_json::json!({ "added": entry.full_path }));
                     }
                 } else if is_remove {
                     let path_str = path.to_string_lossy().to_string();
                     { let g = state.db.lock().unwrap(); if let Some(c) = g.as_ref() { let _ = db::delete_entry(c, &path_str); } }
-                    state.entries.blocking_write().retain(|e| e.full_path != path_str);
                     state.log(&format!("watch -del: {}", path_str));
                     let _ = app.emit("index:changed", serde_json::json!({ "removed": path_str }));
                 }
@@ -165,6 +158,10 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
     *state.current_dirs.write().await = ms.search_directories.clone();
     *state.current_excl.write().await = ms.exclude.clone();
 
+    for dir in &ms.search_directories {
+        let _ = app.asset_protocol_scope().allow_directory(dir, true);
+    }
+
     let db_path = system::db_path(&state.app_dir, &settings);
     {
         let mut guard = state.db.lock().unwrap();
@@ -181,8 +178,6 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
         .filter(|d| !std::path::Path::new(d).exists())
         .cloned().collect();
 
-    // Clear in-memory entries; dirs become searchable one-by-one as they complete
-    state.entries.write().await.clear();
     state.log(&format!("indexing: start ({} dir(s))", dirs.len()));
 
     let state_clone = Arc::clone(&state);
@@ -192,6 +187,7 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
     let handle = tokio::task::spawn_blocking(move || {
         let mut total_scanned  = 0u64;
         let mut total_excluded = 0u64;
+        let mut total_indexed  = 0u64;
 
         for root in &dirs {
             if !std::path::Path::new(root).exists() {
@@ -225,26 +221,19 @@ async fn start_indexing(app: AppHandle, state: AS<'_>) -> Result<IndexSummary, S
                 root, scanned, new_entries.len(), deleted_paths.len(), excluded
             ));
 
-            // Persist only changes to DB
+            // 검색은 항상 DB에서 직접 조회하므로, 여기서는 변경분만 DB에 반영
             {
                 let g = state_clone.db.lock().unwrap();
                 if let Some(c) = g.as_ref() {
                     if !new_entries.is_empty()   { let _ = db::upsert_entries(c, &new_entries); }
                     if !deleted_paths.is_empty() { let _ = db::delete_entries_batch(c, &deleted_paths); }
+                    total_indexed += db::count_entries_for_dir(c, root);
                 }
             }
-
-            // Load final state for this dir from DB and make it searchable
-            let dir_entries = {
-                let g = state_clone.db.lock().unwrap();
-                g.as_ref().map(|c| db::load_entries_for_dir(c, root)).unwrap_or_default()
-            };
-            state_clone.entries.blocking_write().extend(dir_entries);
         }
 
-        let indexed = state_clone.entries.blocking_read().len() as u64;
-        state_clone.log(&format!("indexing: done, {} total files", indexed));
-        IndexSummary { scanned: total_scanned, indexed, excluded: total_excluded, has_target: !dirs.is_empty(), missing }
+        state_clone.log(&format!("indexing: done, {} total files", total_indexed));
+        IndexSummary { scanned: total_scanned, indexed: total_indexed, excluded: total_excluded, has_target: !dirs.is_empty(), missing }
     });
 
     let summary = handle.await.map_err(|e| e.to_string())?;
@@ -272,7 +261,7 @@ async fn search_files(
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or(SearchOptions { extensions: None, limit: None, exclude_patterns: None, root_dirs: None });
 
-    let entries: Vec<FileEntry> = state.entries.read().await.clone();
+    let entries: Vec<FileEntry> = with_db(&state, |c| db::load_entries(c)).unwrap_or_default();
     let dirs:    Vec<String>    = state.current_dirs.read().await.clone();
     let excl:    Vec<String>    = state.current_excl.read().await.clone();
 
@@ -300,15 +289,34 @@ fn spawn_no_window(program: &str, args: &[&str]) {
     let _ = std::process::Command::new(program).args(args).creation_flags(0x08000000).spawn();
 }
 
-#[tauri::command]
-fn reveal_file(full_path: String) {
-    #[cfg(windows)]
-    spawn_no_window("explorer", &["/select,", &full_path]);
+// explorer.exe는 커맨드라인을 자체 파싱하므로, /select, 뒤에는 경로만 따옴표로 감싸야 한다
+// (Rust의 자동 인자 이스케이핑을 쓰면 /select, 까지 통째로 감싸져서 파싱에 실패한다)
+#[cfg(windows)]
+fn reveal_in_explorer(state: &AppState, full_path: &str) {
+    use std::os::windows::process::CommandExt;
+    let exists = std::path::Path::new(full_path).exists();
+    let raw = format!("/select,\"{}\"", full_path);
+    let result = std::process::Command::new("explorer")
+        .raw_arg(&raw)
+        .creation_flags(0x08000000)
+        .spawn();
+    state.log(&format!(
+        "reveal: path={} exists={} raw_arg={} spawn={:?}",
+        full_path, exists, raw, result.map(|c| c.id())
+    ));
 }
 
 #[tauri::command]
-fn copy_file(_full_path: String) {
-    // clipboard.writeText handled on frontend via navigator.clipboard
+fn reveal_file(full_path: String, state: AS<'_>) {
+    #[cfg(windows)]
+    reveal_in_explorer(&state, &full_path);
+}
+
+#[tauri::command]
+fn copy_file(full_path: String) -> Result<(), String> {
+    use clipboard_win::Setter;
+    let _clip = clipboard_win::Clipboard::new_attempts(10).map_err(|e| e.to_string())?;
+    clipboard_win::formats::FileList.write_clipboard(&[full_path]).map_err(|e| e.to_string())
 }
 
 // ── commands: file watching ───────────────────────────────────────────────────
@@ -514,9 +522,9 @@ fn youtube_cancel_video(url: String, state: AS<'_>) {
 }
 
 #[tauri::command]
-fn youtube_open_folder(file_path: String) {
+fn youtube_open_folder(file_path: String, state: AS<'_>) {
     #[cfg(windows)]
-    spawn_no_window("explorer", &["/select,", &file_path]);
+    reveal_in_explorer(&state, &file_path);
 }
 
 #[tauri::command]
@@ -626,7 +634,6 @@ pub fn run() {
         app_dir:       app_dir.clone(),
         log_path:      log_path.clone(),
         settings_path: settings_path.clone(),
-        entries:       RwLock::new(vec![]),
         current_dirs:  RwLock::new(vec![]),
         current_excl:  RwLock::new(vec![]),
         last_summary:  RwLock::new(None),
@@ -692,6 +699,15 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
             let state2 = state.clone();
+
+            let data_dir = state2.app_dir.join("webview-data");
+            let _ = std::fs::create_dir_all(&data_dir);
+            tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
+                .title("Family Media")
+                .inner_size(1100.0, 720.0)
+                .visible(true)
+                .data_directory(data_dir)
+                .build()?;
 
             // Restore / save window size via DB app_state table
             if let Some(win) = app.get_webview_window("main") {
@@ -768,7 +784,7 @@ pub fn run() {
                     let db_path  = system::db_path(&state2.app_dir, &settings);
 
                     // Scope the MutexGuard so it's dropped before any await
-                    let (entries, summary) = {
+                    let (n, summary) = {
                         let mut guard = state2.db.lock().unwrap();
                         if guard.is_none() {
                             if let Ok(conn) = db::open_db(&db_path) {
@@ -776,20 +792,22 @@ pub fn run() {
                             }
                         }
                         if let Some(conn) = guard.as_ref() {
-                            (db::load_entries(conn), db::load_summary(conn))
+                            (db::count_entries(conn), db::load_summary(conn))
                         } else {
-                            (vec![], None)
+                            (0, None)
                         }
                         // guard dropped here
                     };
 
                     let dirs = ms.search_directories;
                     let excl = ms.exclude;
-                    let n    = entries.len();
 
-                    *state2.entries.write().await      = entries;
                     *state2.current_dirs.write().await = dirs.clone();
                     *state2.current_excl.write().await = excl.clone();
+
+                    for dir in &dirs {
+                        let _ = handle.asset_protocol_scope().allow_directory(dir, true);
+                    }
                     if let Some(s) = summary {
                         *state2.last_summary.write().await = Some(s);
                     }

@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter};
 use crate::AppState;
 use crate::core::db::DbClient;
-use crate::core::scheduler::Scheduler;
+use crate::modules::admin;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -17,6 +16,20 @@ pub struct ChatMessage {
     pub created_at: i64,
     #[serde(rename = "readBy")]
     pub read_by: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileMeta {
+    pub id:   String,
+    pub name: String,
+    pub size: u64,
+}
+
+// DB 스키마 변경 없이 메시지 텍스트에 파일 메타정보를 마커로 인코딩
+pub const FILE_PREFIX: &str = "[[FILE]]";
+
+pub fn encode_file_message(meta: &FileMeta) -> String {
+    format!("{}{}", FILE_PREFIX, serde_json::to_string(meta).unwrap_or_default())
 }
 
 fn parse_msg(r: &Value) -> ChatMessage {
@@ -45,12 +58,28 @@ pub async fn list_messages(db: &DbClient) -> Result<Vec<ChatMessage>, String> {
     Ok(rows.iter().map(parse_msg).collect())
 }
 
+pub async fn purge_old(db: &DbClient) -> Result<(), String> {
+    let week_ago = (chrono::Utc::now() - chrono::Duration::days(7))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    db.delete("chat_messages", &format!("created_at=lt.{}", week_ago)).await
+}
+
 pub async fn send_message(db: &DbClient, user_id: &str, text: &str) -> Result<(), String> {
     db.insert("chat_messages", json!({
         "user_id": user_id,
         "text": text,
         "read_by": [],
     })).await
+}
+
+// 로그인 중인 다른 기기들에 즉시 push (poll-sec는 push 실패 시의 fallback)
+pub async fn push_to_others(db: &DbClient, my_id: &str, sender: &str, text: &str) {
+    let Ok(rows) = db.select("users", "select=id,ip&is_online=eq.true").await else { return };
+    for row in &rows {
+        if row["id"].as_str() == Some(my_id) { continue; }
+        let Some(ip) = row["ip"].as_str() else { continue };
+        let _ = admin::send_chat(ip, sender, text).await;
+    }
 }
 
 pub async fn delete_message(db: &DbClient, id: &str, user_id: &str) -> Result<(), String> {
@@ -81,31 +110,18 @@ fn str_v(v: &Value, k: &str) -> String {
     v[k].as_str().unwrap_or("").to_string()
 }
 
-// ── 채팅 1초 폴링 ─────────────────────────────────────────────────────────────
+// ── 대화방 진입 ─────────────────────────────────────────────────────────────
+// 이후 갱신은 /chat push로 처리 (poll-sec 폴링 제거됨). 진입 시 1회만 정리+갱신.
 
-pub fn start_poll(sched: Scheduler, state: Arc<AppState>, app: AppHandle) {
-    let gen = state.chat_poll_gen.fetch_add(1, Ordering::SeqCst) + 1;
-    schedule_refresh(sched, state, app, gen);
-}
-
-fn schedule_refresh(sched: Scheduler, state: Arc<AppState>, app: AppHandle, gen: u64) {
-    let sched2 = sched.clone();
-    sched.after("chat-refresh", 1_000, move || async move {
-        do_refresh(sched2, state, app, gen).await;
-    });
-}
-
-async fn do_refresh(sched: Scheduler, state: Arc<AppState>, app: AppHandle, gen: u64) {
-    if gen != state.chat_poll_gen.load(Ordering::SeqCst) {
-        return;
-    }
-    let guard = state.db.lock().await;
-    if let Some(db) = guard.as_ref() {
-        match list_messages(db).await {
-            Ok(_)  => { app.emit("refresh", ()).ok(); }
-            Err(e) => { state.log(&format!("chat: refresh err={}", e)); }
+pub fn enter(state: Arc<AppState>, app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let guard = state.db.lock().await;
+        if let Some(db) = guard.as_ref() {
+            let _ = purge_old(db).await;
+            match list_messages(db).await {
+                Ok(_)  => { app.emit("refresh", ()).ok(); }
+                Err(e) => { state.log(&format!("chat: enter refresh err={}", e)); }
+            }
         }
-    }
-    drop(guard);
-    schedule_refresh(sched, state, app, gen);
+    });
 }

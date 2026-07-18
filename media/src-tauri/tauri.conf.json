@@ -10,15 +10,11 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Family Media",
-        "width": 1100,
-        "height": 720,
-        "visible": true
-      }
-    ],
-    "security": { "csp": null }
+    "windows": [],
+    "security": {
+      "csp": null,
+      "assetProtocol": { "enable": true, "scope": [] }
+    }
   },
   "bundle": {
     "active": true,

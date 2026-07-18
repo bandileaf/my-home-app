@@ -45,8 +45,8 @@ export function MusicSearchPanel(): JSX.Element {
 
   useEffect(() => {
     const bridge = get_bridge()
-    const search = bridge?.search_files
-    if (!search) {
+    const search_fn = bridge?.search_files
+    if (!bridge || !search_fn) {
       set_available(false)
       return
     }
@@ -62,8 +62,8 @@ export function MusicSearchPanel(): JSX.Element {
     }
 
     let cancelled = false
-    const timer = setTimeout(() => {
-      search(needle, { limit: 500 })
+    function run_search(): void {
+      search_fn!(needle, { limit: 500 })
         .then((result) => {
           if (cancelled) {
             return
@@ -78,11 +78,18 @@ export function MusicSearchPanel(): JSX.Element {
             set_total(0)
           }
         })
-    }, 200)
+    }
+
+    const timer = setTimeout(run_search, 200)
+    // 인덱싱이 진행 중이면 새로 추가되는 파일도 검색 결과에 반영되도록 재검색
+    const unsub_progress = bridge.on_index_progress?.(run_search)
+    const unsub_done = bridge.on_index_done?.(run_search)
 
     return () => {
       cancelled = true
       clearTimeout(timer)
+      unsub_progress?.()
+      unsub_done?.()
     }
   }, [query])
 

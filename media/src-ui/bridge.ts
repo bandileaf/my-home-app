@@ -134,7 +134,7 @@ const bridge: AppBridge = {
 
   reveal_file: (fullPath) => { void invoke('reveal_file', { fullPath }) },
 
-  copy_file: (fullPath) => { void navigator.clipboard.writeText(fullPath) },
+  copy_file: (fullPath) => { void invoke('copy_file', { fullPath }) },
 
   watch_file: (path) => { void invoke('watch_file', { path }) },
 

@@ -92,3 +92,8 @@ pub async fn send_disable(ip: &str) -> Result<Value, String> {
 pub async fn send_enable(ip: &str) -> Result<Value, String> {
     http_post_json(&format!("http://{}:61799/enable", ip), json!({}), 5000).await
 }
+
+pub async fn send_chat(ip: &str, sender: &str, text: &str) -> Result<Value, String> {
+    http_post_json(&format!("http://{}:61799/chat", ip),
+        json!({ "sender": sender, "text": text }), 3000).await
+}

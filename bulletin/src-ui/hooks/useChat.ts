@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { useState, useEffect, useCallback } from 'react'
 import type { ChatMessage } from '../types'
 
@@ -12,8 +11,7 @@ export function useChat() {
 
   useEffect(() => {
     refresh()
-    const unsub = listen('refresh', refresh)
-    return () => { unsub.then(f => f()) }
+    // 'refresh' 이벤트 구독은 ChatPage가 소유 (조회 → 읽음처리 순서를 강제하기 위해)
   }, [refresh])
 
   const send = async (text: string) => {

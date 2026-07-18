@@ -1,0 +1,335 @@
+/* VS Code Light 테마를 모사한 색상 (foldersize = 주황색 테마) */
+:root {
+  --bg: #ffffff;
+  --toolbar-bg: #f3f3f3;
+  --accent: #f97316;
+  --accent-fg: #ffffff;
+  --border: #e5e5e5;
+  --text: #1f1f1f;
+  --hint: #8a8a8a;
+  --row-hover: #fff3e8;
+  --error-bg: #fdecea;
+  --error-fg: #b3261e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border: 3px solid var(--bg);
+  border-radius: 7px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 68px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.tool-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.tool-btn:disabled {
+  color: var(--hint);
+  cursor: default;
+}
+
+.tool-btn.cancel {
+  color: var(--error-fg);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-left: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.crumb {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--accent);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+.crumb:hover {
+  background: rgba(0, 0, 0, 0.06);
+  text-decoration: underline;
+}
+
+.crumb-sep {
+  color: var(--hint);
+  margin: 0 2px;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-check input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--hint);
+  border-bottom: 1px solid var(--border);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--error-bg);
+  color: var(--error-fg);
+  font-size: 12px;
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+}
+
+.drive-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+}
+
+.drive-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100px;
+  padding: 14px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+  color: var(--text);
+}
+
+.drive-card:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.file-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--toolbar-bg);
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--hint);
+  font-size: 12px;
+}
+
+.file-table thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.file-table thead th.sortable:hover {
+  color: var(--accent);
+}
+
+.th-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.file-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.row-dir {
+  cursor: pointer;
+}
+
+.row-dir:hover, .row-file:hover {
+  background: var(--row-hover);
+}
+
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.name-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-size, .col-count {
+  width: 100px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.col-bar {
+  width: 160px;
+}
+
+.col-actions {
+  width: 130px;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--hint);
+}
+
+.row-action:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--accent);
+}
+
+.row-action.danger:hover {
+  background: rgba(179, 38, 30, 0.12);
+  color: var(--error-fg);
+}
+
+.bar-track {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.warn-icon {
+  color: #b3261e;
+  flex-shrink: 0;
+}
+
+.empty-hint {
+  text-align: center;
+  color: var(--hint);
+  padding: 24px;
+}
