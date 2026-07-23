@@ -6,7 +6,7 @@ FamilyHub: a home hub for sharing all the software a family needs. `media` is th
 
 ## Rules
 
-- **Never push git tags yourself.** When a tag is needed, ask the user first.
+- **When a tag is needed, confirm the version number with the user first, then you may create and push it yourself.**
 - **When editing settings.json fields, always update README.md too.**
 - **Always write a plan and get approval before editing any code.** Order: plan → approval → code edit → build. Never skip steps.
 - **Never commit `hub.supabase.url` or `hub.supabase.key`.** These live only in the local settings.json on each machine.
