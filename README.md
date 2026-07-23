@@ -52,7 +52,8 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 | 파일 | 내용 |
 |------|------|
 | `family_bulletin.zip` | `family_bulletin.exe` |
-| `family_media.zip` | `family_media.exe` + `recovery.bat` |
+| `family_media.zip` | `family_media.exe` |
+| `family_foldersize.zip` | `family_foldersize.exe` |
 
 ---
 

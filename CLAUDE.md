@@ -52,7 +52,8 @@ my-home-app/
 2. Push a tag → GitHub Actions runs (windows-2022 runner)
 3. Release artifacts:
    - `family_bulletin.zip` — `family_bulletin.exe`
-   - `family_media.zip` — `family_media.exe` + `recovery.bat`
+   - `family_media.zip` — `family_media.exe`
+   - `family_foldersize.zip` — `family_foldersize.exe`
 
 ## How Self-Update Works
 

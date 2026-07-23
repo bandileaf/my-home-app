@@ -24,14 +24,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            media/package-lock.json
+            bulletin/package-lock.json
+            foldersize/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            media/src-tauri
+            bulletin/src-tauri
+            foldersize/src-tauri
 
       - name: Set version from tag
         run: |
           $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
           $ver = $tag.TrimStart('v')
           $replace = '"version": "' + $ver + '"'
-          (Get-Content media\package.json)   -replace '"version": "[^"]*"', $replace | Set-Content media\package.json
-          (Get-Content bulletin\package.json) -replace '"version": "[^"]*"', $replace | Set-Content bulletin\package.json
+          (Get-Content media\package.json)             -replace '"version": "[^"]*"', $replace | Set-Content media\package.json
+          (Get-Content bulletin\package.json)           -replace '"version": "[^"]*"', $replace | Set-Content bulletin\package.json
+          (Get-Content foldersize\package.json)         -replace '"version": "[^"]*"', $replace | Set-Content foldersize\package.json
+          (Get-Content media\src-tauri\tauri.conf.json)      -replace '"version": "[^"]*"', $replace | Set-Content media\src-tauri\tauri.conf.json
+          (Get-Content bulletin\src-tauri\tauri.conf.json)   -replace '"version": "[^"]*"', $replace | Set-Content bulletin\src-tauri\tauri.conf.json
+          (Get-Content foldersize\src-tauri\tauri.conf.json) -replace '"version": "[^"]*"', $replace | Set-Content foldersize\src-tauri\tauri.conf.json
 
       - name: Install media dependencies
         run: npm ci
@@ -41,44 +59,33 @@ jobs:
         run: npm ci
         working-directory: bulletin
 
-      - name: Download yt-dlp for media
-        run: |
-          New-Item -ItemType Directory -Force -Path media\bin
-          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "media\bin\yt-dlp.exe"
+      - name: Install foldersize dependencies
+        run: npm ci
+        working-directory: foldersize
 
       - name: Build media
-        run: npx electron-vite build
-        working-directory: media
-
-      - name: Package media (portable)
-        run: npx electron-builder --win portable --publish never
+        run: npm run build:exe
         working-directory: media
 
       - name: Build bulletin
-        run: npx electron-vite build
+        run: npm run build:exe
         working-directory: bulletin
 
-      - name: Package bulletin (portable)
-        run: npx electron-builder --win portable --publish never
-        working-directory: bulletin
+      - name: Build foldersize
+        run: npm run build:exe
+        working-directory: foldersize
 
-      - name: Create family_bulletin.zip
+      - name: Create release zips
         run: |
-          $bulletinExe = (Get-ChildItem bulletin\dist -Filter "*.exe" | Select-Object -First 1).FullName
-          New-Item -ItemType Directory -Force -Path _bulletin
-          Copy-Item $bulletinExe  _bulletin\family_bulletin.exe
-          Compress-Archive -Path _bulletin\* -DestinationPath family_bulletin.zip -Force
-          Write-Host "=== family_bulletin.zip contents ==="
-          Get-ChildItem _bulletin
-
-      - name: Create family_media.zip
-        run: |
-          $mediaExe = (Get-ChildItem media\dist -Filter "*.exe" | Select-Object -First 1).FullName
-          New-Item -ItemType Directory -Force -Path _media
-          Copy-Item $mediaExe    _media\family_media.exe
-          Compress-Archive -Path _media\* -DestinationPath family_media.zip -Force
-          Write-Host "=== family_media.zip contents ==="
-          Get-ChildItem _media
+          New-Item -ItemType Directory -Force -Path _bulletin, _media, _foldersize
+          Copy-Item release\family_bulletin.exe   _bulletin\family_bulletin.exe
+          Copy-Item release\family_media.exe      _media\family_media.exe
+          Copy-Item release\family_foldersize.exe _foldersize\family_foldersize.exe
+          Compress-Archive -Path _bulletin\*   -DestinationPath family_bulletin.zip   -Force
+          Compress-Archive -Path _media\*      -DestinationPath family_media.zip      -Force
+          Compress-Archive -Path _foldersize\* -DestinationPath family_foldersize.zip -Force
+          Write-Host "=== zip contents ==="
+          Get-ChildItem release
 
       - name: Upload to Release
         if: github.event_name == 'push'
@@ -87,4 +94,5 @@ jobs:
           files: |
             family_bulletin.zip
             family_media.zip
+            family_foldersize.zip
           generate_release_notes: true
