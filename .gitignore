@@ -3,6 +3,7 @@ out/
 dist/
 tmp/
 release/
+downloaded-release/
 *.log
 *.bak
 .DS_Store
