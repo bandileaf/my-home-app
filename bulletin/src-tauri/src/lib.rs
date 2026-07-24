@@ -820,7 +820,7 @@ pub fn run() {
     };
 
     let tag = system::read_settings(&settings_path).and_then(|s| s.tag).unwrap_or_else(|| "(none)".to_string());
-    system::log(&log_path, &format!("SESSION START pid={} tag={} reason={}", std::process::id(), tag, startup_reason));
+    system::log(&log_path, &format!("SESSION START pid={} tag={} reason={} build={}", std::process::id(), tag, startup_reason, env!("GIT_DESCRIBE")));
 
     let (notify_queue, notify_rx) = notify::create();
     let sched = scheduler::create(log_path.clone());

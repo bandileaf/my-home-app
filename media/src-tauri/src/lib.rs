@@ -649,6 +649,7 @@ pub fn run() {
     });
 
     system::log(&log_path, "*************** family_media starting ***************");
+    system::log(&log_path, &format!("build: {}", env!("GIT_DESCRIBE")));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

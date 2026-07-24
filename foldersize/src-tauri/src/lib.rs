@@ -192,6 +192,7 @@ pub fn run() {
     });
 
     system::log(&log_path, "*************** family_foldersize starting ***************");
+    system::log(&log_path, &format!("build: {}", env!("GIT_DESCRIBE")));
 
     let state_setup = Arc::clone(&state);
 
