@@ -16,6 +16,9 @@ pub enum ToastEvent {
     #[serde(rename = "notice")]
     Notice { id: u64, #[serde(rename = "noticeId")] notice_id: String, title: String },
 
+    #[serde(rename = "menu")]
+    Menu { id: u64, #[serde(rename = "pollId")] poll_id: String, title: String },
+
     #[serde(rename = "update")]
     Update { msg: String, pct: Option<u8>, done: bool },
 
@@ -32,6 +35,7 @@ pub struct PendingEvents(pub Mutex<HashMap<String, ToastEvent>>);
 pub enum NotifyCmd {
     Chat          { sender: String, text: String },
     Notice        { notice_id: String, title: String },
+    Menu          { poll_id: String, title: String },
     UpdateStart   { version: String },
     UpdateProgress { pct: u8 },
     UpdateStatus  { msg: String },
@@ -74,6 +78,10 @@ impl NotifyQueue {
 
     pub fn notice(&self, notice_id: impl Into<String>, title: impl Into<String>) {
         let _ = self.tx.try_send(NotifyCmd::Notice { notice_id: notice_id.into(), title: title.into() });
+    }
+
+    pub fn menu(&self, poll_id: impl Into<String>, title: impl Into<String>) {
+        let _ = self.tx.try_send(NotifyCmd::Menu { poll_id: poll_id.into(), title: title.into() });
     }
 
     pub fn update_start(&self, version: impl Into<String>) -> UpdateHandle {
@@ -190,6 +198,16 @@ pub async fn run_scheduler(mut rx: mpsc::Receiver<NotifyCmd>, app: AppHandle, lo
                 let label = format!("toast_{}", next_id); next_id += 1;
                 if let Some(info) = create_window(&app, &log_path, &label,
                     ToastEvent::Notice { id: next_id, notice_id, title }, active.len(), &data_dir)
+                {
+                    active.push(info);
+                }
+            }
+
+            NotifyCmd::Menu { poll_id, title } => {
+                active.retain(|w| app.get_webview_window(&w.label).is_some());
+                let label = format!("toast_{}", next_id); next_id += 1;
+                if let Some(info) = create_window(&app, &log_path, &label,
+                    ToastEvent::Menu { id: next_id, poll_id, title }, active.len(), &data_dir)
                 {
                     active.push(info);
                 }

@@ -1,6 +1,7 @@
 use reqwest::{Client, header::{HeaderMap, HeaderValue}};
 use serde_json::Value;
 
+#[derive(Clone)]
 pub struct DbClient {
     client: Client,
     url: String,

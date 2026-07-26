@@ -8,11 +8,13 @@ export function useUsers() {
   const [users, setUsers] = useState<UserProfile[]>([])
 
   const refresh_session = useCallback(async () => {
-    try { setSession(await invoke<UserSession | null>('get_session')) } catch { /* */ }
+    try { setSession(await invoke<UserSession | null>('get_session')) }
+    catch (e) { invoke('log_msg', { msg: `[front] get_session failed: ${e}` }).catch(() => {}) }
   }, [])
 
   const refresh_users = useCallback(async () => {
-    try { setUsers(await invoke<UserProfile[]>('list_users')) } catch { /* */ }
+    try { setUsers(await invoke<UserProfile[]>('list_users')) }
+    catch (e) { invoke('log_msg', { msg: `[front] list_users failed: ${e}` }).catch(() => {}) }
   }, [])
 
   useEffect(() => {

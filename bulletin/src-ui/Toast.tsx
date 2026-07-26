@@ -12,6 +12,7 @@ const GONE_MS = 5700
 type ToastEvent =
   | { kind: 'chat';             id: number; sender: string; text: string }
   | { kind: 'notice';           id: number; noticeId: string; title: string }
+  | { kind: 'menu';             id: number; pollId: string; title: string }
   | { kind: 'update';           msg: string; pct: number | null; done: boolean }
   | { kind: 'updateCancelled' }
 
@@ -71,10 +72,10 @@ export function ToastApp() {
   }, [])
 
   useEffect(() => {
-    if (event?.kind !== 'chat') return
-    log(`chat timer started FADE_MS=${FADE_MS} GONE_MS=${GONE_MS}`)
+    if (event?.kind !== 'chat' && event?.kind !== 'menu') return
+    log(`${event.kind} timer started FADE_MS=${FADE_MS} GONE_MS=${GONE_MS}`)
     const t1 = setTimeout(() => { log('fade start'); set_fading(true) }, FADE_MS)
-    const t2 = setTimeout(() => close_self('chat timer expired'), GONE_MS)
+    const t2 = setTimeout(() => close_self(`${event.kind} timer expired`), GONE_MS)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [event])
 
@@ -115,6 +116,22 @@ export function ToastApp() {
         <span style={{ color: '#F9E2AF', fontSize: 20, flexShrink: 0 }}>📌</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: '#F9E2AF', fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>공지</div>
+          <div style={text_style}>{event.title}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (event.kind === 'menu') {
+    return (
+      <div style={card_style(fading)} onClick={() => open_main('menu')}>
+        <button
+          onClick={e => { e.stopPropagation(); close_self('menu X button') }}
+          style={{ position: 'absolute', top: 6, right: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#585b70', fontSize: 12, padding: '2px 4px' }}
+        >✕</button>
+        <span style={{ color: '#FAB387', fontSize: 20, flexShrink: 0 }}>🍽</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: '#FAB387', fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>메뉴 투표</div>
           <div style={text_style}>{event.title}</div>
         </div>
       </div>

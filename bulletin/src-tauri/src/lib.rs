@@ -10,7 +10,8 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::menu::{Menu, MenuItem};
 
 use core::{db::DbClient, system::{self, Settings}, update, window::{WindowState, Page}, notify::{self, NotifyQueue, PendingEvents}, scheduler::{Scheduler, self}};
-use modules::{notice, chat, calendar, user, admin};
+use modules::{notice, chat, calendar, user, admin, menu, games};
+use modules::games::liar;
 
 // 테스트용: UpdateHandle 임시 보관
 pub struct TestHandle(pub std::sync::Mutex<Option<notify::UpdateHandle>>);
@@ -21,6 +22,7 @@ pub struct AppState {
     pub device_id: String,
     pub hostname: String,
     pub db: Mutex<Option<DbClient>>,
+    pub db_error: Mutex<Option<String>>,
     pub session: Mutex<Option<user::UserSession>>,
     pub window: WindowState,
     pub notify: NotifyQueue,
@@ -91,6 +93,210 @@ async fn delete_notice(state: State<'_, Arc<AppState>>, notice_id: String) -> Re
     notice::delete_notice(db, &notice_id, &user_id).await
 }
 
+// ─── commands: menu polls ───────────────────────────────────────────────────────
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
+fn schedule_menu_close(state: Arc<AppState>, poll_id: String, deadline_ms: i64) {
+    let delay = (deadline_ms - now_ms()).max(0) as u64;
+    let label = format!("menu_close:{}", poll_id);
+    let state2 = state.clone();
+    let pid2 = poll_id.clone();
+    state.sched.after(&label, delay, move || async move {
+        let guard = state2.db.lock().await;
+        if let Some(db) = guard.as_ref() {
+            if let Ok(Some(poll)) = menu::get_poll(db, &pid2).await {
+                if !poll.closed {
+                    let _ = menu::close_poll(db, &pid2).await;
+                    state2.notify.menu(pid2.clone(), format!("마감: {}", poll.title));
+                }
+            }
+        }
+    });
+}
+
+#[tauri::command]
+async fn list_menu_polls(state: State<'_, Arc<AppState>>) -> Result<Vec<menu::MenuPoll>, String> {
+    let guard = state.db.lock().await;
+    let db = guard.as_ref().ok_or("no db")?;
+    menu::list_polls(db).await
+}
+
+#[tauri::command]
+async fn create_menu_poll(state: State<'_, Arc<AppState>>, title: String, deadline: i64) -> Result<menu::MenuPoll, String> {
+    let user_id = state.get_user_id().await?;
+    let poll = {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        menu::create_poll(db, &user_id, &title, deadline).await?
+    };
+    schedule_menu_close(state.inner().clone(), poll.id.clone(), deadline);
+
+    let state2 = state.inner().clone();
+    let (uid2, pid2, title2) = (user_id.clone(), poll.id.clone(), title.clone());
+    tauri::async_runtime::spawn(async move {
+        let db = state2.db.lock().await.clone();
+        if let Some(db) = db {
+            menu::push_to_others(&db, &uid2, &pid2, &title2).await;
+        }
+    });
+
+    Ok(poll)
+}
+
+#[tauri::command]
+async fn add_menu_option(state: State<'_, Arc<AppState>>, poll_id: String, text: String) -> Result<(), String> {
+    let user_id = state.get_user_id().await?;
+    let guard = state.db.lock().await;
+    let db = guard.as_ref().ok_or("no db")?;
+    menu::add_option(db, &poll_id, &user_id, &text).await
+}
+
+#[tauri::command]
+async fn cast_menu_vote(state: State<'_, Arc<AppState>>, poll_id: String, option_id: String) -> Result<(), String> {
+    let user_id = state.get_user_id().await?;
+    let guard = state.db.lock().await;
+    let db = guard.as_ref().ok_or("no db")?;
+    menu::cast_vote(db, &poll_id, &user_id, &option_id).await
+}
+
+#[tauri::command]
+async fn delete_menu_poll(state: State<'_, Arc<AppState>>, poll_id: String) -> Result<(), String> {
+    let user_id = state.get_user_id().await?;
+    let guard = state.db.lock().await;
+    let db = guard.as_ref().ok_or("no db")?;
+    menu::delete_poll(db, &poll_id, &user_id).await
+}
+
+#[tauri::command]
+fn menu_enter(state: State<'_, Arc<AppState>>, app: AppHandle) {
+    menu::enter(state.inner().clone(), app);
+}
+
+// ─── commands: games (liar) ──────────────────────────────────────────────────
+
+fn spawn_liar_push(state: &State<'_, Arc<AppState>>, room_id: String, user_id: String) {
+    let state2 = state.inner().clone();
+    tauri::async_runtime::spawn(async move {
+        let db = state2.db.lock().await.clone();
+        if let Some(db) = db {
+            liar::push_to_others(&db, &room_id, &user_id).await;
+        }
+    });
+}
+
+#[tauri::command]
+async fn liar_get_room(state: State<'_, Arc<AppState>>) -> Result<Option<liar::LiarRoomView>, String> {
+    let user_id = state.get_user_id().await?;
+    let guard = state.db.lock().await;
+    let db = guard.as_ref().ok_or("no db")?;
+    Ok(liar::get_latest(db).await?.map(|room| liar::to_view(&room, &user_id)))
+}
+
+#[tauri::command]
+async fn liar_join(state: State<'_, Arc<AppState>>) -> Result<liar::LiarRoomView, String> {
+    let user_id = state.get_user_id().await?;
+    let room = {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        liar::join(db, &user_id).await?
+    };
+    spawn_liar_push(&state, room.id.clone(), user_id.clone());
+    Ok(liar::to_view(&room, &user_id))
+}
+
+#[tauri::command]
+async fn liar_leave(state: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let user_id = state.get_user_id().await?;
+    let room = {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        liar::leave(db, &user_id).await?
+    };
+    if let Some(room) = room {
+        spawn_liar_push(&state, room.id, user_id);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn liar_toggle_ready(state: State<'_, Arc<AppState>>, room_id: String) -> Result<liar::LiarRoomView, String> {
+    let user_id = state.get_user_id().await?;
+    let room = {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        liar::toggle_ready(db, &room_id, &user_id).await?
+    };
+    spawn_liar_push(&state, room.id.clone(), user_id.clone());
+    Ok(liar::to_view(&room, &user_id))
+}
+
+#[tauri::command]
+async fn liar_open_voting(state: State<'_, Arc<AppState>>, room_id: String) -> Result<liar::LiarRoomView, String> {
+    let user_id = state.get_user_id().await?;
+    let room = {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        liar::open_voting(db, &room_id).await?
+    };
+    spawn_liar_push(&state, room.id.clone(), user_id.clone());
+    Ok(liar::to_view(&room, &user_id))
+}
+
+#[tauri::command]
+async fn liar_cast_vote(state: State<'_, Arc<AppState>>, room_id: String, target_user_id: String) -> Result<liar::LiarRoomView, String> {
+    let user_id = state.get_user_id().await?;
+    let room = {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        liar::cast_vote(db, &room_id, &user_id, &target_user_id).await?
+    };
+    spawn_liar_push(&state, room.id.clone(), user_id.clone());
+    Ok(liar::to_view(&room, &user_id))
+}
+
+#[tauri::command]
+async fn liar_list_messages(state: State<'_, Arc<AppState>>, room_id: String) -> Result<Vec<liar::LiarMessage>, String> {
+    let guard = state.db.lock().await;
+    let db = guard.as_ref().ok_or("no db")?;
+    liar::list_messages(db, &room_id).await
+}
+
+#[tauri::command]
+async fn liar_send_message(state: State<'_, Arc<AppState>>, room_id: String, text: String) -> Result<(), String> {
+    let user_id = state.get_user_id().await?;
+    {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        liar::send_message(db, &room_id, &user_id, &text).await?;
+    }
+    spawn_liar_push(&state, room_id, user_id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn liar_reset(state: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let user_id = state.get_user_id().await?;
+    {
+        let guard = state.db.lock().await;
+        let db = guard.as_ref().ok_or("no db")?;
+        liar::reset(db).await?;
+    }
+    let state2 = state.inner().clone();
+    tauri::async_runtime::spawn(async move {
+        let db = state2.db.lock().await.clone();
+        if let Some(db) = db {
+            liar::push_reset_to_all(&db, &user_id).await;
+        }
+    });
+    Ok(())
+}
+
 // ─── commands: chat ───────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -100,13 +306,14 @@ async fn list_messages(state: State<'_, Arc<AppState>>) -> Result<Vec<chat::Chat
     chat::list_messages(db).await
 }
 
-async fn push_after_send(state: &Arc<AppState>, user_id: &str, text: &str) {
+async fn push_after_send(state: &Arc<AppState>, text: &str) {
     let sender = state.session.lock().await.as_ref()
         .and_then(|s| s.alias.clone())
         .unwrap_or_else(|| state.hostname.clone());
-    let guard = state.db.lock().await;
-    if let Some(db) = guard.as_ref() {
-        chat::push_to_others(db, user_id, &sender, text).await;
+    // DB 락은 클라이언트 복제까지만 — push 네트워크 호출 동안 다른 명령(예: list_messages)이 막히지 않도록 즉시 해제
+    let db = state.db.lock().await.clone();
+    if let Some(db) = db {
+        chat::push_to_all(&db, &sender, text).await;
     }
 }
 
@@ -116,11 +323,14 @@ async fn send_message(state: State<'_, Arc<AppState>>, text: String) -> Result<(
     {
         let guard = state.db.lock().await;
         let db = guard.as_ref().ok_or("no db")?;
+        if games::is_chat_blocked(db, &user_id).await {
+            return Err("라이어 게임에서 라이어를 찾지 못해 채팅이 제한되었습니다".to_string());
+        }
         chat::send_message(db, &user_id, &text).await?;
     }
     let state2 = state.inner().clone();
-    let (uid2, text2) = (user_id.clone(), text.clone());
-    tauri::async_runtime::spawn(async move { push_after_send(&state2, &uid2, &text2).await; });
+    let text2 = text.clone();
+    tauri::async_runtime::spawn(async move { push_after_send(&state2, &text2).await; });
     Ok(())
 }
 
@@ -153,11 +363,14 @@ async fn chat_share_file(state: State<'_, Arc<AppState>>, path: String) -> Resul
     {
         let guard = state.db.lock().await;
         let db = guard.as_ref().ok_or("no db")?;
+        if games::is_chat_blocked(db, &user_id).await {
+            return Err("라이어 게임에서 라이어를 찾지 못해 채팅이 제한되었습니다".to_string());
+        }
         chat::send_message(db, &user_id, &text).await?;
     }
     let state2 = state.inner().clone();
-    let (uid2, text2) = (user_id.clone(), text.clone());
-    tauri::async_runtime::spawn(async move { push_after_send(&state2, &uid2, &text2).await; });
+    let text2 = text.clone();
+    tauri::async_runtime::spawn(async move { push_after_send(&state2, &text2).await; });
     Ok(())
 }
 
@@ -279,6 +492,20 @@ async fn save_settings_cmd(state: State<'_, Arc<AppState>>, value: serde_json::V
 #[tauri::command]
 async fn has_settings(state: State<'_, Arc<AppState>>) -> Result<bool, String> {
     Ok(std::path::Path::new(&state.settings_path).exists())
+}
+
+#[derive(serde::Serialize)]
+struct DbStatus {
+    ready: bool,
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn get_db_status(state: State<'_, Arc<AppState>>) -> Result<DbStatus, String> {
+    Ok(DbStatus {
+        ready: state.db.lock().await.is_some(),
+        error: state.db_error.lock().await.clone(),
+    })
 }
 
 #[tauri::command]
@@ -556,9 +783,28 @@ async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Ar
             state.log(&format!("control: chat post sender={} text={}", sender, text));
             if state.window.should_notify_chat() {
                 state.notify.chat(sender, text);
-            } else {
-                app.emit("refresh", ()).ok();
             }
+            // 토스트 표시 여부와 무관하게 로컬 채팅 상태는 항상 최신화 — 안 그러면
+            // 이미 메신저 탭에 있던 채로(창만 숨김) 알림이 왔을 때, 클릭해도 페이지
+            // 전환이 "변화 없음"으로 처리돼 새 메시지가 안 보이는 문제가 있었음
+            app.emit("refresh", ()).ok();
+            http_json(200, "{\"ok\":true}")
+        }
+        ("POST", "/menu") => {
+            let b = match body { Some(b) if !b.is_empty() => b, _ => return http_json(400, r#"{"error":"no body"}"#) };
+            let v: serde_json::Value = match serde_json::from_str(b) {
+                Ok(v)  => v,
+                Err(_) => return http_json(400, r#"{"error":"invalid json"}"#),
+            };
+            let poll_id = v["poll_id"].as_str().unwrap_or("").to_string();
+            let title   = v["title"].as_str().unwrap_or("").to_string();
+            state.log(&format!("control: menu post poll_id={} title={}", poll_id, title));
+            state.notify.menu(poll_id, title);
+            http_json(200, "{\"ok\":true}")
+        }
+        ("POST", "/game") => {
+            // 토스트 없이 조용히 새로고침만 — 게임 상태 변경은 참가/투표 등 빈번하게 발생
+            app.emit("refresh", ()).ok();
             http_json(200, "{\"ok\":true}")
         }
         ("POST", "/disable") => {
@@ -643,49 +889,6 @@ async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Ar
     }
 }
 
-// ─── polling ──────────────────────────────────────────────────────────────────
-
-fn start_polling(sched: Scheduler, state: Arc<AppState>, app: AppHandle, last_chat_id: Option<String>, poll_count: u32) {
-    let sched2 = sched.clone();
-    let interval = system::read_settings(&state.settings_path)
-        .map(|s| s.bg_poll_min)
-        .unwrap_or(10)
-        .max(1) * 60_000;
-    sched.after("poll", interval, move || async move {
-        let count = poll_count + 1;
-        let guard = state.db.lock().await;
-        let mut next_chat_id = last_chat_id.clone();
-
-        if let Some(db) = guard.as_ref() {
-            if let Ok(msgs) = chat::list_messages(db).await {
-                if let Some(latest) = msgs.first() {
-                    let is_new = last_chat_id.as_ref().map(|id| id != &latest.id).unwrap_or(true);
-                    let my_id  = state.session.lock().await.as_ref().map(|s| s.user_id.clone());
-                    let is_mine = my_id.as_ref().map(|id| id == &latest.user_id).unwrap_or(false);
-
-                    if is_new && last_chat_id.is_some() && !is_mine {
-                        let should_notify = state.window.should_notify_chat();
-                        state.log(&format!("poll#{}: 새 chat from={} notify={}", count, latest.user_id, should_notify));
-                        if should_notify {
-                            state.notify.chat(latest.user_id.clone(), latest.text.clone());
-                        } else {
-                            app.emit("refresh", ()).ok();
-                        }
-                    } else if is_new && last_chat_id.is_none() {
-                        state.log(&format!("poll#{}: chat 초기화 latest={}", count, latest.id));
-                    }
-                    next_chat_id = Some(latest.id.clone());
-                }
-            }
-        }
-        drop(guard);
-        app.emit("refresh", ()).ok();
-
-        // 재등록 → hub.bulletin.bg-poll-min 간격 유지
-        start_polling(sched2, state, app, next_chat_id, count);
-    });
-}
-
 // ─── init ─────────────────────────────────────────────────────────────────────
 
 async fn persist_window_bounds(state: &Arc<AppState>, width: u32, height: u32) {
@@ -747,11 +950,38 @@ async fn init_db_and_session(state: Arc<AppState>, app: AppHandle) {
             }
             *state.session.lock().await = Some(session);
         }
-        Err(e) => state.log(&format!("user upsert failed: {}", e)),
+        Err(e) => {
+            // DB 연결 자체가 안 된 상태 — 어설프게 이어가지 않고 여기서 확실히 멈춘다.
+            // 프론트는 get_db_status로 이 상태를 확인해 전체 화면을 막는다.
+            state.log(&format!("user upsert failed: {}", e));
+            *state.db_error.lock().await = Some(e);
+            app.emit("refresh", ()).ok();
+            return;
+        }
     }
 
     *state.db.lock().await = Some(db);
     state.log("init: db ready");
+    // DB 준비 전에 list_users/get_session 등이 이미 "no db"로 실패했을 수 있음 —
+    // 여기서 한 번 더 refresh를 쏴서 프론트가 재시도하도록 보장 (특정 탭 진입에 의존하지 않게)
+    app.emit("refresh", ()).ok();
+
+    // 앱 재시작 시 마감 안 된 메뉴 투표 재예약 (스케줄러는 메모리 기반이라 사라짐)
+    {
+        let guard = state.db.lock().await;
+        if let Some(db) = guard.as_ref() {
+            match menu::list_polls(db).await {
+                Ok(polls) => {
+                    let open_polls: Vec<_> = polls.into_iter().filter(|p| !p.closed).collect();
+                    state.log(&format!("init: {} open menu poll(s) to reschedule", open_polls.len()));
+                    for poll in open_polls {
+                        schedule_menu_close(state.clone(), poll.id, poll.deadline);
+                    }
+                }
+                Err(e) => state.log(&format!("init: menu poll list failed — {}", e)),
+            }
+        }
+    }
 
     // 업데이트 체크 (app did-finish-load 대신 DB ready 후 실행)
     let sp = state.settings_path.clone();
@@ -831,6 +1061,7 @@ pub fn run() {
         device_id,
         hostname,
         db: Mutex::new(None),
+        db_error: Mutex::new(None),
         session: Mutex::new(None),
         window: WindowState::new(),
         notify: notify_queue,
@@ -866,7 +1097,6 @@ pub fn run() {
             state.log(&format!("settings.json: {}", if has_settings { "있음" } else { "없음 — 관리자 대기 모드" }));
 
             let state_init = state.clone();
-            let state_poll = state.clone();
             let state_ctrl = state.clone();
             let handle_ctrl = handle.clone();
 
@@ -945,15 +1175,10 @@ pub fn run() {
                 }
             }
 
-            let handle_poll = handle.clone();
-
             // init DB + user in background
             tauri::async_runtime::spawn(async move {
                 init_db_and_session(state_init, handle.clone()).await;
             });
-
-            // polling (스케줄러 기반 — DB 준비 후 첫 tick 발행)
-            start_polling(state.sched.clone(), state_poll, handle_poll, None, 0);
 
             // control server
             tauri::async_runtime::spawn(async move {
@@ -965,6 +1190,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // notices
             list_notices, create_notice, create_reply, cast_vote, update_notice, delete_notice,
+            // menu polls
+            list_menu_polls, create_menu_poll, add_menu_option, cast_menu_vote, delete_menu_poll, menu_enter,
+            // games: liar
+            liar_get_room, liar_join, liar_leave, liar_toggle_ready, liar_open_voting, liar_cast_vote,
+            liar_list_messages, liar_send_message, liar_reset,
             // chat
             list_messages, send_message, delete_message, mark_read, chat_enter, chat_share_file, chat_save_file,
             // calendar
@@ -975,7 +1205,7 @@ pub fn run() {
             hide_window, show_window, set_active_page, cancel_update,
             get_toast_event, toast_closed, log_msg,
             // system
-            get_settings, save_settings_cmd, has_settings, is_admin,
+            get_settings, save_settings_cmd, has_settings, is_admin, get_db_status,
             // admin
             scan_subnet, admin_fetch_log, admin_fetch_settings,
             admin_send_settings, admin_restart, admin_update, admin_disable, admin_enable,

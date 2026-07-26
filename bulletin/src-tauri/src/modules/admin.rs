@@ -97,3 +97,12 @@ pub async fn send_chat(ip: &str, sender: &str, text: &str) -> Result<Value, Stri
     http_post_json(&format!("http://{}:61799/chat", ip),
         json!({ "sender": sender, "text": text }), 3000).await
 }
+
+pub async fn send_menu(ip: &str, poll_id: &str, title: &str) -> Result<Value, String> {
+    http_post_json(&format!("http://{}:61799/menu", ip),
+        json!({ "poll_id": poll_id, "title": title }), 3000).await
+}
+
+pub async fn send_game_ping(ip: &str) -> Result<Value, String> {
+    http_post_json(&format!("http://{}:61799/game", ip), json!({}), 3000).await
+}

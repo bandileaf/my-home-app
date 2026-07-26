@@ -21,6 +21,63 @@ export interface Notice {
   votes: Vote[]
 }
 
+export interface MenuOption {
+  id: string
+  text: string
+  addedBy: string
+  addedAt: number
+}
+
+export interface MenuVote {
+  userId: string
+  optionId: string
+  votedAt: number
+}
+
+export interface MenuPoll {
+  id: string
+  createdBy: string
+  title: string
+  options: MenuOption[]
+  votes: MenuVote[]
+  deadline: number
+  closed: boolean
+  createdAt: number
+}
+
+export interface LiarParticipant {
+  userId: string
+  joinedAt: number
+  ready: boolean
+}
+
+export interface LiarVote {
+  userId: string
+  targetUserId: string
+  votedAt: number
+}
+
+export interface LiarMessage {
+  id: string
+  userId: string
+  text: string
+  createdAt: number
+}
+
+export interface LiarRoomView {
+  id: string
+  phase: 'waiting' | 'playing' | 'voting' | 'ended'
+  participants: LiarParticipant[]
+  yourRole: 'liar' | 'citizen' | null
+  word: string | null
+  liarUserId: string | null
+  votes: LiarVote[]
+  result: 'citizens_win' | 'liar_win' | null
+  mutedUserIds: string[]
+  createdAt: number
+  updatedAt: number
+}
+
 export interface ChatMessage {
   id: string
   userId: string
@@ -58,6 +115,11 @@ export interface UserSession {
   userId: string
   alias: string | null
   avatar: string | null
+}
+
+export interface DbStatus {
+  ready: boolean
+  error: string | null
 }
 
 export interface DeviceStatus {

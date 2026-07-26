@@ -118,7 +118,7 @@ export function ChatPage({ session, get_profile, online_users, hook }: ChatPageP
     const unsub = getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type === 'drop') {
         for (const path of event.payload.paths) {
-          invoke('chat_share_file', { path }).catch(() => {})
+          invoke('chat_share_file', { path }).catch(hook.report_error)
         }
       }
     })
@@ -198,6 +198,8 @@ export function ChatPage({ session, get_profile, online_users, hook }: ChatPageP
         })}
         <div ref={bottom_ref} />
       </div>
+
+      {hook.error && <div className="chat-error-banner">{hook.error}</div>}
 
       <div className="chat-input-row">
         <input

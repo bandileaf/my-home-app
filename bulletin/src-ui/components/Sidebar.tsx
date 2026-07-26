@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { StickyNote, MessageCircle, Calendar, ShieldCheck } from 'lucide-react'
+import { StickyNote, MessageCircle, Calendar, UtensilsCrossed, Gamepad2, ShieldCheck } from 'lucide-react'
 import type { UserSession, UserProfile } from '../types'
 import { ProfilePanel } from './ProfilePanel'
 
-export type Section = 'notices' | 'messenger' | 'calendar' | 'admin'
+export type Section = 'notices' | 'messenger' | 'calendar' | 'menu' | 'games' | 'admin'
 
 interface SidebarProps {
   active: Section
@@ -37,6 +37,14 @@ export function Sidebar({ active, session, hostname, is_admin, on_profile_save, 
         <div className={`tab tab-calendar ${active === 'calendar' ? 'active' : ''}`}
           onClick={() => on_section_change('calendar')} style={{ cursor: 'pointer' }}>
           <Calendar size={TAB_ICON_SIZE} strokeWidth={1.5} />
+        </div>
+        <div className={`tab tab-menu ${active === 'menu' ? 'active' : ''}`}
+          onClick={() => on_section_change('menu')} style={{ cursor: 'pointer' }}>
+          <UtensilsCrossed size={TAB_ICON_SIZE} strokeWidth={1.5} />
+        </div>
+        <div className={`tab tab-games ${active === 'games' ? 'active' : ''}`}
+          onClick={() => on_section_change('games')} style={{ cursor: 'pointer' }}>
+          <Gamepad2 size={TAB_ICON_SIZE} strokeWidth={1.5} />
         </div>
         <div className="tab-spacer" />
         {is_admin && (

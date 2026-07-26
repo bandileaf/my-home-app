@@ -5,19 +5,28 @@ import { listen } from '@tauri-apps/api/event'
 import { useNotices } from './hooks/useNotices'
 import { useChat } from './hooks/useChat'
 import { useSchedules } from './hooks/useSchedules'
+import { useMenu } from './hooks/useMenu'
+import { useLiarGame } from './games/liar/useLiarGame'
 import { useUsers } from './hooks/useUsers'
 import { Sidebar } from './components/Sidebar'
 import { NoticePage } from './components/NoticePage'
 import { ChatPage } from './components/ChatPage'
 import { CalendarPage } from './components/CalendarPage'
+import { MenuPage } from './components/MenuPage'
+import { GamesPage } from './components/GamesPage'
 import { AdminPage } from './components/AdminPage'
 import { NoSettingsPage } from './components/NoSettingsPage'
 import { DisabledPage } from './components/DisabledPage'
+import { DbErrorPage } from './components/DbErrorPage'
 import { NavRound } from './components/NavRound'
 import { Dots } from './components/Dots'
+import type { DbStatus } from './types'
 import './dashboard.css'
 
-const PAGES = ['notices', 'messenger', 'calendar'] as const
+const DB_POLL_INTERVAL_MS = 500
+const DB_POLL_MAX_ATTEMPTS = 30 // 500ms * 30 = 15s
+
+const PAGES = ['notices', 'messenger', 'calendar', 'menu', 'games'] as const
 type Page = typeof PAGES[number] | 'admin'
 
 export function App() {
@@ -26,6 +35,8 @@ export function App() {
   const [is_disabled, set_is_disabled] = useState(false)
   const [is_admin, set_is_admin] = useState(false)
   const [hostname, set_hostname] = useState('')
+  const [db_ready, set_db_ready] = useState(false)
+  const [db_error, set_db_error] = useState<string | null>(null)
   const [page, set_page_state] = useState<Page>('notices')
   function set_page(p: Page) {
     set_page_state(p)
@@ -35,6 +46,8 @@ export function App() {
   const notice_hook    = useNotices()
   const chat_hook      = useChat()
   const schedule_hook  = useSchedules()
+  const menu_hook      = useMenu()
+  const liar_hook      = useLiarGame()
   const { session, users, set_alias, set_avatar, refresh_users } = useUsers()
 
   const check_state = useCallback(async () => {
@@ -64,6 +77,31 @@ export function App() {
     return () => { unsub.then(f => f()) }
   }, [])
 
+  // 화면을 그리기 전에 DB 연결이 실제로 준비됐는지 확정 확인 — 안 되면 계속 폴링하고,
+  // 진짜 문제(에러) 또는 시간 초과면 전체 화면을 막고 상태를 표시한다.
+  useEffect(() => {
+    if (!has_settings || is_disabled) return
+    let cancelled = false
+    let attempts = 0
+
+    async function poll() {
+      if (cancelled) return
+      try {
+        const status = await invoke<DbStatus>('get_db_status')
+        if (status.ready) { set_db_ready(true); return }
+        if (status.error) { set_db_error(status.error); return }
+      } catch { /* 커맨드 자체가 아직 안 뜬 경우 등 — 계속 재시도 */ }
+      attempts++
+      if (attempts >= DB_POLL_MAX_ATTEMPTS) {
+        set_db_error('DB 연결이 원활하지 않습니다 (시간 초과)')
+        return
+      }
+      setTimeout(poll, DB_POLL_INTERVAL_MS)
+    }
+    poll()
+    return () => { cancelled = true }
+  }, [has_settings, is_disabled])
+
   const get_profile = useCallback((id: string) => {
     return users.find(u => u.id === id) ?? null
   }, [users])
@@ -79,7 +117,7 @@ export function App() {
 
   if (!ready) return null
 
-  const waiting_screen = !has_settings ? <NoSettingsPage /> : is_disabled ? <DisabledPage /> : null
+  const waiting_screen = !has_settings ? <NoSettingsPage /> : is_disabled ? <DisabledPage /> : db_error ? <DbErrorPage /> : null
   if (waiting_screen) return (
     <div className="app-shell">
       <div className="titlebar">
@@ -90,6 +128,9 @@ export function App() {
     </div>
   )
 
+  // DB 연결이 확정되기 전까지는(에러도 아직 아님) 화면을 그리지 않는다 — "?" 같은 반쪽 데이터 노출 방지
+  if (!db_ready) return null
+
   return (
     <div className="app-shell">
       <div className="titlebar">
@@ -98,7 +139,7 @@ export function App() {
       </div>
       <div className="body-row">
         <Sidebar
-          active={page === 'messenger' ? 'messenger' : page === 'admin' ? 'admin' : page === 'calendar' ? 'calendar' : 'notices'}
+          active={page === 'messenger' ? 'messenger' : page === 'admin' ? 'admin' : page === 'calendar' ? 'calendar' : page === 'menu' ? 'menu' : page === 'games' ? 'games' : 'notices'}
           session={session}
           hostname={session?.alias ?? hostname ?? '?'}
           users={users}
@@ -120,6 +161,12 @@ export function App() {
             )}
             {page === 'calendar' && (
               <CalendarPage session={session} hook={schedule_hook} get_profile={get_profile} />
+            )}
+            {page === 'menu' && (
+              <MenuPage session={session} get_profile={get_profile} hook={menu_hook} />
+            )}
+            {page === 'games' && (
+              <GamesPage session={session} get_profile={get_profile} liar_hook={liar_hook} />
             )}
             {page === 'admin' && <AdminPage />}
 

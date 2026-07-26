@@ -72,14 +72,19 @@ pub async fn send_message(db: &DbClient, user_id: &str, text: &str) -> Result<()
     })).await
 }
 
-// 로그인 중인 다른 기기들에 즉시 push (poll-sec는 push 실패 시의 fallback)
-pub async fn push_to_others(db: &DbClient, my_id: &str, sender: &str, text: &str) {
+// 로그인 중인 모든 기기(나 자신 포함)에 즉시 push — 폴링 없이 push가 유일한 전달 경로
+// 오프라인인데 is_online=true로 남아있는 stale 기기가 있어도 다른 기기 전달이 늦어지지 않도록 병렬로 발사
+pub async fn push_to_all(db: &DbClient, sender: &str, text: &str) {
     let Ok(rows) = db.select("users", "select=id,ip&is_online=eq.true").await else { return };
+    let mut handles = Vec::new();
     for row in &rows {
-        if row["id"].as_str() == Some(my_id) { continue; }
         let Some(ip) = row["ip"].as_str() else { continue };
-        let _ = admin::send_chat(ip, sender, text).await;
+        let (ip, sender, text) = (ip.to_string(), sender.to_string(), text.to_string());
+        handles.push(tokio::spawn(async move {
+            let _ = admin::send_chat(&ip, &sender, &text).await;
+        }));
     }
+    for h in handles { let _ = h.await; }
 }
 
 pub async fn delete_message(db: &DbClient, id: &str, user_id: &str) -> Result<(), String> {
