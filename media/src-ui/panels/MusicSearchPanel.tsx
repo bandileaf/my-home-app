@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FolderOpen, Copy, Play, Pause } from 'lucide-react'
 import { get_bridge, type SearchHit } from '../bridge'
 import { useTabCtx } from '../App'
@@ -28,6 +28,7 @@ export function MusicSearchPanel(): JSX.Element {
   const [total, set_total] = useState(0)
   const [truncated, set_truncated] = useState(false)
   const [available, set_available] = useState(true)
+  const searchSeq = useRef(0)
 
   // 복원: 저장된 검색어 로드
   useEffect(() => {
@@ -63,9 +64,13 @@ export function MusicSearchPanel(): JSX.Element {
 
     let cancelled = false
     function run_search(): void {
+      const seq = ++searchSeq.current
       search_fn!(needle, { limit: 500 })
         .then((result) => {
-          if (cancelled) {
+          // 응답이 도착 순서가 뒤바뀔 수 있으므로, 가장 마지막에 보낸 요청의 결과만 반영한다
+          // (인덱싱 중 index:progress 마다 재검색이 쏟아지는데, DB 락 경합으로 먼저 보낸
+          // 요청이 나중에 응답할 수 있음 — 그러면 완료 후에도 화면이 옛 결과로 굳어버린다)
+          if (cancelled || seq !== searchSeq.current) {
             return
           }
           set_hits(result.hits)
@@ -73,7 +78,7 @@ export function MusicSearchPanel(): JSX.Element {
           set_truncated(result.truncated)
         })
         .catch(() => {
-          if (!cancelled) {
+          if (!cancelled && seq === searchSeq.current) {
             set_hits([])
             set_total(0)
           }
