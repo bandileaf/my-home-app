@@ -4,6 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 FamilyHub: a home hub for sharing all the software a family needs. `media` is the main utility app (`family_media.exe`) and `bulletin` is the family notice board (`family_bulletin.exe`). Each app manages its own updates independently.
 
+## 실행 환경 구분 (중요)
+
+- **이 프로젝트(`D:\Workspace\my_home_app`)는 개발·테스트 공간**이다. 코드 수정, 빌드, 테스트만 여기서 한다.
+- **실제 동작 확인과 로그 확인은 `C:\DEV\Familyhub` 에서 한다.** 실행 중인 `family_bulletin.exe`, `family_media.exe`, 실제 `settings.json`, `log/family_bulletin.log`, `log/family_media.log`, `bins/` 가 여기에 있다.
+- 동작 문제를 조사할 때는 `C:\DEV\Familyhub\log\` 의 로그를 먼저 본다. 이 프로젝트의 `release/` 폴더는 빌드 산출물일 뿐 운영 환경이 아니다.
+
 ## Rules
 
 - **When a tag is needed, confirm the version number with the user first, then you may create and push it yourself.**

@@ -121,6 +121,65 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 
 ---
 
+## 개발 환경 설치
+
+Windows 10/11 기준. 아래를 순서대로 설치한다.
+
+| 도구 | 버전 | 용도 |
+|------|------|------|
+| [Git](https://git-scm.com/download/win) | 최신 | 소스 받기, 태그 푸시 |
+| [Node.js](https://nodejs.org/) | 22 LTS 이상 (CI는 22) | React/Vite 프론트엔드 빌드, `npm` |
+| [Rust](https://rustup.rs/) (`rustup`) | stable (`x86_64-pc-windows-msvc`) | Tauri 백엔드 빌드 |
+| [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) | 2022 | Rust MSVC 링커. **"C++를 사용한 데스크톱 개발"** 워크로드 선택 (Windows SDK 포함) |
+| [WebView2 런타임](https://developer.microsoft.com/microsoft-edge/webview2/) | 최신 | Tauri 창 렌더링. Windows 11 에는 기본 설치됨 |
+
+Tauri CLI(`@tauri-apps/cli`)는 각 앱의 `devDependencies` 에 들어 있으므로 따로 설치하지 않는다.
+
+### 설치 확인
+
+```bash
+git --version
+node --version     # v22 이상
+rustc --version
+cargo --version
+```
+
+### Rust 설치 후 환경 설정
+
+1. **rustup-init.exe** 실행 시 기본 옵션(1번)으로 설치하면 `%USERPROFILE%\.cargo\bin` 이 사용자 `PATH` 에 자동 등록된다. 설치 후 **터미널(VS Code 포함)을 새로 열어야** `cargo`/`rustc` 가 인식된다.
+2. 기본 툴체인을 MSVC stable 로 맞춘다 (GNU 툴체인이면 Tauri 빌드가 실패한다).
+   ```bash
+   rustup default stable-x86_64-pc-windows-msvc
+   rustup show        # "Default host: x86_64-pc-windows-msvc", active toolchain: stable 확인
+   ```
+3. (선택) 설치 위치를 바꾸려면 **설치 전에** 사용자 환경변수 `RUSTUP_HOME`, `CARGO_HOME` 을 지정하고, `PATH` 에 `%CARGO_HOME%\bin` 을 추가한다. 예: `RUSTUP_HOME=C:\DEV\rustup`, `CARGO_HOME=C:\DEV\cargo`
+4. 첫 빌드는 crate 다운로드/컴파일 때문에 수 분 걸린다. 이후에는 `src-tauri/target/` 캐시를 쓴다.
+
+문제 해결:
+
+| 증상 | 확인 |
+|------|------|
+| `linker 'link.exe' not found` | Build Tools 의 "C++를 사용한 데스크톱 개발" 워크로드 미설치. 설치 후 터미널 재시작 |
+| `link.exe` 가 Git 것으로 실행됨 (`extra operand` 오류) | `PATH` 에 `Git\usr\bin` 이 MSVC 보다 앞에 있는지 확인하고 제거/뒤로 이동 |
+| `cargo: command not found` | 터미널 재시작, `PATH` 에 `<CARGO_HOME>\bin` 포함 여부 확인 |
+
+### 의존성 설치
+
+앱마다 따로 설치한다.
+
+```bash
+cd media      && npm ci
+cd ../bulletin   && npm ci
+cd ../foldersize && npm ci
+```
+
+### 실행에 필요한 것
+
+- `settings.json` — 빌드된 exe 옆에 둔다 (위 [settings.json](#settingsjson) 참고). `hub.supabase.*` 는 `bulletin` 에만 필요하다.
+- `media` 의 외부 도구(`yt-dlp`, `ffmpeg`, `ffprobe`, `mp3val`)는 **직접 설치하지 않는다.** 앱 시작 시 `hub.bins` 에 적힌 URL 에서 exe 옆 `bins/` 폴더로 자동 다운로드되므로 인터넷 연결만 있으면 된다.
+
+---
+
 ## 개발 명령
 
 ```bash
