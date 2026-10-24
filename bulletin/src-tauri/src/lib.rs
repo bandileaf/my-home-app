@@ -906,15 +906,18 @@ const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(4
 
 async fn run_keepalive(state: Arc<AppState>) {
     loop {
-        let settings = system::read_settings(&state.settings_path);
-        if let Some(s) = settings {
-            if s.admin && !s.supabase_web_url.is_empty() && !s.supabase_web_key.is_empty() {
+        match system::read_settings(&state.settings_path) {
+            Some(s) if !s.admin => state.log("keepalive: skip (not admin device)"),
+            Some(s) if s.supabase_web_url.is_empty() || s.supabase_web_key.is_empty() =>
+                state.log("keepalive: skip (hub.supabase.web.url/key not set)"),
+            Some(s) => {
                 let url = format!("{}/rest/v1/", s.supabase_web_url.trim_end_matches('/'));
                 match core::http::http_get_with_apikey_status(&url, &s.supabase_web_key, 10_000).await {
                     Ok(code) => state.log(&format!("keepalive: ping {} -> {}", url, code)),
                     Err(e)   => state.log(&format!("keepalive: ping {} failed: {}", url, e)),
                 }
             }
+            None => state.log("keepalive: skip (settings.json not found)"),
         }
         tokio::time::sleep(KEEPALIVE_INTERVAL).await;
     }
