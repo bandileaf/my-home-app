@@ -15,7 +15,7 @@ FamilyHub: a home hub for sharing all the software a family needs. `media` is th
 - **When a tag is needed, confirm the version number with the user first, then you may create and push it yourself.**
 - **When editing settings.json fields, always update README.md too.**
 - **Always write a plan and get approval before editing any code.** Order: plan → approval → code edit → build. Never skip steps.
-- **Never commit `hub.supabase.url` or `hub.supabase.key`.** These live only in the local settings.json on each machine.
+- **Never commit `hub.supabase.url`, `hub.supabase.key`, `hub.supabase.web.url`, or `hub.supabase.web.key`.** These live only in the local settings.json on each machine.
 
 ## Repository Structure
 

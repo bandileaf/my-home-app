@@ -900,6 +900,26 @@ async fn persist_window_bounds(state: &Arc<AppState>, width: u32, height: u32) {
     }
 }
 
+// admin 기기에서만, 일정 주기로 외부 Supabase 프로젝트(hub.supabase.web.*)를 핑해서
+// 무활동으로 인한 프로젝트 정지(pause)를 막는다. admin이 아니거나 설정이 비어 있으면 조용히 쉰다.
+const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(4 * 60 * 60);
+
+async fn run_keepalive(state: Arc<AppState>) {
+    loop {
+        let settings = system::read_settings(&state.settings_path);
+        if let Some(s) = settings {
+            if s.admin && !s.supabase_web_url.is_empty() && !s.supabase_web_key.is_empty() {
+                let url = format!("{}/rest/v1/", s.supabase_web_url.trim_end_matches('/'));
+                match core::http::http_get_with_apikey_status(&url, &s.supabase_web_key, 10_000).await {
+                    Ok(code) => state.log(&format!("keepalive: ping {} -> {}", url, code)),
+                    Err(e)   => state.log(&format!("keepalive: ping {} failed: {}", url, e)),
+                }
+            }
+        }
+        tokio::time::sleep(KEEPALIVE_INTERVAL).await;
+    }
+}
+
 async fn init_db_and_session(state: Arc<AppState>, app: AppHandle) {
     let settings = match system::read_settings(&state.settings_path) {
         Some(s) if !s.supabase_url.is_empty() && !s.supabase_key.is_empty() => s,
@@ -1183,6 +1203,13 @@ pub fn run() {
             // control server
             tauri::async_runtime::spawn(async move {
                 run_control(state_ctrl, handle_ctrl).await;
+            });
+
+            // keepalive: admin 기기에서만, 4시간마다 외부 Supabase 프로젝트(hub.supabase.web.*)에
+            // 핑을 보내 무활동으로 인한 프로젝트 정지(pause)를 막는다.
+            let state_keepalive = state.clone();
+            tauri::async_runtime::spawn(async move {
+                run_keepalive(state_keepalive).await;
             });
 
             Ok(())

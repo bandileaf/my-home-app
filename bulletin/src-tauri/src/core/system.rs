@@ -22,6 +22,10 @@ pub struct Settings {
     pub autostart: bool,
     #[serde(rename = "hub.bulletin.bg-poll-min", default = "default_bg_poll_min")]
     pub bg_poll_min: u64,
+    #[serde(rename = "hub.supabase.web.url", default)]
+    pub supabase_web_url: String,
+    #[serde(rename = "hub.supabase.web.key", default)]
+    pub supabase_web_key: String,
 }
 
 fn bool_true() -> bool { true }

@@ -29,6 +29,8 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 | `hub.app.bulletin.admin` | `boolean` | `true` 이면 관리자 패널 활성화 (해당 기기 로컬에만 설정) |
 | `hub.app.bulletin.autostart` | `boolean` | `true` 이면 Windows 시작 시 자동 실행 등록, `false` 이면 해제 |
 | `hub.bulletin.bg-poll-min` | `number` | 대화방이 닫혀있을 때 백그라운드 알림용 폴링 간격 (분 단위, 기본값 10) |
+| `hub.supabase.web.url` | `string` | (admin 기기용) keepalive 대상 외부 Supabase 프로젝트 URL — **커밋 금지** |
+| `hub.supabase.web.key` | `string` | 위 프로젝트의 publishable key — **커밋 금지** |
 
 ### 예시
 
@@ -108,6 +110,12 @@ JSONC 형식 (`//` 주석, 마지막 쉼표 허용).
 - **내보내기**: 에디터 내용을 선택 기기에 전송
 - **로그 보기**: 선택 기기의 로그 파일 표시
 - **전체 재시작 / 전체 업데이트**: 스캔된 모든 기기에 일괄 실행
+
+### 외부 Supabase 프로젝트 keepalive
+
+`hub.app.bulletin.admin: true` 인 기기는 **4시간마다** `hub.supabase.web.url`/`hub.supabase.web.key`로
+지정한 외부 Supabase 프로젝트에 핑(`GET /rest/v1/`)을 보낸다. 무활동 기간이 길어지면 프로젝트가
+자동 정지(pause)되는 걸 막기 위한 것으로, 둘 중 하나라도 비어 있으면 조용히 건너뛴다.
 
 ---
 

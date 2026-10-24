@@ -32,6 +32,18 @@ pub async fn http_get_bytes(url: &str, timeout_ms: u64) -> Result<Vec<u8>, Strin
     Ok(resp.bytes().await.map_err(|e| e.to_string())?.to_vec())
 }
 
+// apikey 헤더만 붙여 상태 코드를 확인하는 용도 (keepalive 핑 등). 본문은 필요 없다.
+pub async fn http_get_with_apikey_status(url: &str, apikey: &str, timeout_ms: u64) -> Result<u16, String> {
+    let client = Client::builder()
+        .timeout(Duration::from_millis(timeout_ms))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(url)
+        .header("apikey", apikey)
+        .send().await.map_err(|e| e.to_string())?;
+    Ok(resp.status().as_u16())
+}
+
 pub async fn http_post_json(url: &str, body: Value, timeout_ms: u64) -> Result<Value, String> {
     let client = Client::builder()
         .timeout(Duration::from_millis(timeout_ms))
