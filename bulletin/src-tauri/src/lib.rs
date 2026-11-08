@@ -949,16 +949,15 @@ async fn init_db_and_session(state: Arc<AppState>, app: AppHandle) {
     let db = DbClient::new(&settings.supabase_url, &settings.supabase_key);
 
     let ip = system::get_local_ip();
-    let mac_addrs = system::get_mac_addresses();
     let version = env!("CARGO_PKG_VERSION");
 
     let device_id = if !settings.device_id.is_empty() {
         settings.device_id.clone()
     } else {
-        system::get_device_id().unwrap_or_else(|| mac_addrs.first().cloned().unwrap_or_else(|| "unknown".to_string()))
+        system::get_device_id().unwrap_or_else(|| "unknown".to_string())
     };
 
-    match user::upsert_user(&db, &state.hostname, &mac_addrs, ip.as_deref(), &device_id, Some(version)).await {
+    match user::upsert_user(&db, &state.hostname, ip.as_deref(), &device_id, Some(version)).await {
         Ok(session) => {
             state.log(&format!("user upsert 완료. userId={} alias={}", session.user_id, session.alias.as_deref().unwrap_or("null")));
             // 창 크기 복원
@@ -1043,8 +1042,7 @@ pub fn run() {
         log_dir.join(format!("{}.log", env!("CARGO_PKG_NAME"))).to_string_lossy().to_string()
     };
     let hostname = system::get_hostname();
-    let device_id = system::get_device_id()
-        .unwrap_or_else(|| system::get_mac_addresses().into_iter().next().unwrap_or_else(|| "unknown".to_string()));
+    let device_id = system::get_device_id().unwrap_or_else(|| "unknown".to_string());
 
     let reason_path = {
         let exe = std::env::current_exe().unwrap_or_default();

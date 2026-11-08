@@ -96,7 +96,26 @@ pub fn get_device_id() -> Option<String> {
             }
         }
     }
+    // wmic이 실패하면 레지스트리 MachineGuid로 폴백 — Windows 설치 시 한 번 생성되어
+    // 재부팅/네트워크 어댑터 변경과 무관하게 유지되는 안정적인 값 (MAC 주소보다 신뢰 가능)
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(guid) = get_machine_guid() {
+            return Some(guid);
+        }
+    }
     None
+}
+
+#[cfg(target_os = "windows")]
+fn get_machine_guid() -> Option<String> {
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+    use winreg::RegKey;
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let key = hklm.open_subkey("SOFTWARE\\Microsoft\\Cryptography").ok()?;
+    let guid: String = key.get_value("MachineGuid").ok()?;
+    let trimmed = guid.trim();
+    if trimmed.is_empty() { None } else { Some(trimmed.to_lowercase()) }
 }
 
 pub fn get_local_ip() -> Option<String> {

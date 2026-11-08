@@ -28,7 +28,6 @@ pub struct UserSession {
 pub async fn upsert_user(
     db: &DbClient,
     hostname: &str,
-    mac_addresses: &[String],
     ip: Option<&str>,
     device_id: &str,
     version: Option<&str>,
@@ -59,7 +58,7 @@ pub async fn upsert_user(
     let app_info = version.map(|v| json!({ "version": v })).unwrap_or(json!({}));
     db.insert("users", json!({
         "id": user_id, "hostname": hostname,
-        "mac_addresses": mac_addresses, "ip": ip,
+        "ip": ip,
         "device_id": device_id, "is_online": true,
         "app_info": app_info, "last_seen": now, "created_at": now,
     })).await?;
