@@ -375,7 +375,10 @@ async fn chat_share_file(state: State<'_, Arc<AppState>>, path: String) -> Resul
 }
 
 #[tauri::command]
-async fn chat_save_file(state: State<'_, Arc<AppState>>, sender_user_id: String, file_id: String, file_name: String) -> Result<String, String> {
+async fn chat_save_file(state: State<'_, Arc<AppState>>, app: AppHandle, sender_user_id: String, file_id: String, dest_path: String) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
     let ip = {
         let guard = state.db.lock().await;
         let db = guard.as_ref().ok_or("no db")?;
@@ -384,24 +387,54 @@ async fn chat_save_file(state: State<'_, Arc<AppState>>, sender_user_id: String,
         row["ip"].as_str().ok_or("보낸 사람의 IP를 알 수 없음")?.to_string()
     };
 
-    let bytes = core::http::http_get_bytes(&format!("http://{}:61799/chat-file/{}", ip, file_id), 15_000).await?;
+    // 연결 자체가 안 되면(상대방 꺼짐/다른 네트워크) 5초 안에 실패. 연결된 후에는
+    // 큰 파일도 끝까지 받을 수 있게 전체 요청 타임아웃을 두지 않음.
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
 
-    let downloads = std::env::var("USERPROFILE").map(|p| format!("{}\\Downloads", p)).map_err(|_| "Downloads 폴더를 찾을 수 없음")?;
-    let stem = std::path::Path::new(&file_name).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| file_name.clone());
-    let ext  = std::path::Path::new(&file_name).extension().map(|s| s.to_string_lossy().into_owned());
-    let mut dest = PathBuf::from(&downloads).join(&file_name);
-    let mut n = 1;
-    while dest.exists() {
-        let candidate = match &ext {
-            Some(e) => format!("{} ({}).{}", stem, n, e),
-            None    => format!("{} ({})", stem, n),
-        };
-        dest = PathBuf::from(&downloads).join(candidate);
-        n += 1;
+    let url = format!("http://{}:61799/chat-file/{}", ip, file_id);
+    let resp = client.get(&url).send().await.map_err(|e| {
+        if e.is_connect() || e.is_timeout() {
+            "상대방 기기에 연결할 수 없습니다 (꺼져있거나 네트워크가 다름)".to_string()
+        } else {
+            format!("요청 실패: {}", e)
+        }
+    })?;
+
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err("상대방이 앱을 재시작해서 공유가 만료됐습니다. 다시 보내달라고 요청하세요".to_string());
     }
-    std::fs::write(&dest, &bytes).map_err(|e| e.to_string())?;
-    state.log(&format!("chat: file saved {}", dest.display()));
-    Ok(dest.to_string_lossy().into_owned())
+    if !resp.status().is_success() {
+        return Err(format!("다운로드 실패: HTTP {}", resp.status()));
+    }
+
+    let total = resp.content_length();
+    let mut file = tokio::fs::File::create(&dest_path).await
+        .map_err(|e| format!("파일 저장 실패: {}", e))?;
+
+    let mut received: u64 = 0;
+    let mut stream = resp.bytes_stream();
+    let mut last_emit = std::time::Instant::now();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("전송 중 연결이 끊어짐: {}", e))?;
+        file.write_all(&chunk).await.map_err(|e| format!("파일 저장 실패: {}", e))?;
+        received += chunk.len() as u64;
+        if last_emit.elapsed().as_millis() >= 150 {
+            let _ = app.emit("chat-download-progress", serde_json::json!({
+                "fileId": file_id, "received": received, "total": total,
+            }));
+            last_emit = std::time::Instant::now();
+        }
+    }
+    let _ = app.emit("chat-download-progress", serde_json::json!({
+        "fileId": file_id, "received": received, "total": total, "done": true,
+    }));
+
+    state.log(&format!("chat: file saved {}", dest_path));
+    Ok(dest_path)
 }
 
 // ─── commands: calendar ───────────────────────────────────────────────────────
@@ -659,6 +692,13 @@ async fn run_control(state: Arc<AppState>, app: AppHandle) {
 
                     state.log(&format!("control: {} {} from={}", method, path, from));
 
+                    if method == "GET" {
+                        if let Some(file_id) = path.strip_prefix("/chat-file/") {
+                            serve_chat_file(&mut stream, &state, file_id).await;
+                            return;
+                        }
+                    }
+
                     let resp = handle_control(method, path, body.as_deref(), &state, &app).await;
                     let _ = stream.write_all(&resp).await;
                 });
@@ -683,33 +723,43 @@ fn http_text(body: &str) -> Vec<u8> {
     ).into_bytes()
 }
 
-fn http_file(bytes: &[u8], filename: &str) -> Vec<u8> {
+// chat 첨부파일은 디스크→네트워크로 직접 스트리밍 — 대용량 파일도 메모리에 전체를 올리지 않음
+async fn serve_chat_file(stream: &mut tokio::net::TcpStream, state: &Arc<AppState>, file_id: &str) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let path_opt = { state.shared_files.lock().await.get(file_id).cloned() };
+    let Some(path) = path_opt else {
+        let _ = stream.write_all(&http_json(404, "{\"error\":\"not found\"}")).await;
+        return;
+    };
+    let mut file = match tokio::fs::File::open(&path).await {
+        Ok(f) => f,
+        Err(e) => {
+            let _ = stream.write_all(&http_json(404, &format!("{{\"error\":\"file not readable: {}\"}}", e))).await;
+            return;
+        }
+    };
+    let len = file.metadata().await.map(|m| m.len()).unwrap_or(0);
+    let name = path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "file".to_string());
     let header = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=\"{}\"\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n",
-        filename, bytes.len()
+        "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=\"{}\"\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n",
+        name, len
     );
-    let mut out = header.into_bytes();
-    out.extend_from_slice(bytes);
-    out
+    if stream.write_all(header.as_bytes()).await.is_err() { return; }
+
+    let mut buf = vec![0u8; 256 * 1024];
+    loop {
+        let n = match file.read(&mut buf).await {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(e) => { state.log(&format!("control: chat-file read error: {}", e)); break; }
+        };
+        if stream.write_all(&buf[..n]).await.is_err() { break; }
+    }
 }
 
 async fn handle_control(method: &str, path: &str, body: Option<&str>, state: &Arc<AppState>, app: &AppHandle) -> Vec<u8> {
     let sp = &state.settings_path;
-    if method == "GET" {
-        if let Some(file_id) = path.strip_prefix("/chat-file/") {
-            let guard = state.shared_files.lock().await;
-            return match guard.get(file_id) {
-                Some(p) => {
-                    let name = p.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "file".to_string());
-                    match std::fs::read(p) {
-                        Ok(bytes) => http_file(&bytes, &name),
-                        Err(_)    => http_json(404, "{\"error\":\"file not readable\"}"),
-                    }
-                }
-                None => http_json(404, "{\"error\":\"not found\"}"),
-            };
-        }
-    }
     match (method, path) {
         ("GET", "/status") => {
             let s = system::read_settings(sp);
@@ -1095,6 +1145,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(state.clone())
         .manage(PendingEvents(std::sync::Mutex::new(std::collections::HashMap::new())))
         .manage(TestHandle(std::sync::Mutex::new(None)))

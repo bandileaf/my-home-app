@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { save } from '@tauri-apps/plugin-dialog'
 import { Send, Trash2, File as FileIcon } from 'lucide-react'
 import type { UserSession, UserProfile } from '../types'
 import type { useChat } from '../hooks/useChat'
@@ -47,28 +48,48 @@ function format_size(bytes: number): string {
 
 function FileMessage({ senderUserId, meta }: { senderUserId: string; meta: { id: string; name: string; size: number } }){
   const [status, set_status] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
+  const [progress, set_progress] = useState(-1) // -1 = 전체 크기 모름(진행바 숨김)
+  const [error_msg, set_error_msg] = useState('')
 
-  async function save(){
+  async function start_save(){
     if (status === 'saving') return
+    const dest_path = await save({ defaultPath: meta.name }).catch(() => null)
+    if (!dest_path) return // 사용자가 취소
+
     set_status('saving')
+    set_progress(-1)
+    const unsub = await listen<{ fileId: string; received: number; total?: number }>('chat-download-progress', (e) => {
+      if (e.payload.fileId !== meta.id) return
+      set_progress(e.payload.total ? Math.min(100, Math.round((e.payload.received / e.payload.total) * 100)) : -1)
+    })
     try {
-      await invoke('chat_save_file', { senderUserId, fileId: meta.id, fileName: meta.name })
+      await invoke('chat_save_file', { senderUserId, fileId: meta.id, destPath: dest_path })
       set_status('done')
       setTimeout(() => set_status('idle'), 3000)
-    } catch {
+    } catch (e) {
+      set_error_msg(String(e))
       set_status('error')
-      setTimeout(() => set_status('idle'), 3000)
+      setTimeout(() => set_status('idle'), 8000)
+    } finally {
+      unsub()
     }
   }
 
-  const label = status === 'saving' ? '저장 중...' : status === 'done' ? '다운로드 폴더에 저장됨' : status === 'error' ? '저장 실패' : format_size(meta.size)
+  const label = status === 'saving'
+    ? (progress >= 0 ? `저장 중... ${progress}%` : '저장 중...')
+    : status === 'done' ? '저장 완료'
+    : status === 'error' ? error_msg
+    : format_size(meta.size)
 
   return (
-    <div className="chat-file" onClick={save} role="button">
+    <div className="chat-file" onClick={start_save} role="button">
       <FileIcon size={22} strokeWidth={1.5} />
       <div className="chat-file-info">
         <span className="chat-file-name">{meta.name}</span>
-        <span className="chat-file-meta">{label}</span>
+        <span className={`chat-file-meta ${status === 'error' ? 'chat-file-meta-error' : ''}`}>{label}</span>
+        {status === 'saving' && progress >= 0 && (
+          <div className="chat-file-progress"><div className="chat-file-progress-fill" style={{ width: `${progress}%` }} /></div>
+        )}
       </div>
     </div>
   )
